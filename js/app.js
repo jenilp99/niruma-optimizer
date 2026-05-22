@@ -1849,8 +1849,10 @@ function saveWindowEdit(event) {
         updatedWindow.topWidth = parseFloat(document.getElementById('editDoorTopWidth').value);
         updatedWindow.middleWidth = parseFloat(document.getElementById('editDoorMiddleWidth').value);
 
-        // Bottom width logic
-        updatedWindow.bottomWidth = (updatedWindow.bottomProfile === 'Door Top') ? 47.5 : 114.5;
+        // Bottom width logic (must match addDoor() logic)
+        if (updatedWindow.bottomProfile === 'Door Top 47.5')  updatedWindow.bottomWidth = 47.5;
+        else if (updatedWindow.bottomProfile === 'Door Top 85') updatedWindow.bottomWidth = 85;
+        else updatedWindow.bottomWidth = 114.5; // Door Bottom is always 114.5mm
 
         // Force defaults
         updatedWindow.tracks = 0;
