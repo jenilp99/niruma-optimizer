@@ -322,10 +322,9 @@ window.registerSupplier("JK ALU EXTRUSION", {
         // Door Series - F = Frame (1=YES, 0=NO)
         // LEG_PARTITION_WIDTH = 38.5mm = 1.516", PLAY = 1.5mm = 0.059"
         // Frame Side Deduction = 40mm = 1.575" (each side)
-        // Frame Top Deduction = 40mm = 1.575"
-        // DW = Door Width = W - (F * 3.15)  [80mm/25.4 = 3.15"]
-        // DH = Door Height = H - (F * 1.575) [40mm/25.4 = 1.575"]
-        // Vertical deduction = 41.5mm = 1.634" (38.5 + 1.5 + 1.5)
+        // Frame Deduction per side = 40mm = 1.575"
+        // DW = Door Width  = W - (F * 3.15)  [2 sides × 40mm = 80mm / 25.4 = 3.15"]
+        // DH = Door Height = H - (F * 1.575) [1 side  × 40mm        / 25.4 = 1.575"]
         // HW = Handle/Hing Width = 47.5mm = 1.87" (default, or 85mm = 3.35")
         // TW = Door Top Width (from user selection)
         // BW = Door Bottom Width (from user selection)
@@ -333,10 +332,10 @@ window.registerSupplier("JK ALU EXTRUSION", {
         // VW = Vertical Width (Handle + Hing, from user selection)
         'Door': [
             // Door Vertical Handle - 1 per leaf (L)
-            { component: 'Door Vertical', qty: 'L', length: 'H - (F*1.575) - 1.634', desc: 'Vertical Handle' },
+            { component: 'Door Vertical', qty: 'L', length: 'H - (F*1.575)', desc: 'Vertical Handle' },
 
             // Door Vertical Hing - 1 per leaf (L)
-            { component: 'Door Vertical', qty: 'L', length: 'H - (F*1.575) - 1.634', desc: 'Vertical Hing' },
+            { component: 'Door Vertical', qty: 'L', length: 'H - (F*1.575)', desc: 'Vertical Hing' },
 
             // Door Top - 1 per leaf, width split equally across leaves
             { component: 'Door Top', qty: 'L', length: '(W - (F*3.15)) / L - 2*VW', desc: 'Top Rail' },

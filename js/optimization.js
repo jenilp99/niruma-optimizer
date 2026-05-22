@@ -181,7 +181,7 @@ function runOptimization() {
 // Auto-select hinge side vertical profile (Door Bottom vs Door Top) by comparing
 // cut wastage against available stock lengths. Defaults to Door Bottom.
 function selectHingeSideProfile(win, supplierData) {
-    const pieceLen = win.height - ((win.frame || 0) * 1.575) - 1.634;
+    const pieceLen = win.height - ((win.frame || 0) * 1.575);
     const doorStock = (supplierData && supplierData.stock && supplierData.stock['Door']) || [];
 
     const calcMinWaste = (materialName) => {
@@ -244,7 +244,7 @@ function selectTopRailProfile(win, supplierData, handleVW, hingeVW) {
 
     const L        = win.leaves || 1;
     const F        = win.frame  || 0;
-    const stileLen = win.height - (F * 1.575) - 1.634;
+    const stileLen = win.height - (F * 1.575);
     const railLen  = (win.width  - (F * 3.15)) / L - handleVW - hingeVW;
 
     if (railLen <= 0 || stileLen <= 0) return 'Door Top';
@@ -327,8 +327,8 @@ function generateDoorProfileFormulas(win, supplierData) {
     // ─────────────────────────────────────────────────────────────────────────
 
     return [
-        { component: handleComp,           qty: 'L',   length: 'H - (F*1.575) - 1.634',                   desc: 'Vertical Handle' },
-        { component: hingeComp,            qty: 'L',   length: 'H - (F*1.575) - 1.634',                   desc: 'Vertical Hing' },
+        { component: handleComp,           qty: 'L',   length: 'H - (F*1.575)',                            desc: 'Vertical Handle' },
+        { component: hingeComp,            qty: 'L',   length: 'H - (F*1.575)',                            desc: 'Vertical Hing' },
         { component: topRailComp,          qty: 'L',   length: '(W - (F*3.15)) / L - HandleVW - HingeVW', desc: 'Top Rail' },
         { component: 'Door Bottom',        qty: 'L',   length: '(W - (F*3.15)) / L - HandleVW - HingeVW', desc: 'Bottom Rail' },
         { component: 'Door Middle Double', qty: 'L',   length: '(W - (F*3.15)) / L - HandleVW - HingeVW', desc: 'Middle Rail' },

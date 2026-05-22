@@ -224,9 +224,9 @@ window.registerSupplier("Windalco Aluminium", {
         // Door Formulas (same as JK ALU for universal compatibility)
         'Door': [
             // Door Vertical Handle - 1 per leaf (L)
-            { component: 'Door Vertical', qty: 'L', length: 'H - (F*1.575) - 1.634', desc: 'Vertical Handle' },
+            { component: 'Door Vertical', qty: 'L', length: 'H - (F*1.575)', desc: 'Vertical Handle' },
             // Door Vertical Hing - 1 per leaf (L)
-            { component: 'Door Vertical', qty: 'L', length: 'H - (F*1.575) - 1.634', desc: 'Vertical Hing' },
+            { component: 'Door Vertical', qty: 'L', length: 'H - (F*1.575)', desc: 'Vertical Hing' },
             // Door Top - 1 per leaf, width split across leaves
             { component: 'Door Top', qty: 'L', length: '(W - (F*3.15)) / L - 2*VW', desc: 'Top Rail' },
             // Door Bottom - 1 per leaf, width split across leaves
