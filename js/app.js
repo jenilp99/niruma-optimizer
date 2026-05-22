@@ -202,6 +202,16 @@ function initializeDefaults() {
                 updated = true;
             }
         });
+
+        // Always force-refresh 'Door' series from registry — Door formulas are
+        // dynamically generated at optimization time, so the static display formulas
+        // must always match the latest supplier file (never use stale localStorage version).
+        if (defaultFormulas['Door']) {
+            seriesFormulas['Door'] = JSON.parse(JSON.stringify(defaultFormulas['Door']));
+            console.log('🚪 Door formulas force-refreshed from supplier registry');
+            updated = true;
+        }
+
         if (updated) autoSaveFormulas();
     }
 
