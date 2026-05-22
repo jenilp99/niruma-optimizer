@@ -574,10 +574,17 @@
                                 </div>
                                 <div class="form-group">
                                     <label>Handle Side Profile <span style="font-size:11px;color:#888;">(non-hinge)</span></label>
-                                    <select id="doorHandleProfileNew">
+                                    <select id="doorHandleProfileNew" onchange="updateHandleWidthOptions()">
                                         <option value="Door Vertical" selected>Door Vertical (Standard)</option>
                                         <option value="Door Tips Vertical">Door Tips Vertical</option>
                                         <option value="Door Middle Single">Door Middle Single (DMS)</option>
+                                    </select>
+                                </div>
+                                <div class="form-group" id="doorHandleWidthGroup">
+                                    <label>Handle Width</label>
+                                    <select id="doorHandleWidthNew">
+                                        <option value="47.5" selected>47.5mm (Standard)</option>
+                                        <option value="85">85mm (Wide)</option>
                                     </select>
                                 </div>
                                 <div class="form-group" id="doorHingeSideFSGroup" style="display:none;">

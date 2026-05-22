@@ -205,7 +205,7 @@ function selectHingeSideProfile(win, supplierData) {
 function generateDoorProfileFormulas(win, supplierData) {
     const HANDLE_COMP = {
         'Door Vertical':      'Door Vertical',
-        'Door Tips Vertical': 'Tips Vertical',
+        'Door Tips Vertical': 'Door Tips Vertical',
         'Door Middle Single':  'Door Middle Single'
     };
 
@@ -213,23 +213,46 @@ function generateDoorProfileFormulas(win, supplierData) {
 
     let hingeComp;
     if ((win.closingMechanism || 'Hinge') === 'Hinge') {
-        hingeComp = selectHingeSideProfile(win, supplierData);
+        // DMS handle always pairs with Door Top on hinge side
+        if (win.handleProfile === 'Door Middle Single') {
+            hingeComp = 'Door Top';
+        } else {
+            hingeComp = selectHingeSideProfile(win, supplierData);
+        }
     } else {
         // Floor Spring: user-selectable hinge side (default = same as handle side)
         hingeComp = HANDLE_COMP[win.floorSpringHingeProfile] || handleComp;
     }
 
+    // ── Compute actual profile widths (mm → inches) ──────────────────────────
+    // Handle side width
+    let handleWidthMM;
+    if      (handleComp === 'Door Tips Vertical')  handleWidthMM = 47.5;
+    else if (handleComp === 'Door Middle Single')  handleWidthMM = win.middleWidth || 47.5;
+    else                                           handleWidthMM = win.handleWidth || win.verticalWidth || 47.5; // Door Vertical
+
+    // Hinge side width
+    let hingeWidthMM;
+    if      (hingeComp === 'Door Bottom') hingeWidthMM = win.bottomWidth || 114.3;
+    else if (hingeComp === 'Door Top')    hingeWidthMM = win.topWidth    || 47.5;
+    else                                  hingeWidthMM = win.middleWidth || 47.5;
+
+    // Store on win so calculatePieces can inject into safeEval context
+    win._handleVW = handleWidthMM / 25.4;
+    win._hingeVW  = hingeWidthMM  / 25.4;
+    // ─────────────────────────────────────────────────────────────────────────
+
     return [
-        { component: handleComp,           qty: 'L', length: 'H - (F*1.575) - 1.634',         desc: 'Vertical Handle' },
-        { component: hingeComp,            qty: 'L', length: 'H - (F*1.575) - 1.634',         desc: 'Vertical Hing' },
-        { component: 'Door Top',           qty: 'L', length: '(W - (F*3.15)) / L - 2*VW',     desc: 'Top Rail' },
-        { component: 'Door Bottom',        qty: 'L', length: '(W - (F*3.15)) / L - 2*VW',     desc: 'Bottom Rail' },
-        { component: 'Door Middle Double', qty: 'L', length: '(W - (F*3.15)) / L - 2*VW',     desc: 'Middle Rail' },
-        { component: 'Door Leg Partition', qty: '1*F', length: 'W',                            desc: 'Frame Top' },
-        { component: 'Door Leg Partition', qty: '1*F', length: 'H',                            desc: 'Frame Left' },
-        { component: 'Door Leg Partition', qty: '1*F', length: 'H',                            desc: 'Frame Right' },
-        { component: 'Door Glazing Clip',  qty: '8*L', length: '(H - (F*1.575) - TW - BW - MW) / 2', desc: 'Glazing Clip Vertical' },
-        { component: 'Door Glazing Clip',  qty: '8*L', length: '(W - (F*3.15)) / L - 2*VW',  desc: 'Glazing Clip Horizontal' }
+        { component: handleComp,           qty: 'L',   length: 'H - (F*1.575) - 1.634',                   desc: 'Vertical Handle' },
+        { component: hingeComp,            qty: 'L',   length: 'H - (F*1.575) - 1.634',                   desc: 'Vertical Hing' },
+        { component: 'Door Top',           qty: 'L',   length: '(W - (F*3.15)) / L - HandleVW - HingeVW', desc: 'Top Rail' },
+        { component: 'Door Bottom',        qty: 'L',   length: '(W - (F*3.15)) / L - HandleVW - HingeVW', desc: 'Bottom Rail' },
+        { component: 'Door Middle Double', qty: 'L',   length: '(W - (F*3.15)) / L - HandleVW - HingeVW', desc: 'Middle Rail' },
+        { component: 'Door Leg Partition', qty: '1*F', length: 'W',                                        desc: 'Frame Top' },
+        { component: 'Door Leg Partition', qty: '1*F', length: 'H',                                        desc: 'Frame Left' },
+        { component: 'Door Leg Partition', qty: '1*F', length: 'H',                                        desc: 'Frame Right' },
+        { component: 'Door Glazing Clip',  qty: '8*L', length: '(H - (F*1.575) - TW - BW - MW) / 2',      desc: 'Glazing Clip Vertical' },
+        { component: 'Door Glazing Clip',  qty: '8*L', length: '(W - (F*3.15)) / L - HandleVW - HingeVW', desc: 'Glazing Clip Horizontal' }
     ];
 }
 
@@ -241,10 +264,10 @@ function generateDoorProfileFormulas(win, supplierData) {
 function safeEval(formula, context, defaultValue = 0) {
     try {
         // Create variables from context
-        const { W, H, S, MS, T, P, CJ, IT, GT, MT, MIT, F, VW, TW, MW, BW, L } = context;
+        const { W, H, S, MS, T, P, CJ, IT, GT, MT, MIT, F, VW, TW, MW, BW, L, HandleVW, HingeVW } = context;
         // Use a function constructor for slightly better safety than eval()
-        const fn = new Function('W', 'H', 'S', 'MS', 'T', 'P', 'CJ', 'IT', 'GT', 'MT', 'MIT', 'F', 'VW', 'TW', 'MW', 'BW', 'L', `return ${formula}`);
-        return fn(W, H, S, MS, T, P, CJ, IT, GT, MT, MIT, F, VW, TW, MW, BW, L);
+        const fn = new Function('W', 'H', 'S', 'MS', 'T', 'P', 'CJ', 'IT', 'GT', 'MT', 'MIT', 'F', 'VW', 'TW', 'MW', 'BW', 'L', 'HandleVW', 'HingeVW', `return ${formula}`);
+        return fn(W, H, S, MS, T, P, CJ, IT, GT, MT, MIT, F, VW, TW, MW, BW, L, HandleVW, HingeVW);
     } catch (e) {
         console.error('SafeEval Error:', e, 'Formula:', formula);
         return defaultValue;
@@ -335,10 +358,13 @@ function calculatePieces(selectedProject, preferredSupplier) {
             T: win.tracks,
             F: win.frame || 0, // Frame for doors (1=YES, 0=NO)
             // Profile widths for doors (stored in mm, convert to inches)
-            VW: (win.verticalWidth || 47.5) / 25.4,  // Vertical Width (Handle + Hing)
+            VW: (win.verticalWidth || 47.5) / 25.4,  // Legacy fallback (shared vertical width)
             TW: (win.topWidth || 47.5) / 25.4,       // Top Width
-            MW: (win.middleWidth || 47.5) / 25.4,    // Middle Width  
-            BW: (win.bottomWidth || 85) / 25.4,      // Bottom Width
+            MW: (win.middleWidth || 47.5) / 25.4,    // Middle Width
+            BW: (win.bottomWidth || 114.3) / 25.4,   // Bottom Width
+            // Door-specific: individual stile widths (set by generateDoorProfileFormulas)
+            HandleVW: win._handleVW || (win.handleWidth || win.verticalWidth || 47.5) / 25.4,
+            HingeVW:  win._hingeVW  || (win.bottomWidth || 114.3) / 25.4,
             P: (win.width * 2 + win.height * 2),
             CJ: win.cornerJoint || 90,
             IT: win.interlockType || 'slim',
@@ -363,17 +389,8 @@ function calculatePieces(selectedProject, preferredSupplier) {
             const length = Math.round(parseFloat(lenVal) * 100) / 100;
 
             if (qty > 0 && length > 0) {
-                // Override component name based on user selection
+                // Component name comes directly from generateDoorProfileFormulas (already correct)
                 let componentName = formula.component;
-
-                // Special case: "Door Middle Single" implies Vertical Hing uses "Door Top"
-                if (win.handleProfile === 'Door Middle Single' && formula.desc === 'Vertical Hing') {
-                    componentName = 'Door Top';
-                }
-                // Standard case: Replace "Door Vertical" placeholder with selected handle profile
-                else if (win.handleProfile && componentName === 'Door Vertical') {
-                    componentName = win.handleProfile;
-                }
 
                 if (win.bottomProfile && componentName === 'Door Bottom') {
                     componentName = win.bottomProfile;

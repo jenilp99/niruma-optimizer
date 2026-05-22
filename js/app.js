@@ -941,8 +941,8 @@ function addDoor(event) {
         upperPartition,
         lowerPartition,
         handleProfile: document.getElementById('doorHandleProfileNew').value,
+        handleWidth:   parseFloat(document.getElementById('doorHandleWidthNew').value) || 47.5,
         bottomProfile,
-        verticalWidth: 47.5,
         topWidth:    parseFloat(document.getElementById('doorTopWidthNew').value),
         middleWidth: parseFloat(document.getElementById('doorMiddleWidthNew').value),
         bottomWidth,
@@ -1001,6 +1001,27 @@ function toggleDoubleDoorOptions() {
     const isDouble = document.getElementById('doorType')?.value === 'double';
     const opts = document.getElementById('doubleDoorOptions');
     if (opts) opts.style.display = isDouble ? 'block' : 'none';
+}
+
+// Show/hide Handle Width dropdown — Tips Vertical is always 47.5mm (fixed), others need user selection
+function updateHandleWidthOptions() {
+    const profile   = document.getElementById('doorHandleProfileNew')?.value;
+    const widthGrp  = document.getElementById('doorHandleWidthGroup');
+    const widthSel  = document.getElementById('doorHandleWidthNew');
+    if (!widthGrp || !widthSel) return;
+
+    if (profile === 'Door Tips Vertical') {
+        // Fixed width — hide selector, force 47.5
+        widthGrp.style.display = 'none';
+        widthSel.value = '47.5';
+    } else if (profile === 'Door Middle Single') {
+        // DMS uses middleWidth, not a separate handle width — hide selector
+        widthGrp.style.display = 'none';
+        widthSel.value = '47.5';
+    } else {
+        // Door Vertical — user picks 47.5mm or 85mm
+        widthGrp.style.display = '';
+    }
 }
 
 function toggleClosingMechanism() {
