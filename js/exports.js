@@ -117,11 +117,48 @@ function displayResults() {
         // Escape quotes to prevent broken HTML attributes
         const safeKey = key.replace(/"/g, '&quot;').replace(/'/g, "\\'");
 
-        html += `<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
-            <h3 style="margin: 0;">📏 ${materialTitle}</h3>
+        // ── Door function badges ─────────────────────────────────────────────
+        // For Door profiles, extract which door functions use this profile
+        // so the user can see e.g. "Door Bottom → Bottom Rail • Hinge Stile"
+        const DOOR_FUNC_STYLE = {
+            'Vertical Handle':       'background:#1565c0;color:#fff',
+            'Vertical Hing':         'background:#6a1b9a;color:#fff',
+            'Top Rail':              'background:#00695c;color:#fff',
+            'Bottom Rail':           'background:#2e7d32;color:#fff',
+            'Middle Rail':           'background:#e65100;color:#fff',
+            'Frame Top':             'background:#4e342e;color:#fff',
+            'Frame Left':            'background:#4e342e;color:#fff',
+            'Frame Right':           'background:#4e342e;color:#fff',
+            'Glazing Clip Vertical': 'background:#37474f;color:#fff',
+            'Glazing Clip Horizontal':'background:#37474f;color:#fff',
+        };
+        let doorFuncBadges = '';
+        if (key.startsWith('Door |')) {
+            const funcSet = new Set();
+            plans.forEach(plan => plan.pieces.forEach(p => {
+                // label format: "D01 - Bottom Rail"
+                const parts = p.label.split(' - ');
+                if (parts.length >= 2) funcSet.add(parts.slice(1).join(' - '));
+            }));
+            if (funcSet.size > 0) {
+                const badges = [...funcSet].map(fn => {
+                    const style = DOOR_FUNC_STYLE[fn] || 'background:#546e7a;color:#fff';
+                    return `<span style="${style};padding:2px 8px;border-radius:10px;font-size:11px;font-weight:600;margin-right:4px;">${fn}</span>`;
+                }).join('');
+                doorFuncBadges = `<div style="margin-top:6px;margin-bottom:2px;">
+                    <span style="font-size:11px;color:#666;margin-right:6px;">Used as:</span>${badges}</div>`;
+            }
+        }
+        // ────────────────────────────────────────────────────────────────────
+
+        html += `<div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 10px;">
             <div>
+                <h3 style="margin: 0;">📏 ${materialTitle}</h3>
+                ${doorFuncBadges}
+            </div>
+            <div style="display:flex;align-items:center;gap:8px;flex-shrink:0;padding-top:2px;">
                 ${sectionInfo}
-                <button class="btn btn-warning btn-sm" style="margin-left: 10px;" onclick="openSectionSelectModal('${safeKey}')">🔗 Select Thickness</button>
+                <button class="btn btn-warning btn-sm" onclick="openSectionSelectModal('${safeKey}')">🔗 Select Thickness</button>
             </div>
         </div>`;
 
@@ -129,8 +166,8 @@ function displayResults() {
             <strong style="font-size: 15px; color: #2e7d32">Material Summary</strong><br>
             <div style="margin-top: 8px; font-size: 14px; line-height: 1.8">
                 <strong>Requirements:</strong> ${requirementStr}<br>
-                <strong>Total Used Length:</strong> ${materialUsed.toFixed(2)}" 
-                <strong>Total Waste:</strong> ${materialWaste.toFixed(2)}" 
+                <strong>Total Used Length:</strong> ${materialUsed.toFixed(2)}"
+                <strong>Total Waste:</strong> ${materialWaste.toFixed(2)}"
                 <strong>Efficiency:</strong> ${materialEfficiency}%
             </div>
         </div>`;
@@ -139,7 +176,15 @@ function displayResults() {
         
         let cutNumber = 1;
         plans.forEach((plan, idx) => {
-            const piecesStr = plan.pieces.map(p => p.length.toFixed(2) + '" (' + p.label + ')').join(', ');
+            const piecesStr = plan.pieces.map(p => {
+                // For door pieces, show function first, config ID secondary
+                if (key.startsWith('Door |') && p.label.includes(' - ')) {
+                    const [configId, ...funcParts] = p.label.split(' - ');
+                    const func = funcParts.join(' - ');
+                    return `${p.length.toFixed(2)}" (<strong>${func}</strong> <span style="color:#999;font-size:11px;">${configId}</span>)`;
+                }
+                return p.length.toFixed(2) + '" (' + p.label + ')';
+            }).join(', ');
             const cutSequence = plan.pieces.map(() => '#' + (cutNumber++)).join(', ');
             
             html += '<tr>';
