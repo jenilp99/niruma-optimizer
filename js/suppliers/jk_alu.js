@@ -337,14 +337,14 @@ window.registerSupplier("JK ALU EXTRUSION", {
             // Door Vertical Hing - 1 per leaf (L)
             { component: 'Door Vertical', qty: 'L', length: 'H - (F*1.575)', desc: 'Vertical Hing' },
 
-            // Door Top - 1 per leaf, width split equally across leaves
-            { component: 'Door Top', qty: 'L', length: '(W - (F*3.15)) / L - 2*VW', desc: 'Top Rail' },
+            // Door Top - 1 per leaf, width minus handle + hinge stile widths
+            { component: 'Door Top', qty: 'L', length: '(W - (F*3.15)) / L - HandleVW - HingeVW', desc: 'Top Rail' },
 
-            // Door Bottom - 1 per leaf, width split equally across leaves
-            { component: 'Door Bottom', qty: 'L', length: '(W - (F*3.15)) / L - 2*VW', desc: 'Bottom Rail' },
+            // Door Bottom - 1 per leaf
+            { component: 'Door Bottom', qty: 'L', length: '(W - (F*3.15)) / L - HandleVW - HingeVW', desc: 'Bottom Rail' },
 
-            // Door Middle Double - 1 per leaf
-            { component: 'Door Middle Double', qty: 'L', length: '(W - (F*3.15)) / L - 2*VW', desc: 'Middle Rail' },
+            // Door Middle Double - 1 per leaf (always DMD, never DMS)
+            { component: 'Door Middle Double', qty: 'L', length: '(W - (F*3.15)) / L - HandleVW - HingeVW', desc: 'Middle Rail' },
 
             // Frame - Leg Partition (Only if F=1), 3 sides: top, left, right (no bottom)
             { component: 'Door Leg Partition', qty: '1*F', length: 'W', desc: 'Frame Top' },
@@ -355,7 +355,7 @@ window.registerSupplier("JK ALU EXTRUSION", {
             { component: 'Door Glazing Clip', qty: '8*L', length: '(H - (F*1.575) - TW - BW - MW) / 2', desc: 'Glazing Clip Vertical' },
 
             // Door Glazing Clip - Horizontal (4 per pane × 2 panes per leaf)
-            { component: 'Door Glazing Clip', qty: '8*L', length: '(W - (F*3.15)) / L - 2*VW', desc: 'Glazing Clip Horizontal' }
+            { component: 'Door Glazing Clip', qty: '8*L', length: '(W - (F*3.15)) / L - HandleVW - HingeVW', desc: 'Glazing Clip Horizontal' }
         ]
     },
 
