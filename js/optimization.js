@@ -213,12 +213,9 @@ function generateDoorProfileFormulas(win, supplierData) {
 
     let hingeComp;
     if ((win.closingMechanism || 'Hinge') === 'Hinge') {
-        // DMS handle always pairs with Door Top on hinge side
-        if (win.handleProfile === 'Door Middle Single') {
-            hingeComp = 'Door Top';
-        } else {
-            hingeComp = selectHingeSideProfile(win, supplierData);
-        }
+        // Hinge side is always Door Bottom (preferred) or Door Top (by least wastage)
+        // — regardless of which handle profile is selected
+        hingeComp = selectHingeSideProfile(win, supplierData);
     } else {
         // Floor Spring: user-selectable hinge side (default = same as handle side)
         hingeComp = HANDLE_COMP[win.floorSpringHingeProfile] || handleComp;
@@ -394,11 +391,6 @@ function calculatePieces(selectedProject, preferredSupplier) {
 
                 if (win.bottomProfile && componentName === 'Door Bottom') {
                     componentName = win.bottomProfile;
-                }
-
-                // Top Rail Optimization: Use "Door Middle Single" if that is the handle profile (consolidate material)
-                if (componentName === 'Door Top' && win.handleProfile === 'Door Middle Single') {
-                    componentName = 'Door Middle Single';
                 }
 
                 const targetSeries = formula.series || seriesName;
