@@ -1759,16 +1759,20 @@ function generateDoorDiagram(config) {
 // HARDWARE CALCULATIONS
 // ============================================================================
 
-// Safe evaluation helper for hardware formulas
+// Safe evaluation helper — shared by optimization and hardware/quotation formulas
+// Must include ALL variables used by any formula (door rail formulas need HandleVW, HingeVW)
 function safeEval(formula, context, defaultValue = 0) {
     try {
-        const { W, H, S, MS, T, P, GL, F, VW, TW, MW, BW, L } = context;
-        // Use Function constructor for isolation and safety
-        const fn = new Function('W', 'H', 'S', 'MS', 'T', 'P', 'GL', 'F', 'VW', 'TW', 'MW', 'BW', 'L', `return ${formula}`);
-        const result = fn(W, H, S, MS, T, P, GL, F, VW, TW, MW, BW, L);
+        const { W, H, S, MS, T, P, GL, CJ, IT, GT, MT, MIT, F, VW, TW, MW, BW, L, HandleVW, HingeVW } = context;
+        const fn = new Function(
+            'W', 'H', 'S', 'MS', 'T', 'P', 'GL', 'CJ', 'IT', 'GT', 'MT', 'MIT',
+            'F', 'VW', 'TW', 'MW', 'BW', 'L', 'HandleVW', 'HingeVW',
+            `return ${formula}`
+        );
+        const result = fn(W, H, S, MS, T, P, GL, CJ, IT, GT, MT, MIT, F, VW, TW, MW, BW, L, HandleVW, HingeVW);
         return isNaN(result) ? defaultValue : result;
     } catch (e) {
-        console.error('SafeEval Error (Hardware):', e, 'Formula:', formula);
+        console.error('SafeEval Error:', e, 'Formula:', formula);
         return defaultValue;
     }
 }
