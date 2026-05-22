@@ -200,6 +200,80 @@ function selectHingeSideProfile(win, supplierData) {
     return calcMinWaste('Door Top') < calcMinWaste('Door Bottom') ? 'Door Top' : 'Door Bottom';
 }
 
+// ── Top Rail Profile Selection ────────────────────────────────────────────────
+// Get minimum section weight (kg per 12ft / 144") for a Door profile.
+function getDoorProfileWeight(materialName, supplierData) {
+    const doorSections = supplierData && supplierData.sections && supplierData.sections['Door'];
+    if (!doorSections || !doorSections[materialName]) return null;
+    const weights = doorSections[materialName]
+        .map(s => parseFloat(s.weight))
+        .filter(w => w > 0);
+    return weights.length ? Math.min(...weights) : null;
+}
+
+// Estimate total kg purchased for a set of pieces against a stock pool.
+// pieces: [{length (inches), qty}], stockItems: [{stock1, stock2}], weightPer144: kg per 144"
+function estimatePiecesKg(pieces, stockItems, weightPer144) {
+    if (!stockItems || !stockItems.length || !weightPer144) return Infinity;
+    const KERF = 0.125;
+    let bestKg = Infinity;
+    for (const stock of stockItems) {
+        for (const stockLen of [stock.stock1, stock.stock2].filter(Boolean)) {
+            // Total length needed (with kerf per piece)
+            const totalLen = pieces.reduce((s, p) => s + (p.length + KERF) * p.qty, 0);
+            const sticks   = Math.ceil(totalLen / stockLen);
+            const kg       = sticks * (weightPer144 * stockLen / 144);
+            if (kg < bestKg) bestKg = kg;
+        }
+    }
+    return bestKg;
+}
+
+// Select top rail profile: Door Top (lighter, default) vs Door Bottom (merged pool).
+// Rules:
+//  1. topWidth must equal bottomWidth — otherwise must stay Door Top
+//  2. Compare total kg for Option A (Door Top separate + Door Bottom for bottom+hinge)
+//     vs Option B (Door Bottom for top+bottom+hinge merged)
+//  3. Use Door Bottom only if it strictly reduces total kg; tie → Door Top
+function selectTopRailProfile(win, supplierData, handleVW, hingeVW) {
+    const topWidthMM    = win.topWidth    || 47.5;
+    const bottomWidthMM = win.bottomWidth || 114.3;
+
+    // Rule 1: widths must match
+    if (Math.abs(topWidthMM - bottomWidthMM) > 0.1) return 'Door Top';
+
+    const L        = win.leaves || 1;
+    const F        = win.frame  || 0;
+    const stileLen = win.height - (F * 1.575) - 1.634;
+    const railLen  = (win.width  - (F * 3.15)) / L - handleVW - hingeVW;
+
+    if (railLen <= 0 || stileLen <= 0) return 'Door Top';
+
+    const doorStock   = (supplierData && supplierData.stock && supplierData.stock['Door']) || [];
+    const topStock    = doorStock.filter(s => s.material === 'Door Top');
+    const bottomStock = doorStock.filter(s => s.material === 'Door Bottom');
+
+    if (!topStock.length || !bottomStock.length) return 'Door Top';
+
+    const wTop    = getDoorProfileWeight('Door Top',    supplierData);
+    const wBottom = getDoorProfileWeight('Door Bottom', supplierData);
+
+    if (!wTop || !wBottom) return 'Door Top';
+
+    // Option A: Door Top for top rail + Door Bottom for bottom rail + hinge stile
+    const kgA = estimatePiecesKg([{ length: railLen, qty: L }], topStock, wTop)
+              + estimatePiecesKg([{ length: railLen, qty: L }, { length: stileLen, qty: L }], bottomStock, wBottom);
+
+    // Option B: Door Bottom for top rail + bottom rail + hinge stile (all merged)
+    const kgB = estimatePiecesKg([{ length: railLen, qty: L * 2 }, { length: stileLen, qty: L }], bottomStock, wBottom);
+
+    console.log(`%c🔄 Top Rail selection | topW=${topWidthMM}mm == bottomW=${bottomWidthMM}mm | kgA(separate)=${kgA.toFixed(2)} kgB(merged)=${kgB.toFixed(2)} → ${kgB < kgA ? 'Door Bottom (merged saves kg)' : 'Door Top (lighter wins)'}`, 'background:#6610f2;color:white;padding:2px 6px;');
+
+    // Rule 2: strictly less kg wins; tie → prefer Door Top
+    return kgB < kgA ? 'Door Bottom' : 'Door Top';
+}
+// ─────────────────────────────────────────────────────────────────────────────
+
 // Generate door profile formulas dynamically based on window properties.
 // Replaces the static formula array for Door series.
 function generateDoorProfileFormulas(win, supplierData) {
@@ -237,12 +311,15 @@ function generateDoorProfileFormulas(win, supplierData) {
     // Store on win so calculatePieces can inject into safeEval context
     win._handleVW = handleWidthMM / 25.4;
     win._hingeVW  = hingeWidthMM  / 25.4;
+
+    // Select top rail profile — Door Top (default/lighter) or Door Bottom (if kg saving)
+    const topRailComp = selectTopRailProfile(win, supplierData, win._handleVW, win._hingeVW);
     // ─────────────────────────────────────────────────────────────────────────
 
     return [
         { component: handleComp,           qty: 'L',   length: 'H - (F*1.575) - 1.634',                   desc: 'Vertical Handle' },
         { component: hingeComp,            qty: 'L',   length: 'H - (F*1.575) - 1.634',                   desc: 'Vertical Hing' },
-        { component: 'Door Top',           qty: 'L',   length: '(W - (F*3.15)) / L - HandleVW - HingeVW', desc: 'Top Rail' },
+        { component: topRailComp,          qty: 'L',   length: '(W - (F*3.15)) / L - HandleVW - HingeVW', desc: 'Top Rail' },
         { component: 'Door Bottom',        qty: 'L',   length: '(W - (F*3.15)) / L - HandleVW - HingeVW', desc: 'Bottom Rail' },
         { component: 'Door Middle Double', qty: 'L',   length: '(W - (F*3.15)) / L - HandleVW - HingeVW', desc: 'Middle Rail' },
         { component: 'Door Leg Partition', qty: '1*F', length: 'W',                                        desc: 'Frame Top' },
