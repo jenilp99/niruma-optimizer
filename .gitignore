@@ -1,0 +1,17 @@
+# OS files
+.DS_Store
+Thumbs.db
+
+# Editor / IDE
+.vscode/settings.json
+*.suo
+*.user
+
+# Logs
+*.log
+
+# Local supplier docs (large files, optional to push)
+supplier_docs/Windalco-Aluminium/
+
+# Node / npm (if ever used)
+node_modules/

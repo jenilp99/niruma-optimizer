@@ -1,0 +1,355 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Niruma Aluminum Optimizer - Secure Access</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+
+        .login-wrapper {
+            background: rgba(255, 255, 255, 0.98);
+            padding: 50px 40px;
+            border-radius: 20px;
+            box-shadow: 0 25px 70px rgba(0, 0, 0, 0.4);
+            width: 100%;
+            max-width: 420px;
+            text-align: center;
+            backdrop-filter: blur(10px);
+        }
+
+        .logo-container {
+            margin-bottom: 20px;
+        }
+
+        .logo {
+            font-size: 64px;
+            margin-bottom: 10px;
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+        }
+
+        h1 {
+            color: #1e3c72;
+            margin-bottom: 8px;
+            font-size: 26px;
+            font-weight: 700;
+        }
+
+        .subtitle {
+            color: #666;
+            margin-bottom: 35px;
+            font-size: 14px;
+            font-weight: 500;
+        }
+
+        .input-wrapper {
+            position: relative;
+            margin-bottom: 25px;
+        }
+
+        .input-icon {
+            position: absolute;
+            left: 15px;
+            top: 50%;
+            transform: translateY(-50%);
+            font-size: 20px;
+            color: #999;
+        }
+
+        input[type="password"],
+        input[type="text"] {
+            width: 100%;
+            padding: 15px 50px 15px 50px;
+            border: 2px solid #e0e0e0;
+            border-radius: 12px;
+            font-size: 16px;
+            transition: all 0.3s;
+            background: #f8f9fa;
+        }
+
+        .toggle-password {
+            position: absolute;
+            right: 15px;
+            top: 50%;
+            transform: translateY(-50%);
+            background: transparent;
+            border: none;
+            font-size: 18px;
+            cursor: pointer;
+            color: #666;
+            padding: 4px;
+            line-height: 1;
+        }
+
+        input[type="password"]:focus {
+            outline: none;
+            border-color: #2a5298;
+            background: white;
+            box-shadow: 0 0 0 4px rgba(42, 82, 152, 0.1);
+        }
+
+        .btn-access {
+            width: 100%;
+            padding: 15px;
+            background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+            color: white;
+            border: none;
+            border-radius: 12px;
+            font-size: 17px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.3s;
+            margin-bottom: 15px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .btn-access:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 10px 30px rgba(30, 60, 114, 0.4);
+        }
+
+        .btn-access:active {
+            transform: translateY(-1px);
+        }
+
+        .error-box {
+            background: #fee;
+            border-left: 4px solid #e74c3c;
+            color: #c0392b;
+            padding: 12px 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            font-size: 14px;
+            display: none;
+            text-align: left;
+        }
+
+        .error-box.show {
+            display: block;
+            animation: slideDown 0.4s ease;
+        }
+
+        @keyframes slideDown {
+            from {
+                opacity: 0;
+                transform: translateY(-10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .security-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            background: #e8f5e9;
+            color: #2e7d32;
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+            margin-top: 20px;
+        }
+
+        .footer-text {
+            margin-top: 25px;
+            padding-top: 20px;
+            border-top: 1px solid #e0e0e0;
+            color: #999;
+            font-size: 11px;
+        }
+
+        .loader {
+            display: none;
+            margin: 0 auto;
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #2a5298;
+            border-radius: 50%;
+            width: 30px;
+            height: 30px;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .hidden {
+            display: none !important;
+        }
+    </style>
+</head>
+<body>
+    <div class="login-wrapper" id="loginWrapper">
+        <div class="logo-container">
+            <div class="logo">🏭</div>
+            <h1>Niruma Aluminum Optimizer</h1>
+            <p class="subtitle">🔒 Secure Access Portal</p>
+        </div>
+
+        <div class="error-box" id="errorBox">
+            <strong>⚠️ Access Denied</strong><br>
+            Incorrect password. Please try again.
+        </div>
+
+        <form id="loginForm" onsubmit="return validateAccess(event)">
+            <div class="input-wrapper">
+                <span class="input-icon">🔑</span>
+                <input 
+                    type="password" 
+                    id="passwordInput" 
+                    placeholder="Enter your password"
+                    autocomplete="off"
+                    required
+                    autofocus
+                >
+                <button type="button" class="toggle-password" id="togglePassword" aria-label="Show password">👁</button>
+            </div>
+
+            <button type="submit" class="btn-access" id="submitBtn">
+                <span id="btnText">🚀 Access System</span>
+                <div class="loader hidden" id="loader"></div>
+            </button>
+        </form>
+
+        <div class="security-badge">
+            🛡️ Encrypted & Secure
+        </div>
+
+        <div class="footer-text">
+            © 2025 Niruma Aluminum Sections<br>
+            All Rights Reserved
+        </div>
+    </div>
+
+    <script>
+        // ============================================
+        // STEP 1: SET YOUR PASSWORD HERE
+        // ============================================
+        const MASTER_PASSWORD = "niruma@2025";
+
+        // ============================================
+        // STEP 2: SET YOUR HTML FILE URL HERE
+        // After uploading your Niruma-Aluminum-Profile-Optimizer.html to GitHub,
+        // paste the raw file URL here
+        // Example: "https://yourusername.github.io/niruma-optimizer/Niruma-Aluminum-Profile-Optimizer.html"
+        // ============================================
+        const PROTECTED_FILE_URL = "Niruma-Aluminum-Profile-Optimizer.html";
+
+        let attemptCount = 0;
+        const MAX_ATTEMPTS = 5;
+
+        function validateAccess(event) {
+            event.preventDefault();
+
+            const password = document.getElementById('passwordInput').value;
+            const errorBox = document.getElementById('errorBox');
+            const submitBtn = document.getElementById('submitBtn');
+            const btnText = document.getElementById('btnText');
+            const loader = document.getElementById('loader');
+
+            // Check attempt limit
+            if (attemptCount >= MAX_ATTEMPTS) {
+                errorBox.innerHTML = '<strong>🚫 Too Many Attempts</strong><br>Access blocked for security reasons.';
+                errorBox.classList.add('show');
+                document.getElementById('passwordInput').disabled = true;
+                submitBtn.disabled = true;
+                return false;
+            }
+
+            if (password === MASTER_PASSWORD) {
+                // Show loading state
+                btnText.classList.add('hidden');
+                loader.classList.remove('hidden');
+                submitBtn.disabled = true;
+
+                // Load the protected content
+                setTimeout(() => {
+                    window.location.href = PROTECTED_FILE_URL;
+                }, 500);
+
+            } else {
+                // Incorrect password
+                attemptCount++;
+                const remainingAttempts = MAX_ATTEMPTS - attemptCount;
+
+                errorBox.innerHTML = `<strong>⚠️ Access Denied</strong><br>Incorrect password. ${remainingAttempts} attempt(s) remaining.`;
+                errorBox.classList.add('show');
+
+                document.getElementById('passwordInput').value = '';
+                document.getElementById('passwordInput').focus();
+
+                // Shake animation
+                document.querySelector('.login-wrapper').style.animation = 'shake 0.5s';
+                setTimeout(() => {
+                    document.querySelector('.login-wrapper').style.animation = '';
+                }, 500);
+
+                // Hide error after 4 seconds
+                setTimeout(() => {
+                    errorBox.classList.remove('show');
+                }, 4000);
+            }
+
+            return false;
+        }
+
+        // Clear error on input
+        document.getElementById('passwordInput').addEventListener('input', function() {
+            document.getElementById('errorBox').classList.remove('show');
+        });
+
+        // Toggle password visibility
+        const togglePassword = document.getElementById('togglePassword');
+        if (togglePassword) {
+            togglePassword.addEventListener('click', function() {
+                const pwd = document.getElementById('passwordInput');
+                if (!pwd) return;
+                if (pwd.type === 'password') {
+                    pwd.type = 'text';
+                    togglePassword.textContent = '👁';
+                    togglePassword.setAttribute('aria-label', 'Hide password');
+                } else {
+                    pwd.type = 'password';
+                    togglePassword.textContent = '👁';
+                    togglePassword.setAttribute('aria-label', 'Show password');
+                }
+            });
+        }
+
+        // Shake animation CSS
+        const style = document.createElement('style');
+        style.textContent = `
+            @keyframes shake {
+                0%, 100% { transform: translateX(0); }
+                10%, 30%, 50%, 70%, 90% { transform: translateX(-10px); }
+                20%, 40%, 60%, 80% { transform: translateX(10px); }
+            }
+        `;
+        document.head.appendChild(style);
+    </script>
+</body>
+</html>
