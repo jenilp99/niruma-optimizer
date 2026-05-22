@@ -862,7 +862,130 @@ function switchAddMode(mode) {
         doorTab.classList.add('active');
         // Update the door config ID
         document.getElementById('doorConfigId').value = getNextConfigId('Door');
+        // Init accessories checklist if not yet rendered
+        const tbody = document.getElementById('doorAccessoriesBody');
+        if (tbody && tbody.children.length === 0) {
+            const cm = document.getElementById('doorClosingMechanism')?.value || 'Hinge';
+            renderDoorAccessoriesChecklist(cm);
+        }
     }
+}
+
+// ============================================================================
+// DOOR ACCESSORIES — Master list, UI helpers, read/write
+// ============================================================================
+
+const DOOR_ACCESSORIES_MASTER = [
+    { hardware: 'Door Hinge',      unit: 'Nos',  formula: '4 * L',      rate: 52,   mechanism: 'Hinge'       },
+    { hardware: 'Floor Spring',    unit: 'Nos',  formula: '1 * L',      rate: 3500, mechanism: 'FloorSpring' },
+    { hardware: 'Door Handle',     unit: 'Nos',  formula: '2 * L',      rate: 450,  mechanism: 'both'        },
+    { hardware: 'Door Closer',     unit: 'Nos',  formula: '1 * L',      rate: 1800, mechanism: 'Hinge'       },
+    { hardware: 'Lock Body',       unit: 'Nos',  formula: '1 * L',      rate: 850,  mechanism: 'both'        },
+    { hardware: 'Cylinder',        unit: 'Nos',  formula: '1 * L',      rate: 450,  mechanism: 'both'        },
+    { hardware: 'Silicon Sealant', unit: 'R.Ft', formula: '(W+H)*2/12', rate: 10,   mechanism: 'both'        },
+    { hardware: 'Door Rod 12mm',   unit: 'Nos',  formula: '2 * L',      rate: 60,   mechanism: 'both'        },
+];
+
+// Initial render — called when door tab opens or form is cleared
+function renderDoorAccessoriesChecklist(mechanism) {
+    const tbody = document.getElementById('doorAccessoriesBody');
+    if (!tbody) return;
+    tbody.innerHTML = '';
+    DOOR_ACCESSORIES_MASTER.forEach((item, i) => {
+        const checked = item.mechanism === 'both' || item.mechanism === mechanism;
+        tbody.insertAdjacentHTML('beforeend', `
+            <tr id="accRow_${i}" style="border-bottom:1px solid #f5e0c8;">
+                <td style="text-align:center;padding:5px;width:36px;">
+                    <input type="checkbox" id="accCheck_${i}" ${checked ? 'checked' : ''}>
+                </td>
+                <td style="padding:5px 8px;font-size:13px;">${item.hardware}</td>
+                <td style="padding:5px 6px;">
+                    <input type="text" id="accFormula_${i}" value="${item.formula}"
+                        style="width:95px;padding:3px 6px;border:1px solid #ddd;border-radius:3px;font-size:12px;font-family:monospace;">
+                </td>
+                <td style="padding:5px 8px;font-size:12px;color:#777;">${item.unit}</td>
+                <td style="padding:5px 6px;">
+                    <input type="number" id="accRate_${i}" value="${item.rate}" min="0"
+                        style="width:72px;padding:3px 6px;border:1px solid #ddd;border-radius:3px;font-size:12px;">
+                </td>
+            </tr>`);
+    });
+}
+
+// When closing mechanism changes — only flip mechanism-specific rows, leave user edits alone
+function updateAccessoriesForMechanism(mechanism) {
+    DOOR_ACCESSORIES_MASTER.forEach((item, i) => {
+        if (item.mechanism === 'both') return;
+        const cb = document.getElementById(`accCheck_${i}`);
+        if (cb) cb.checked = (item.mechanism === mechanism);
+    });
+}
+
+// Add a blank custom row
+function addCustomDoorAccessory() {
+    const tbody = document.getElementById('doorAccessoriesBody');
+    if (!tbody) return;
+    const uid = 'accCustom_' + Date.now();
+    tbody.insertAdjacentHTML('beforeend', `
+        <tr id="${uid}" style="border-bottom:1px solid #f5e0c8;background:#fffbf5;">
+            <td style="text-align:center;padding:5px;width:36px;">
+                <input type="checkbox" checked>
+            </td>
+            <td style="padding:5px 6px;">
+                <input type="text" placeholder="Item name"
+                    style="width:115px;padding:3px 6px;border:1px solid #ddd;border-radius:3px;font-size:12px;">
+            </td>
+            <td style="padding:5px 6px;">
+                <input type="text" value="1 * L"
+                    style="width:95px;padding:3px 6px;border:1px solid #ddd;border-radius:3px;font-size:12px;font-family:monospace;">
+            </td>
+            <td style="padding:5px 6px;">
+                <select style="padding:3px 4px;border:1px solid #ddd;border-radius:3px;font-size:12px;">
+                    <option value="Nos" selected>Nos</option>
+                    <option value="R.Ft">R.Ft</option>
+                    <option value="Sqft">Sqft</option>
+                    <option value="Set">Set</option>
+                </select>
+            </td>
+            <td style="padding:5px 6px;display:flex;gap:4px;align-items:center;">
+                <input type="number" value="0" min="0"
+                    style="width:72px;padding:3px 6px;border:1px solid #ddd;border-radius:3px;font-size:12px;">
+                <button type="button" onclick="this.closest('tr').remove()"
+                    style="padding:2px 7px;background:#dc3545;color:white;border:none;border-radius:3px;cursor:pointer;font-size:12px;line-height:1.4;">✕</button>
+            </td>
+        </tr>`);
+}
+
+// Read checked accessories from the table
+function readDoorAccessories() {
+    const tbody = document.getElementById('doorAccessoriesBody');
+    if (!tbody) return [];
+    const result = [];
+
+    tbody.querySelectorAll('tr').forEach(row => {
+        const cb = row.querySelector('input[type="checkbox"]');
+        if (!cb || !cb.checked) return;
+
+        if (row.id && row.id.startsWith('accRow_')) {
+            // Master row
+            const idx = parseInt(row.id.replace('accRow_', ''));
+            const master = DOOR_ACCESSORIES_MASTER[idx];
+            const formula = document.getElementById(`accFormula_${idx}`)?.value?.trim() || master.formula;
+            const rate    = parseFloat(document.getElementById(`accRate_${idx}`)?.value)  || master.rate;
+            result.push({ hardware: master.hardware, unit: master.unit, formula, rate });
+        } else {
+            // Custom row
+            const allText = row.querySelectorAll('input[type="text"]');
+            const allNum  = row.querySelectorAll('input[type="number"]');
+            const sel     = row.querySelector('select');
+            const name    = allText[0]?.value?.trim();
+            const formula = allText[1]?.value?.trim() || '1 * L';
+            const unit    = sel?.value || 'Nos';
+            const rate    = parseFloat(allNum[0]?.value) || 0;
+            if (name) result.push({ hardware: name, unit, formula, rate });
+        }
+    });
+    return result;
 }
 
 // Add Door from single-page form
@@ -942,6 +1065,7 @@ function addDoor(event) {
         lowerPartition,
         handleProfile: document.getElementById('doorHandleProfileNew').value,
         handleWidth:   parseFloat(document.getElementById('doorHandleWidthNew').value) || 47.5,
+        accessories:   readDoorAccessories(),
         bottomProfile,
         topWidth:    parseFloat(document.getElementById('doorTopWidthNew').value),
         middleWidth: parseFloat(document.getElementById('doorMiddleWidthNew').value),
@@ -966,6 +1090,7 @@ function addDoor(event) {
 function clearDoorForm() {
     document.getElementById('doorForm').reset();
     document.getElementById('doorConfigId').value = getNextConfigId('Door');
+    renderDoorAccessoriesChecklist('Hinge');
 }
 
 // Thickness options per material
@@ -1025,11 +1150,12 @@ function updateHandleWidthOptions() {
 }
 
 function toggleClosingMechanism() {
-    const cm = document.getElementById('doorClosingMechanism')?.value;
+    const cm = document.getElementById('doorClosingMechanism')?.value || 'Hinge';
     const fsGroup   = document.getElementById('doorHingeSideFSGroup');
     const hingeInfo = document.getElementById('doorHingeSideHingeInfo');
     if (fsGroup)   fsGroup.style.display   = (cm === 'FloorSpring') ? '' : 'none';
     if (hingeInfo) hingeInfo.style.display = (cm === 'Hinge') ? '' : 'none';
+    updateAccessoriesForMechanism(cm);
 }
 
 function toggleDoorMiddlePosition() {

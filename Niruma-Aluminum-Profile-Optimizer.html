@@ -632,6 +632,30 @@
                                 </div>
                             </div>
 
+                            <!-- Accessories Checklist -->
+                            <h5 style="margin: 15px 0 8px; color: #d35400; border-bottom: 1px solid #f0c27b; padding-bottom: 5px;">
+                                📦 Accessories</h5>
+                            <div style="border:1px solid #f0c27b;border-radius:8px;overflow:hidden;margin-bottom:8px;">
+                                <table style="width:100%;border-collapse:collapse;">
+                                    <thead>
+                                        <tr style="background:#fff3e0;">
+                                            <th style="padding:6px;width:36px;text-align:center;font-size:12px;">✓</th>
+                                            <th style="padding:6px;text-align:left;font-size:12px;font-weight:600;">Item</th>
+                                            <th style="padding:6px;text-align:left;font-size:12px;font-weight:600;">Qty Formula</th>
+                                            <th style="padding:6px;text-align:left;font-size:12px;font-weight:600;">Unit</th>
+                                            <th style="padding:6px;text-align:left;font-size:12px;font-weight:600;">Rate (₹)</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="doorAccessoriesBody">
+                                        <!-- Populated by renderDoorAccessoriesChecklist() -->
+                                    </tbody>
+                                </table>
+                            </div>
+                            <button type="button" onclick="addCustomDoorAccessory()"
+                                style="padding:5px 14px;background:#e67e22;color:white;border:none;border-radius:4px;cursor:pointer;font-size:13px;margin-bottom:12px;">
+                                ➕ Add Custom Item
+                            </button>
+
                             <!-- Actions -->
                             <div class="wizard-actions" style="margin-top: 20px;">
                                 <button type="button" class="btn btn-danger" onclick="clearDoorForm()">🔄 Clear</button>

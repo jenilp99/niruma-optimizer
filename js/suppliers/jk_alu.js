@@ -439,14 +439,7 @@ window.registerSupplier("JK ALU EXTRUSION", {
             { hardware: 'Domal Wing Connector',                  unit: 'Nos',  formula: '8*S + (MS*8)',                                                                           rate: 0.6 },
             { hardware: 'Screw (13*6, 19*6, 25*7, 32*8, 60*10)', unit: 'Nos', formula: '(S/S) * 16 + (2*(S-1) * 5) + ((S*4) + (MS * 4)) + 4*(S/S) + 8*(S/S)',                  rate: 1 }
         ],
-        'Door': [
-            { hardware: 'Door Hinge',      unit: 'Nos',  formula: '4 * L',              rate: 52 },
-            { hardware: 'Door Handle',     unit: 'Nos',  formula: '2 * L',              rate: 450 },
-            { hardware: 'Door Closer',     unit: 'Nos',  formula: '1 * L',              rate: 1800 },
-            { hardware: 'Lock Body',       unit: 'Nos',  formula: '1 * L',              rate: 850 },
-            { hardware: 'Cylinder',        unit: 'Nos',  formula: '1 * L',              rate: 450 },
-            { hardware: 'Silicon Sealant', unit: 'R.Ft', formula: '(W + H) * 2 / 12',  rate: 10 },
-            { hardware: 'Door Road 12mm',  unit: 'Nos',  formula: '2 * L',              rate: 60 }
-        ]
+        // Door accessories are managed per-door via the accessories checklist (not supplier-specific)
+        'Door': []
     }
 });

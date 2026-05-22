@@ -1774,28 +1774,29 @@ function safeEval(formula, context, defaultValue = 0) {
 }
 
 function generateDoorHardware(win) {
+    // Use accessories saved on the door config (set via checklist in door form)
+    if (win.accessories && win.accessories.length > 0) {
+        return win.accessories;
+    }
+
+    // Fallback for older saved doors that don't have accessories stored
     const cm = win.closingMechanism || 'Hinge';
     const items = [];
-
     if (cm === 'Hinge') {
-        items.push({ hardware: 'Door Hinge',    unit: 'Nos',  formula: '4 * L',             rate: 52   });
+        items.push({ hardware: 'Door Hinge',   unit: 'Nos',  formula: '4 * L',            rate: 52   });
     } else {
-        items.push({ hardware: 'Floor Spring',  unit: 'Nos',  formula: '1 * L',             rate: 3500 });
+        items.push({ hardware: 'Floor Spring', unit: 'Nos',  formula: '1 * L',            rate: 3500 });
     }
-
-    items.push({ hardware: 'Door Handle',       unit: 'Nos',  formula: '2 * L',             rate: 450  });
-
+    items.push({ hardware: 'Door Handle',      unit: 'Nos',  formula: '2 * L',            rate: 450  });
     if (cm === 'Hinge') {
-        items.push({ hardware: 'Door Closer',   unit: 'Nos',  formula: '1 * L',             rate: 1800 });
+        items.push({ hardware: 'Door Closer',  unit: 'Nos',  formula: '1 * L',            rate: 1800 });
     }
-
     items.push(
-        { hardware: 'Lock Body',                unit: 'Nos',  formula: '1 * L',             rate: 850  },
-        { hardware: 'Cylinder',                 unit: 'Nos',  formula: '1 * L',             rate: 450  },
-        { hardware: 'Silicon Sealant',          unit: 'R.Ft', formula: '(W + H) * 2 / 12', rate: 10   },
-        { hardware: 'Door Road 12mm',           unit: 'Nos',  formula: '2 * L',             rate: 60   }
+        { hardware: 'Lock Body',               unit: 'Nos',  formula: '1 * L',            rate: 850  },
+        { hardware: 'Cylinder',                unit: 'Nos',  formula: '1 * L',            rate: 450  },
+        { hardware: 'Silicon Sealant',         unit: 'R.Ft', formula: '(W+H)*2/12',       rate: 10   },
+        { hardware: 'Door Rod 12mm',           unit: 'Nos',  formula: '2 * L',            rate: 60   }
     );
-
     return items;
 }
 
