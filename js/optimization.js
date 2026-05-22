@@ -302,11 +302,21 @@ function generateDoorProfileFormulas(win, supplierData) {
     else if (handleComp === 'Door Middle Single')  handleWidthMM = win.middleWidth || 47.5;
     else                                           handleWidthMM = win.handleWidth || win.verticalWidth || 47.5; // Door Vertical
 
-    // Hinge side width
+    // Hinge side width — use the ACTUAL hinge profile's width, NOT win.bottomWidth
+    // (win.bottomWidth = bottom RAIL profile choice; hingeComp = auto-selected hinge profile)
+    // Door Bottom profile is always 114.5mm wide; Door Top width comes from win.topWidth
     let hingeWidthMM;
-    if      (hingeComp === 'Door Bottom') hingeWidthMM = win.bottomWidth || 114.3;
-    else if (hingeComp === 'Door Top')    hingeWidthMM = win.topWidth    || 47.5;
-    else                                  hingeWidthMM = win.middleWidth || 47.5;
+    if (hingeComp === 'Door Bottom') {
+        // Read from supplier sections if available, else use 114.5mm (JK ALU standard)
+        const dbSections = supplierData && supplierData.sections &&
+                           supplierData.sections['Door'] &&
+                           supplierData.sections['Door']['Door Bottom'];
+        hingeWidthMM = (dbSections && dbSections[0] && dbSections[0].w) || 114.5;
+    } else if (hingeComp === 'Door Top') {
+        hingeWidthMM = win.topWidth || 47.5;
+    } else {
+        hingeWidthMM = win.middleWidth || 47.5;
+    }
 
     // Store on win so calculatePieces can inject into safeEval context
     win._handleVW = handleWidthMM / 25.4;
@@ -419,7 +429,11 @@ function calculatePieces(selectedProject, preferredSupplier) {
         if (seriesName === 'Door') {
             const supplierData = (window.SUPPLIER_REGISTRY && window.SUPPLIER_REGISTRY[effectiveVendor]) || null;
             formulas = generateDoorProfileFormulas(win, supplierData);
-            console.log(`%c🚪 Door formulas generated dynamically | Mechanism: ${win.closingMechanism || 'Hinge'} | Handle: ${win.handleProfile || 'Door Vertical'}`, 'background: #6f42c1; color: white; padding: 2px 6px;');
+            console.log(
+                `%c🚪 Door ${id} | Handle: ${win.handleProfile || 'Door Vertical'} | Hinge: (auto) | HandleVW: ${(win._handleVW||0).toFixed(3)}" | HingeVW: ${(win._hingeVW||0).toFixed(3)}"`,
+                'background: #6f42c1; color: white; padding: 2px 6px;'
+            );
+            console.log(`   W=${win.width}" H=${win.height}" F=${win.frame||0} L=${win.leaves||1} bottomProfile=${win.bottomProfile}`);
         }
 
         console.log(`%c📐 Window ${id} | Vendor: ${win.vendor} | Series: ${seriesName} | MS: ${MS} | Formulas: ${formulas.length}`, 'background: #343a40; color: white; padding: 2px 6px; border-radius: 3px;');
@@ -466,14 +480,22 @@ function calculatePieces(selectedProject, preferredSupplier) {
                 // Component name comes directly from generateDoorProfileFormulas (already correct)
                 let componentName = formula.component;
 
-                if (win.bottomProfile && componentName === 'Door Bottom') {
-                    componentName = win.bottomProfile;
+                // If user chose a Door Top variant as bottom rail, map to 'Door Top'
+                // ('Door Top 47.5' / 'Door Top 85' are width choices, not separate stock names)
+                if (componentName === 'Door Bottom' && win.bottomProfile) {
+                    const bp = win.bottomProfile;
+                    if (bp === 'Door Top 47.5' || bp === 'Door Top 85') {
+                        componentName = 'Door Top'; // Both variants use 'Door Top' stock
+                    } else if (bp !== 'Door Bottom') {
+                        componentName = bp; // Unknown custom profile — use as-is
+                    }
+                    // bp === 'Door Bottom' → leave componentName as 'Door Bottom'
                 }
 
                 const targetSeries = formula.series || seriesName;
                 addPieces(pieces, targetSeries, componentName, length, id + ' - ' + formula.desc, qty);
             } else {
-                console.log('⏭️ Skipped formula (qty or length is 0):', formula.desc, 'qty:', qty, 'length:', length);
+                console.warn(`⏭️ Skipped [${seriesName}] ${formula.component} — ${formula.desc} | qty=${qty} length=${length} | qtyExpr="${formula.qty}" lenExpr="${formula.length}"`);
             }
         });
     });
