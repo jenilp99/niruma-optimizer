@@ -1,75 +1,155 @@
 // Niruma Aluminum Profile Optimizer - Export & Display Functions
 
 // ============================================================================
-// NET CUTTING VISUAL DIAGRAM
+// NET CUTTING VISUAL DIAGRAM  (2D FFDH — uniform proportional scale)
 // ============================================================================
 
 /**
- * Render a simple SVG grid showing how pieces tile on a roll.
- * seg = one segment from _optimiseSingleSize (single roll usage for k pieces).
+ * Generate a proportionally-correct SVG diagram of the FFDH layout.
+ * Uses ONE uniform px/inch scale for BOTH axes so piece aspect ratios are accurate.
+ *
+ * @param {Object} layout — result from packNetFFDH()
+ *   { roll, shelves:[{y,shelfH,nextX,pieces:[{x,w,h,label,origW,origH,rotated}]}],
+ *     totalLength, rollsNeeded, areaUsed, wasteArea, piecesArea, efficiency }
  */
-function generateNetDiagram(pieceW, pieceH, qty, seg) {
-    const rollW = seg.roll.width;
-    const cpp   = seg.piecesPerRow;    // pieces across roll width
-    const rows  = seg.rowsNeeded;
-    const orientation = seg.orientation;
+function generateNetDiagramFFDH(layout) {
+    if (!layout || !layout.shelves || layout.shelves.length === 0) {
+        return '<em style="color:#999;font-size:12px;">No pieces to display</em>';
+    }
 
-    // Displayed grid dimensions (piece in grid coords: across = acrossSize, along = alongSize)
-    let acrossSize, alongSize;
-    if (orientation === 'w-across') { acrossSize = pieceW; alongSize = pieceH; }
-    else                            { acrossSize = pieceH; alongSize = pieceW; }
+    const rollW    = layout.roll.width;
+    const totalLen = layout.totalLength;
+    const rollLen  = layout.roll.length;   // length of one physical roll
 
-    // SVG canvas: show up to 10 rows before truncating (just visual)
-    const maxRows = Math.min(rows, 10);
-    const svgW  = 700;
-    const scaleA = Math.min(svgW / rollW, 8);  // px per inch (across)
-    const svgH  = Math.min(maxRows * alongSize * scaleA + 30, 300);
-    const scaleL = (svgH - 30) / (maxRows * alongSize); // px per inch (along)
-    const scale  = Math.min(scaleA, scaleL);
+    // ── Uniform scale: same px/inch for BOTH axes ──────────────────────────
+    // Target: roll width ~530px, capped at 14 px/in so narrow rolls aren't huge.
+    const scale = Math.min(530 / rollW, 14);
 
-    const canvasW = rollW  * scale;
-    const canvasH = maxRows * alongSize * scale;
+    // Padding for labels around the drawing
+    const PT = 18;   // top  (roll-width label)
+    const PL = 4;    // left
+    const PR = 46;   // right (H-cut number labels)
+    const PB = 22;   // bottom (scale annotation)
 
-    let pieceCount = 0;
-    let svg = `<svg width="${canvasW + 2}" height="${canvasH + 30}" style="border:1px solid #ccc;display:block;margin:6px 0;">`;
+    const canvasW = rollW    * scale;
+    const canvasH = totalLen * scale;
+    const svgW    = Math.ceil(canvasW + PL + PR);
+    const svgH    = Math.ceil(canvasH + PT + PB);
+
+    // ── Per-label colour palette ───────────────────────────────────────────
+    const PALETTE = [
+        '#9b59b6','#2980b9','#27ae60','#e67e22',
+        '#e74c3c','#16a085','#d35400','#1a237e',
+        '#880e4f','#006064','#33691e','#4a148c'
+    ];
+    const labelColor = {};
+    let ci = 0;
+    layout.shelves.forEach(sh => sh.pieces.forEach(p => {
+        if (!labelColor[p.label]) labelColor[p.label] = PALETTE[ci++ % PALETTE.length];
+    }));
+
+    let svg = `<svg xmlns="http://www.w3.org/2000/svg" `
+            + `width="${svgW}" height="${svgH}" `
+            + `style="display:block;margin:6px 0;font-family:sans-serif;">`;
+
+    // Hatch pattern for waste
+    svg += `<defs>
+        <pattern id="netHatch" patternUnits="userSpaceOnUse" width="6" height="6" patternTransform="rotate(45)">
+            <line x1="0" y1="0" x2="0" y2="6" stroke="#c8a8e0" stroke-width="1.5"/>
+        </pattern>
+    </defs>`;
+
     // Roll background
-    svg += `<rect x="0" y="0" width="${canvasW}" height="${canvasH}" fill="#f5f0ff" stroke="#8e44ad" stroke-width="1.5"/>`;
+    svg += `<rect x="${PL}" y="${PT}" `
+         + `width="${canvasW.toFixed(1)}" height="${canvasH.toFixed(1)}" `
+         + `fill="#f5f0ff" stroke="#8e44ad" stroke-width="1.5"/>`;
 
-    // Draw pieces
-    const colors = ['#9b59b6','#8e44ad','#6c3483','#a569bd','#c39bd3'];
-    for (let row = 0; row < maxRows; row++) {
-        for (let col = 0; col < cpp; col++) {
-            if (pieceCount >= qty) break;
-            const x = col * acrossSize * scale;
-            const y = row * alongSize  * scale;
-            const pw = acrossSize * scale;
-            const ph = alongSize  * scale;
-            const color = colors[pieceCount % colors.length];
-            svg += `<rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${pw.toFixed(1)}" height="${ph.toFixed(1)}" fill="${color}" opacity="0.75" stroke="white" stroke-width="1"/>`;
-            // Label
-            const lx = (x + pw / 2).toFixed(1);
-            const ly = (y + ph / 2).toFixed(1);
-            const label = orientation === 'w-across'
-                ? `${pieceW.toFixed(1)}"×${pieceH.toFixed(1)}"`
-                : `${pieceH.toFixed(1)}"×${pieceW.toFixed(1)}"`;
-            svg += `<text x="${lx}" y="${ly}" font-size="9" fill="white" text-anchor="middle" dy="3">#${pieceCount+1} ${label}</text>`;
-            pieceCount++;
+    // ── Draw shelves ───────────────────────────────────────────────────────
+    layout.shelves.forEach((shelf, si) => {
+        const sy = PT + shelf.y * scale;
+        const sh = shelf.shelfH * scale;
+
+        // Waste background for entire shelf row (hatch)
+        svg += `<rect x="${PL}" y="${sy.toFixed(1)}" `
+             + `width="${canvasW.toFixed(1)}" height="${sh.toFixed(1)}" `
+             + `fill="url(#netHatch)" opacity="0.35"/>`;
+
+        // Pieces in this shelf
+        shelf.pieces.forEach(p => {
+            const px = PL + p.x * scale;
+            const py = sy;
+            const pw = p.w * scale;
+            const ph = p.h * scale;          // actual placed height (may be < shelf height)
+            const col = labelColor[p.label] || '#9b59b6';
+            const shortLbl = p.label.split(/[\s(]/)[0];   // e.g. "W01"
+
+            // Piece fill
+            svg += `<rect x="${px.toFixed(1)}" y="${py.toFixed(1)}" `
+                 + `width="${pw.toFixed(1)}" height="${ph.toFixed(1)}" `
+                 + `fill="${col}" opacity="0.85" stroke="white" stroke-width="1.2"/>`;
+
+            // Text inside piece (only if big enough to read)
+            if (pw >= 20 && ph >= 14) {
+                const cx = (px + pw / 2).toFixed(1);
+                if (ph >= 30) {
+                    // Two-line label: window ID + placed dimensions
+                    svg += `<text x="${cx}" y="${(py + ph/2 - 5).toFixed(1)}" `
+                         + `text-anchor="middle" font-size="9" fill="white" font-weight="bold">`
+                         + `${shortLbl}</text>`;
+                    svg += `<text x="${cx}" y="${(py + ph/2 + 6).toFixed(1)}" `
+                         + `text-anchor="middle" font-size="8" fill="rgba(255,255,255,0.92)">`
+                         + `${p.w.toFixed(1)}"×${p.h.toFixed(1)}"${p.rotated ? ' ↺' : ''}</text>`;
+                } else {
+                    // One-line label
+                    svg += `<text x="${cx}" y="${(py + ph/2 + 3).toFixed(1)}" `
+                         + `text-anchor="middle" font-size="8" fill="white" font-weight="bold">`
+                         + `${shortLbl}${p.rotated ? ' ↺' : ''}</text>`;
+                }
+            }
+        });
+
+        // ── Horizontal cut line at bottom of shelf (blue dashed) ──────────
+        if (si < layout.shelves.length - 1) {
+            const cutY = (PT + (shelf.y + shelf.shelfH) * scale).toFixed(1);
+            svg += `<line x1="${PL}" y1="${cutY}" x2="${(PL + canvasW).toFixed(1)}" y2="${cutY}" `
+                 + `stroke="#2980b9" stroke-width="1.5" stroke-dasharray="5,3"/>`;
+            svg += `<text x="${(PL + canvasW + 4).toFixed(1)}" y="${(parseFloat(cutY) + 4).toFixed(1)}" `
+                 + `font-size="9" fill="#2980b9" font-weight="bold">H${si + 1}</text>`;
         }
-        if (pieceCount >= qty) break;
+
+        // ── Vertical cut lines between pieces (red dashed) ────────────────
+        let vx = 0;
+        shelf.pieces.forEach((p, pi) => {
+            vx += p.w;
+            if (pi < shelf.pieces.length - 1) {
+                const vcx = (PL + vx * scale).toFixed(1);
+                svg += `<line x1="${vcx}" y1="${sy.toFixed(1)}" x2="${vcx}" y2="${(sy + sh).toFixed(1)}" `
+                     + `stroke="#e74c3c" stroke-width="1" stroke-dasharray="3,2"/>`;
+            }
+        });
+    });
+
+    // ── Roll length boundaries (dashed red, only when multiple rolls) ──────
+    for (let rn = 1; rn < layout.rollsNeeded; rn++) {
+        const boundY = (PT + rollLen * rn * scale).toFixed(1);
+        svg += `<line x1="${PL}" y1="${boundY}" x2="${(PL + canvasW).toFixed(1)}" y2="${boundY}" `
+             + `stroke="#c0392b" stroke-width="2" stroke-dasharray="8,4"/>`;
+        svg += `<text x="${(PL + 4).toFixed(1)}" y="${(parseFloat(boundY) - 3).toFixed(1)}" `
+             + `font-size="9" fill="#c0392b" font-weight="bold">↑ Roll ${rn} ends | Roll ${rn + 1} starts ↓</text>`;
     }
 
-    // Waste strip on right (if not full width)
-    const usedAcross = cpp * acrossSize * scale;
-    if (rollW * scale - usedAcross > 1) {
-        svg += `<rect x="${usedAcross.toFixed(1)}" y="0" width="${(rollW*scale - usedAcross).toFixed(1)}" height="${canvasH}" fill="#e0c8f0" opacity="0.5"/>`;
-        svg += `<text x="${(usedAcross + (rollW*scale-usedAcross)/2).toFixed(1)}" y="${(canvasH/2).toFixed(1)}" font-size="8" fill="#6c3483" text-anchor="middle">waste</text>`;
-    }
+    // ── Dimension annotations ──────────────────────────────────────────────
+    // Roll width label at top-centre
+    svg += `<text x="${(PL + canvasW / 2).toFixed(1)}" y="${(PT - 4).toFixed(1)}" `
+         + `text-anchor="middle" font-size="10" fill="#6c3483" font-weight="bold">`
+         + `${rollW}" wide</text>`;
 
-    // Annotation line
-    const truncNote = rows > maxRows ? ` (showing ${maxRows} of ${rows} rows)` : '';
-    svg += `<text x="4" y="${(canvasH + 18).toFixed(1)}" font-size="10" fill="#6c3483">
-        Roll ${seg.roll.name} | ${cpp} piece${cpp>1?'s':''}/row × ${rows} rows = ${seg.lengthUsed.toFixed(1)}" linear (${(seg.lengthUsed/12).toFixed(2)} ft)${truncNote}
-    </text>`;
+    // Scale + linear length annotation at bottom
+    svg += `<text x="${PL}" y="${(PT + canvasH + 16).toFixed(1)}" `
+         + `font-size="9" fill="#6c3483">`
+         + `Scale: ${scale.toFixed(1)} px/in (proportional) `
+         + `| Linear used: ${totalLen.toFixed(1)}" (${(totalLen / 12).toFixed(2)} ft)`
+         + `</text>`;
 
     svg += '</svg>';
     return svg;
@@ -281,168 +361,141 @@ function displayResults() {
         html += '</tbody></table></div>';
     }
 
-    // ── Mosquito Net Section ───────────────────────────────────────────────────
-    const netResults = r.netResults || [];
-    if (netResults.length > 0) {
+    // ── Mosquito Net Section (2D FFDH with rotation) ──────────────────────────
+    const netLayout = r.netResults;
+    if (netLayout) {
+        const roll         = netLayout.roll;
+        const rollsNeeded  = netLayout.rollsNeeded;
+        const totalLen     = netLayout.totalLength;
+        const eff          = netLayout.efficiency;
+        const piecesAreaSqft = (netLayout.piecesArea / 144).toFixed(2);
+        const rollAreaSqft   = (netLayout.areaUsed  / 144).toFixed(2);
+        const wasteAreaSqft  = (netLayout.wasteArea  / 144).toFixed(2);
+        const rollCost       = rollsNeeded * (roll.costPerRoll || 0);
+
         html += `<div class="material-section" style="border-left:4px solid #8e44ad;margin-top:24px;">
             <h3 style="margin:0 0 4px 0;color:#6c3483;">🕸️ Mosquito Net Cutting Plan</h3>
             <p style="font-size:13px;color:#555;margin:0 0 14px 0;">
-                SS Mosquito Net — cuts grouped by roll width for easy ordering &amp; site use.
+                2D optimized layout — pieces mixed across all windows, rotation allowed for minimum waste.
                 Piece sizes are after deducting 2" from each shutter frame dimension.
             </p>`;
 
-        // ── 1. Collect all errors (groups with no plan) ──────────────────────
-        netResults.forEach(group => {
-            if (!group.plan) {
-                html += `<div style="background:#fdecea;padding:10px;border-radius:6px;margin-bottom:10px;">
-                    ⚠️ No suitable roll found for piece ${group.w.toFixed(2)}"×${group.h.toFixed(2)}"
-                    — check that at least one net roll width ≥ ${Math.min(group.w,group.h).toFixed(2)}".
-                </div>`;
-            }
-        });
-
-        // ── 2. Build roll-width index: rollWidth → [{group, seg}] ───────────
-        //    Order by roll.width ascending (24 → 36 → 48 → 60)
-        const rollMap = new Map();  // key = roll.width, value = { roll, entries:[] }
-        netResults.forEach(group => {
-            if (!group.plan) return;
-            group.plan.segments.forEach(seg => {
-                const w = seg.roll.width;
-                if (!rollMap.has(w)) rollMap.set(w, { roll: seg.roll, entries: [] });
-                rollMap.get(w).entries.push({ group, seg });
-            });
-        });
-        // Sort by width ascending
-        const sortedRolls = [...rollMap.entries()].sort((a, b) => a[0] - b[0]);
-
-        // ── 3. ORDER SUMMARY TABLE ───────────────────────────────────────────
-        let grandTotalRolls = 0, grandTotalArea = 0, grandPieceArea = 0, grandCost = 0;
-        netResults.forEach(g => {
-            if (!g.plan) return;
-            grandPieceArea += g.qty * g.w * g.h;
-            g.plan.segments.forEach(seg => {
-                grandTotalRolls += seg.rollsNeeded;
-                grandTotalArea  += seg.areaUsed;
-                grandCost       += seg.rollsNeeded * seg.roll.costPerRoll;
-            });
-        });
-
-        html += `<div style="background:#f3e5f5;border:1px solid #ce93d8;border-radius:8px;padding:14px;margin-bottom:18px;">
-            <strong style="font-size:14px;color:#6c3483;">📋 Order Summary — Rolls to Purchase</strong>
-            <table style="width:100%;margin-top:10px;border-collapse:collapse;font-size:13px;">
-            <thead><tr style="background:#8e44ad;color:white;">
-                <th style="padding:7px 12px;text-align:left;">Roll Width</th>
-                <th style="padding:7px 12px;text-align:center;">Rolls to Order</th>
-                <th style="padding:7px 12px;text-align:center;">Roll Length Each</th>
-                <th style="padding:7px 12px;text-align:center;">Total Roll Area</th>
-                <th style="padding:7px 12px;text-align:right;">Cost</th>
-            </tr></thead><tbody>`;
-
-        let summaryRollCount = 0;
-        sortedRolls.forEach(([, { roll, entries }]) => {
-            const rollsHere   = entries.reduce((s, e) => s + e.seg.rollsNeeded, 0);
-            const areaHere    = entries.reduce((s, e) => s + e.seg.areaUsed, 0);
-            const costHere    = entries.reduce((s, e) => s + e.seg.rollsNeeded * e.seg.roll.costPerRoll, 0);
-            summaryRollCount += rollsHere;
-            html += `<tr style="border-bottom:1px solid #e1bee7;">
-                <td style="padding:7px 12px;font-weight:700;color:#6c3483;">${roll.name}</td>
-                <td style="padding:7px 12px;text-align:center;"><strong>${rollsHere}</strong></td>
-                <td style="padding:7px 12px;text-align:center;color:#555;">${(roll.length/12).toFixed(0)} ft (${roll.length}")</td>
-                <td style="padding:7px 12px;text-align:center;color:#555;">${(areaHere/144).toFixed(1)} sqft</td>
-                <td style="padding:7px 12px;text-align:right;">${costHere > 0 ? '₹' + costHere.toFixed(0) : '<em style="color:#aaa">—</em>'}</td>
-            </tr>`;
-        });
-
-        const grandEfficiency = grandTotalArea > 0 ? ((grandPieceArea / grandTotalArea) * 100).toFixed(1) : '0.0';
-        html += `<tr style="background:#6c3483;color:white;font-weight:700;">
-            <td style="padding:8px 12px;">TOTAL</td>
-            <td style="padding:8px 12px;text-align:center;">${grandTotalRolls} rolls</td>
-            <td style="padding:8px 12px;text-align:center;">—</td>
-            <td style="padding:8px 12px;text-align:center;">${(grandTotalArea/144).toFixed(1)} sqft</td>
-            <td style="padding:8px 12px;text-align:right;">${grandCost > 0 ? '₹' + grandCost.toFixed(0) : '—'}</td>
-        </tr>`;
-        html += `</tbody></table>
-            <div style="font-size:12px;color:#6c3483;margin-top:8px;">
-                Net area needed: ${(grandPieceArea/144).toFixed(2)} sqft &nbsp;|&nbsp;
-                Waste: ${((grandTotalArea-grandPieceArea)/144).toFixed(2)} sqft &nbsp;|&nbsp;
-                Overall efficiency: ${grandEfficiency}%
+        // ── Stat cards ───────────────────────────────────────────────────────
+        const CS = 'background:#f3e5f5;border:1px solid #ce93d8;border-radius:8px;padding:10px 16px;flex:1;min-width:110px;text-align:center;';
+        const effColor = eff >= 80 ? '#2e7d32' : eff >= 55 ? '#e65100' : '#c62828';
+        html += `<div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px;">
+            <div style="${CS}">
+                <div style="font-size:11px;color:#6c3483;margin-bottom:3px;">Best Roll</div>
+                <div style="font-size:16px;font-weight:700;color:#4a0072;">${roll.name}</div>
             </div>
+            <div style="${CS}">
+                <div style="font-size:11px;color:#6c3483;margin-bottom:3px;">Rolls to Order</div>
+                <div style="font-size:16px;font-weight:700;color:#4a0072;">${rollsNeeded}</div>
+            </div>
+            <div style="${CS}">
+                <div style="font-size:11px;color:#6c3483;margin-bottom:3px;">Net Area</div>
+                <div style="font-size:16px;font-weight:700;color:#4a0072;">${piecesAreaSqft} sqft</div>
+            </div>
+            <div style="${CS}">
+                <div style="font-size:11px;color:#6c3483;margin-bottom:3px;">Efficiency</div>
+                <div style="font-size:16px;font-weight:700;color:${effColor};">${eff}%</div>
+            </div>
+            ${rollCost > 0 ? `<div style="${CS}">
+                <div style="font-size:11px;color:#6c3483;margin-bottom:3px;">Net Cost</div>
+                <div style="font-size:16px;font-weight:700;color:#4a0072;">₹${rollCost.toFixed(0)}</div>
+            </div>` : ''}
         </div>`;
 
-        // ── 4. ROLL-BY-ROLL CUTTING DETAIL ───────────────────────────────────
-        sortedRolls.forEach(([, { roll, entries }]) => {
-            const rollsHere = entries.reduce((s, e) => s + e.seg.rollsNeeded, 0);
-            const costHere  = entries.reduce((s, e) => s + e.seg.rollsNeeded * e.seg.roll.costPerRoll, 0);
+        // ── Order summary block ──────────────────────────────────────────────
+        html += `<div style="background:#ede7f6;border-radius:8px;padding:11px 14px;margin-bottom:16px;font-size:13px;line-height:2;">
+            <strong style="color:#4a0072;">📦 Order Summary:</strong>
+            <strong>${rollsNeeded}</strong> roll${rollsNeeded > 1 ? 's' : ''} of
+            <strong>${roll.name}</strong>
+            (${roll.width}" wide × ${(roll.length / 12).toFixed(0)}ft long each)
+            &nbsp;|&nbsp; Linear cut: <strong>${totalLen.toFixed(1)}"</strong> (${(totalLen / 12).toFixed(2)} ft)
+            &nbsp;|&nbsp; Roll area: <strong>${rollAreaSqft} sqft</strong>
+            &nbsp;|&nbsp; Waste: <strong>${wasteAreaSqft} sqft</strong>
+            ${rollsNeeded > 1 ? `<br><em style="color:#880e4f;">⚠️ Layout spans ${rollsNeeded} rolls — continue cut on next roll after ${(roll.length / 12).toFixed(0)} ft.</em>` : ''}
+        </div>`;
 
-            html += `<div style="border:2px solid #8e44ad;border-radius:10px;margin-bottom:20px;overflow:hidden;">
-                <!-- Roll header -->
-                <div style="background:#8e44ad;color:white;padding:10px 16px;display:flex;justify-content:space-between;align-items:center;">
-                    <strong style="font-size:15px;">📦 ${roll.name} — ${rollsHere} roll${rollsHere>1?'s':''} needed</strong>
-                    <span style="font-size:13px;opacity:0.9;">
-                        Roll size: ${roll.width}" wide × ${(roll.length/12).toFixed(0)}ft long
-                        ${costHere > 0 ? ' &nbsp;|&nbsp; ₹' + costHere.toFixed(0) : ''}
-                    </span>
-                </div>`;
-
-            // One row per cut entry from this roll width
-            entries.forEach((entry, ei) => {
-                const { group, seg } = entry;
-                const { w, h, labels } = group;
-                const pq = seg.pieceQty;  // actual pieces allocated to this roll
-
-                // Orientation description
-                const acrossInch = seg.orientation === 'w-across' ? w : h;
-                const alongInch  = seg.orientation === 'w-across' ? h : w;
-                const orientDesc = `${acrossInch.toFixed(2)}" across roll width, ${alongInch.toFixed(2)}" along roll`;
-
-                // Piece size label (w × h, always width × height)
-                const pieceDims = `${w.toFixed(2)}" × ${h.toFixed(2)}" (${(w/12).toFixed(2)}ft × ${(h/12).toFixed(2)}ft)`;
-
-                const rollAreaSqft = (seg.rollsNeeded * roll.width * roll.length / 144).toFixed(2);
-                const piecesAreaSqft = (pq * w * h / 144).toFixed(2);
-                const wasteAreaSqft  = ((seg.areaUsed - pq*w*h) / 144).toFixed(2);
-                const eff = seg.areaUsed > 0 ? ((pq*w*h / seg.areaUsed)*100).toFixed(1) : '0.0';
-                const entryBg = ei % 2 === 0 ? '#faf5ff' : 'white';
-
-                html += `<div style="padding:14px 16px;background:${entryBg};border-top:1px solid #e1bee7;">
-                    <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:8px;">
-                        <div>
-                            <span style="font-size:14px;font-weight:700;color:#4a0072;">
-                                Piece: ${pieceDims}
-                            </span>
-                            <span style="background:#8e44ad;color:white;border-radius:10px;padding:2px 10px;font-size:12px;font-weight:600;margin-left:8px;">
-                                Qty: ${pq}
-                            </span><br>
-                            <span style="font-size:12px;color:#666;margin-top:3px;display:inline-block;">
-                                From: ${labels.join(', ')}
-                            </span>
-                        </div>
-                        <div style="text-align:right;font-size:12px;color:#555;line-height:1.8;">
-                            <strong>${seg.rollsNeeded}</strong> roll${seg.rollsNeeded>1?'s':''} of ${roll.name} &nbsp;|&nbsp;
-                            Efficiency: <strong>${eff}%</strong><br>
-                            Roll area used: ${rollAreaSqft} sqft &nbsp;|&nbsp; Waste: ${wasteAreaSqft} sqft
-                        </div>
-                    </div>
-
-                    <!-- Cut instructions -->
-                    <div style="background:#ede7f6;border-radius:6px;padding:8px 12px;margin-top:10px;font-size:13px;line-height:1.9;">
-                        <strong style="color:#4a0072;">✂️ Cutting Instructions:</strong><br>
-                        Place piece <strong>${orientDesc}</strong><br>
-                        Pieces per row: <strong>${seg.piecesPerRow}</strong> &nbsp;|&nbsp;
-                        Rows to cut: <strong>${seg.rowsNeeded}</strong> &nbsp;|&nbsp;
-                        Linear length to cut: <strong>${(seg.lengthUsed/12).toFixed(2)} ft (${seg.lengthUsed.toFixed(2)}")</strong>
-                        ${seg.rollsNeeded > 1 ? `<br><em style="color:#880e4f;">⚠️ Requires ${seg.rollsNeeded} rolls — continue on next roll after ${(roll.length/12).toFixed(0)} ft.</em>` : ''}
-                    </div>
-
-                    <!-- 2D diagram -->
-                    <div style="margin-top:10px;">
-                        ${generateNetDiagram(w, h, pq, seg)}
-                    </div>
-                </div>`;
+        // ── Piece summary table (grouped by window label) ────────────────────
+        const pieceSummary = {};
+        netLayout.shelves.forEach((shelf, si) => {
+            shelf.pieces.forEach(p => {
+                const key = `${p.label}|${p.origW}|${p.origH}`;
+                if (!pieceSummary[key]) {
+                    pieceSummary[key] = { label: p.label, origW: p.origW, origH: p.origH,
+                                         qty: 0, rotatedCount: 0, rows: [] };
+                }
+                pieceSummary[key].qty++;
+                if (p.rotated) pieceSummary[key].rotatedCount++;
+                pieceSummary[key].rows.push(si + 1);
             });
-
-            html += '</div>';  // close roll block
         });
+
+        html += `<strong style="font-size:13px;color:#6c3483;">🧩 Pieces Required</strong>
+        <table style="width:100%;border-collapse:collapse;font-size:12px;margin:8px 0 16px 0;">
+            <thead><tr style="background:#8e44ad;color:white;">
+                <th style="padding:6px 10px;text-align:left;">Window / Label</th>
+                <th style="padding:6px 10px;text-align:center;">Net Size (W×H)</th>
+                <th style="padding:6px 10px;text-align:center;">Qty</th>
+                <th style="padding:6px 10px;text-align:center;">Placed As</th>
+                <th style="padding:6px 10px;text-align:center;">In Row(s)</th>
+            </tr></thead><tbody>`;
+
+        let psi = 0;
+        for (const [, ps] of Object.entries(pieceSummary)) {
+            const rowBg = psi++ % 2 === 0 ? '#faf5ff' : 'white';
+            const placedDesc = ps.rotatedCount === ps.qty
+                ? `${ps.origH.toFixed(2)}"×${ps.origW.toFixed(2)}" ↺`
+                : ps.rotatedCount === 0
+                ? `${ps.origW.toFixed(2)}"×${ps.origH.toFixed(2)}"`
+                : `Mixed (some rotated ↺)`;
+            const uniqueRows = [...new Set(ps.rows)].sort((a, b) => a - b).join(', ');
+            html += `<tr style="background:${rowBg};border-bottom:1px solid #e8d5f0;">
+                <td style="padding:6px 10px;font-weight:600;color:#4a0072;">${ps.label}</td>
+                <td style="padding:6px 10px;text-align:center;">${ps.origW.toFixed(2)}" × ${ps.origH.toFixed(2)}"</td>
+                <td style="padding:6px 10px;text-align:center;font-weight:700;">${ps.qty}</td>
+                <td style="padding:6px 10px;text-align:center;color:${ps.rotatedCount > 0 ? '#e65100' : '#2e7d32'};">${placedDesc}</td>
+                <td style="padding:6px 10px;text-align:center;color:#555;">Row ${uniqueRows}</td>
+            </tr>`;
+        }
+        html += '</tbody></table>';
+
+        // ── Row-by-row cutting instructions ──────────────────────────────────
+        html += `<strong style="font-size:13px;color:#6c3483;">✂️ Row-by-Row Cutting Instructions</strong>
+        <div style="margin:8px 0 16px 0;">`;
+        netLayout.shelves.forEach((shelf, si) => {
+            const y1 = shelf.y.toFixed(2);
+            const y2 = (shelf.y + shelf.shelfH).toFixed(2);
+            const usedW = shelf.pieces.reduce((s, p) => s + p.w, 0).toFixed(2);
+            const piecesDesc = shelf.pieces.map(p => {
+                const short = p.label.split(/[\s(]/)[0];
+                return `<strong>${short}</strong>: ${p.w.toFixed(2)}"×${p.h.toFixed(2)}"${p.rotated ? ' <span style="color:#e65100">↺</span>' : ''}`;
+            }).join(' &nbsp;|&nbsp; ');
+            html += `<div style="background:#faf5ff;border:1px solid #e1bee7;border-radius:6px;padding:8px 12px;margin-bottom:6px;font-size:12px;line-height:1.9;">
+                <strong style="color:#6c3483;">Row ${si + 1}</strong>
+                &nbsp; Cut: <strong>${y1}"</strong> → <strong>${y2}"</strong>
+                &nbsp; (row height = ${shelf.shelfH.toFixed(2)}", width used = ${usedW}")
+                &nbsp;&nbsp; ${piecesDesc}
+            </div>`;
+        });
+        html += '</div>';
+
+        // ── 2D layout diagram ─────────────────────────────────────────────────
+        html += `<strong style="font-size:13px;color:#6c3483;">📐 2D Layout Diagram</strong>
+        <div style="font-size:11px;color:#777;margin:4px 0 6px 0;">
+            <span style="display:inline-block;width:18px;height:3px;background:#2980b9;vertical-align:middle;"></span> Horizontal cuts
+            &nbsp;
+            <span style="display:inline-block;width:18px;height:3px;background:#e74c3c;vertical-align:middle;"></span> Vertical cuts
+            &nbsp;
+            <span style="display:inline-block;width:14px;height:10px;background:repeating-linear-gradient(135deg,#c8a8e0 0 2px,transparent 2px 6px);vertical-align:middle;border:1px solid #c8a8e0;"></span> Waste
+            &nbsp;
+            ↺ Rotated piece
+        </div>
+        <div style="overflow:auto;max-height:580px;border:1px solid #e1bee7;border-radius:6px;padding:8px;background:#fefefe;">
+            ${generateNetDiagramFFDH(netLayout)}
+        </div>`;
 
         html += '</div>';  // close net section
     }

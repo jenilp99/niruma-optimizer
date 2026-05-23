@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Net FFDH Sample — Proportional SVG Demo</title>
+<style>
+  body { font-family: sans-serif; background: #f8f5ff; padding: 20px; color: #333; }
+  h1   { color: #6c3483; }
+  h2   { color: #8e44ad; border-bottom: 2px solid #ce93d8; padding-bottom: 6px; }
+  .card { background: white; border-radius: 10px; padding: 18px; margin-bottom: 24px;
+          box-shadow: 0 2px 8px rgba(142,68,173,0.12); }
+  .stats { display: flex; gap: 14px; flex-wrap: wrap; margin-bottom: 16px; }
+  .stat  { background: #f3e5f5; border: 1px solid #ce93d8; border-radius: 8px;
+           padding: 10px 18px; text-align: center; min-width: 110px; }
+  .stat h4 { margin: 0 0 4px; font-size: 11px; color: #6c3483; font-weight: 600; }
+  .stat p  { margin: 0; font-size: 18px; font-weight: 700; color: #4a0072; }
+  table { border-collapse: collapse; font-size: 13px; margin: 10px 0; }
+  th, td { padding: 6px 12px; border: 1px solid #e1bee7; }
+  th { background: #8e44ad; color: white; }
+  .diagram-wrap { overflow: auto; max-height: 560px; border: 1px solid #e1bee7;
+                  border-radius: 6px; padding: 8px; background: #fefefe; }
+  .legend { font-size: 11px; color: #777; margin: 4px 0 8px; }
+  .row-instr { background: #faf5ff; border: 1px solid #e1bee7; border-radius: 6px;
+               padding: 8px 12px; margin-bottom: 6px; font-size: 12px; line-height: 1.9; }
+</style>
+</head>
+<body>
+<h1>🕸️ Mosquito Net — FFDH 2D Layout Demo</h1>
+<p style="color:#555;font-size:13px;">
+  Simulated result for a project with 3 windows (Domal 27mm).<br>
+  <strong>Key fix:</strong> Uniform px/inch scale on both axes — 22" is always exactly half the visual size of 44".
+</p>
+
+<div class="card">
+  <h2>📊 Result: Best Roll — 4' (48") wide</h2>
+  <p style="font-size:12px;color:#888;">
+    Sample input: W01 = 22.50"×44.25" qty 2, W03 = 18.00"×38.50" qty 1, W02 = 15.75"×31.00" qty 1<br>
+    FFDH (area-desc sort): W01 auto-rotated to 44.25×22.5, W02+W03 share Row 3 — mixed windows.
+  </p>
+
+  <div class="stats">
+    <div class="stat"><h4>Best Roll</h4><p>4' (48")</p></div>
+    <div class="stat"><h4>Rolls to Order</h4><p>1</p></div>
+    <div class="stat"><h4>Net Area</h4><p>22.0 sqft</p></div>
+    <div class="stat"><h4>Linear Used</h4><p>83.5"</p></div>
+    <div class="stat"><h4>Lin. Eff.</h4><p style="color:#2e7d32;">79.1%</p></div>
+  </div>
+
+  <div style="background:#ede7f6;border-radius:8px;padding:11px 14px;margin-bottom:16px;font-size:13px;line-height:2;">
+    <strong style="color:#4a0072;">📦 Order Summary:</strong>
+    <strong>1</strong> roll of <strong>4' (48")</strong>
+    (48" wide × 50ft long)
+    &nbsp;|&nbsp; Linear cut: <strong>83.5"</strong> (6.96 ft)
+  </div>
+
+  <strong style="font-size:13px;color:#6c3483;">🧩 Pieces Required</strong>
+  <table>
+    <thead><tr>
+      <th>Window</th><th>Net Size (W×H)</th><th>Qty</th><th>Placed As</th><th>Row(s)</th>
+    </tr></thead>
+    <tbody>
+      <tr style="background:#faf5ff;">
+        <td><strong style="color:#4a0072;">W01</strong></td>
+        <td style="text-align:center;">22.50" × 44.25"</td>
+        <td style="text-align:center;font-weight:700;">2</td>
+        <td style="text-align:center;color:#e65100;">44.25"×22.50" ↺</td>
+        <td style="text-align:center;">Row 1, Row 2</td>
+      </tr>
+      <tr>
+        <td><strong style="color:#4a0072;">W03</strong></td>
+        <td style="text-align:center;">18.00" × 38.50"</td>
+        <td style="text-align:center;font-weight:700;">1</td>
+        <td style="text-align:center;color:#2e7d32;">18.00"×38.50"</td>
+        <td style="text-align:center;">Row 3</td>
+      </tr>
+      <tr style="background:#faf5ff;">
+        <td><strong style="color:#4a0072;">W02</strong></td>
+        <td style="text-align:center;">15.75" × 31.00"</td>
+        <td style="text-align:center;font-weight:700;">1</td>
+        <td style="text-align:center;color:#2e7d32;">15.75"×31.00"</td>
+        <td style="text-align:center;">Row 3</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <br>
+  <strong style="font-size:13px;color:#6c3483;">✂️ Row-by-Row Cutting Instructions</strong>
+  <div style="margin:8px 0 16px 0;">
+    <div class="row-instr">
+      <strong style="color:#6c3483;">Row 1</strong>
+      &nbsp; Cut: <strong>0.00"</strong> → <strong>22.50"</strong>
+      (height = 22.50", width used = 44.25")
+      &nbsp;&nbsp; <strong>W01</strong>: 44.25"×22.50" <span style="color:#e65100">↺</span>
+    </div>
+    <div class="row-instr">
+      <strong style="color:#6c3483;">Row 2</strong>
+      &nbsp; Cut: <strong>22.50"</strong> → <strong>45.00"</strong>
+      (height = 22.50", width used = 44.25")
+      &nbsp;&nbsp; <strong>W01</strong>: 44.25"×22.50" <span style="color:#e65100">↺</span>
+    </div>
+    <div class="row-instr">
+      <strong style="color:#6c3483;">Row 3</strong>
+      &nbsp; Cut: <strong>45.00"</strong> → <strong>83.50"</strong>
+      (height = 38.50", width used = 33.75")
+      &nbsp;&nbsp; <strong>W03</strong>: 18.00"×38.50" &nbsp;|&nbsp; <strong>W02</strong>: 15.75"×31.00"
+    </div>
+  </div>
+
+  <strong style="font-size:13px;color:#6c3483;">📐 2D Layout Diagram</strong>
+  <div class="legend">
+    <span style="display:inline-block;width:18px;height:3px;background:#2980b9;vertical-align:middle;"></span> Horizontal cuts
+    &nbsp;
+    <span style="display:inline-block;width:18px;height:3px;background:#e74c3c;vertical-align:middle;"></span> Vertical cuts
+    &nbsp;
+    <span style="display:inline-block;width:14px;height:10px;
+      background:repeating-linear-gradient(135deg,#c8a8e0 0 2px,transparent 2px 6px);
+      vertical-align:middle;border:1px solid #c8a8e0;"></span> Waste
+    &nbsp; ↺ Rotated piece
+  </div>
+
+  <!--
+    UNIFORM SCALE CALCULATION:
+    scale = min(530/48, 14) = min(11.04, 14) = 11.04 px/inch
+    canvasW = 48  * 11.04 = 530.0 px
+    canvasH = 83.5 * 11.04 = 921.8 px
+    PT=18 PL=4 PR=46 PB=22 → svgW=580, svgH=962
+
+    Row 1:  y=18,    h = 22.50*11.04 = 248.4px
+    Row 2:  y=266.4, h = 22.50*11.04 = 248.4px
+    Row 3:  y=514.8, h = 38.50*11.04 = 424.8px
+
+    W01 placed 44.25×22.5 → pw=44.25*11.04=488.5px  ph=22.5*11.04=248.4px
+    W03 placed 18×38.5    → pw=18*11.04=198.7px      ph=38.5*11.04=424.8px
+    W02 placed 15.75×31   → pw=15.75*11.04=173.9px   ph=31*11.04=342.2px
+  -->
+  <div class="diagram-wrap">
+  <svg xmlns="http://www.w3.org/2000/svg" width="580" height="962"
+       style="display:block;margin:6px 0;font-family:sans-serif;">
+    <defs>
+      <pattern id="netHatch" patternUnits="userSpaceOnUse" width="6" height="6" patternTransform="rotate(45)">
+        <line x1="0" y1="0" x2="0" y2="6" stroke="#c8a8e0" stroke-width="1.5"/>
+      </pattern>
+    </defs>
+
+    <!-- Roll background -->
+    <rect x="4" y="18" width="530" height="921.8" fill="#f5f0ff" stroke="#8e44ad" stroke-width="1.5"/>
+
+    <!-- ── Row 1: y=18, shelfH=22.5" = 248.4px ── -->
+    <rect x="4" y="18" width="530" height="248.4" fill="url(#netHatch)" opacity="0.35"/>
+    <!-- W01 rotated (44.25"×22.5"): pw=488.5, ph=248.4 -->
+    <rect x="4.0" y="18.0" width="488.5" height="248.4" fill="#9b59b6" opacity="0.85" stroke="white" stroke-width="1.2"/>
+    <text x="248.3" y="127.2" text-anchor="middle" font-size="11" fill="white" font-weight="bold">W01</text>
+    <text x="248.3" y="141.2" text-anchor="middle" font-size="9"  fill="rgba(255,255,255,0.92)">44.25"×22.50" ↺</text>
+    <!-- H1 cut at y = 18 + 248.4 = 266.4 -->
+    <line x1="4" y1="266.4" x2="534" y2="266.4" stroke="#2980b9" stroke-width="1.5" stroke-dasharray="5,3"/>
+    <text x="538" y="270.4" font-size="9" fill="#2980b9" font-weight="bold">H1</text>
+
+    <!-- ── Row 2: y=266.4, shelfH=22.5" = 248.4px ── -->
+    <rect x="4" y="266.4" width="530" height="248.4" fill="url(#netHatch)" opacity="0.35"/>
+    <!-- W01 rotated (44.25"×22.5"): pw=488.5, ph=248.4 -->
+    <rect x="4.0" y="266.4" width="488.5" height="248.4" fill="#2980b9" opacity="0.85" stroke="white" stroke-width="1.2"/>
+    <text x="248.3" y="375.6" text-anchor="middle" font-size="11" fill="white" font-weight="bold">W01</text>
+    <text x="248.3" y="389.6" text-anchor="middle" font-size="9"  fill="rgba(255,255,255,0.92)">44.25"×22.50" ↺</text>
+    <!-- H2 cut at y = 266.4 + 248.4 = 514.8 -->
+    <line x1="4" y1="514.8" x2="534" y2="514.8" stroke="#2980b9" stroke-width="1.5" stroke-dasharray="5,3"/>
+    <text x="538" y="518.8" font-size="9" fill="#2980b9" font-weight="bold">H2</text>
+
+    <!-- ── Row 3: y=514.8, shelfH=38.5" = 424.8px ── -->
+    <rect x="4" y="514.8" width="530" height="424.8" fill="url(#netHatch)" opacity="0.35"/>
+    <!-- W03 normal (18"×38.5"): px=4, pw=198.7, ph=424.8 -->
+    <rect x="4.0" y="514.8" width="198.7" height="424.8" fill="#27ae60" opacity="0.85" stroke="white" stroke-width="1.2"/>
+    <text x="103.4" y="716.2" text-anchor="middle" font-size="11" fill="white" font-weight="bold">W03</text>
+    <text x="103.4" y="730.2" text-anchor="middle" font-size="9"  fill="rgba(255,255,255,0.92)">18.00"×38.50"</text>
+    <!-- Vertical cut between W03 and W02 at x = 4 + 198.7 = 202.7 -->
+    <line x1="202.7" y1="514.8" x2="202.7" y2="939.6" stroke="#e74c3c" stroke-width="1" stroke-dasharray="3,2"/>
+    <!-- W02 normal (15.75"×31"): px=202.7, pw=173.9, ph=342.2 -->
+    <rect x="202.7" y="514.8" width="173.9" height="342.2" fill="#e67e22" opacity="0.85" stroke="white" stroke-width="1.2"/>
+    <text x="289.7" y="678.9" text-anchor="middle" font-size="11" fill="white" font-weight="bold">W02</text>
+    <text x="289.7" y="692.9" text-anchor="middle" font-size="9"  fill="rgba(255,255,255,0.92)">15.75"×31.00"</text>
+
+    <!-- Roll width label -->
+    <text x="269" y="13" text-anchor="middle" font-size="10" fill="#6c3483" font-weight="bold">48" wide</text>
+    <!-- Bottom annotation -->
+    <text x="4" y="956" font-size="9" fill="#6c3483">Scale: 11.0 px/in (uniform) | Linear used: 83.5" (6.96 ft)</text>
+  </svg>
+  </div>
+
+  <div style="margin-top:12px;font-size:11px;color:#555;background:#e8f5e9;padding:10px;border-radius:6px;border-left:4px solid #4caf50;">
+    <strong style="color:#2e7d32;">✅ Proportion verification (uniform scale 11.04 px/in):</strong><br>
+    Row 1 height = 22.50" → <strong>248px</strong> &nbsp;|&nbsp;
+    Row 3 height = 38.50" → <strong>425px</strong> &nbsp;|&nbsp;
+    Ratio 38.5/22.5 = <strong>1.711</strong> &nbsp;=&nbsp; 425/248 = <strong>1.714</strong> ✓<br>
+    W01 width = 44.25" → <strong>489px</strong> &nbsp;|&nbsp;
+    W03 width = 18.00" → <strong>199px</strong> &nbsp;|&nbsp;
+    Ratio 44.25/18 = <strong>2.458</strong> &nbsp;=&nbsp; 489/199 = <strong>2.457</strong> ✓<br>
+    <em>Both axes use the same 11.0 px/inch — aspect ratios of ALL pieces are now visually accurate.</em>
+  </div>
+</div>
+
+<div class="card">
+  <h2>🔬 Before vs After</h2>
+  <table style="width:100%;">
+    <thead><tr><th style="width:200px;">Feature</th><th>Old (broken)</th><th>New FFDH</th></tr></thead>
+    <tbody>
+      <tr><td>Scale</td>
+        <td style="color:#c0392b;">X: 10.83 px/in, Y: 5.23 px/in — different!</td>
+        <td style="color:#27ae60;">11.0 px/in both axes ✓</td></tr>
+      <tr style="background:#faf5ff;"><td>Proportions</td>
+        <td style="color:#c0392b;">22" and 44" looked same height</td>
+        <td style="color:#27ae60;">44" is exactly 2× the visual height of 22" ✓</td></tr>
+      <tr><td>Mixed windows</td>
+        <td style="color:#c0392b;">Each size on its own roll section</td>
+        <td style="color:#27ae60;">W03 + W02 share Row 3, less waste ✓</td></tr>
+      <tr style="background:#faf5ff;"><td>Rotation</td>
+        <td style="color:#c0392b;">Fixed orientation</td>
+        <td style="color:#27ae60;">W01 auto-rotated to 44.25×22.5 ↺ ✓</td></tr>
+      <tr><td>Algorithm</td>
+        <td style="color:#c0392b;">Per-size strip packing</td>
+        <td style="color:#27ae60;">2D FFDH + 4 sort strategies × 4 roll widths ✓</td></tr>
+    </tbody>
+  </table>
+</div>
+</body>
+</html>

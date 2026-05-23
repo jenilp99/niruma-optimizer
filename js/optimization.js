@@ -156,14 +156,14 @@ function runOptimization() {
     }
 
     // ── Mosquito Net Optimization ──────────────────────────────────────────────
-    let netResults = [];
+    let netResults = null;
     // Only use rolls that are flagged in-stock (inStock === false means user unchecked it)
     const availableNetRolls = (ratesConfig.netStock || []).filter(r => r.width > 0 && r.length > 0 && r.inStock !== false);
     if (availableNetRolls.length > 0) {
         const netPieces = computeNetPieces(projectWindows);
         if (netPieces.length > 0) {
-            netResults = optimizeNetCutting(netPieces, availableNetRolls);
-            console.log('%c🕸️ Net optimization complete:', 'background: #8e44ad; color: white; padding: 2px 6px;', netResults);
+            netResults = packNetFFDH(netPieces, availableNetRolls);
+            console.log('%c🕸️ Net FFDH optimization complete:', 'background: #8e44ad; color: white; padding: 2px 6px;', netResults);
         }
     }
     // ──────────────────────────────────────────────────────────────────────────
@@ -901,123 +901,114 @@ function computeNetPieces(projectWindows) {
 }
 
 /**
- * For a given piece count on a single roll width + orientation, compute roll usage.
- * Returns { orientation, piecesPerRow, rowsNeeded, lengthUsed, rollsNeeded,
- *           areaUsed (sq-in of roll consumed), wasteArea, roll }
+ * 2D FFDH (First-Fit Decreasing Height) strip packer with rotation.
+ * Packs ALL items onto a single roll width; returns layout object or null
+ * if any piece is too wide for this roll.
+ *
+ * @param {Array}  sortedItems  [{w, h, label}] — pre-sorted, individual pieces (qty already expanded)
+ * @param {Object} roll         {name, width, length, costPerRoll}
+ * @returns layout object or null
  */
-function _netRollUsage(w, h, qty, roll, orientation) {
-    // orientation: 'w-across' → piece width spans roll width, height runs along roll
-    //              'h-across' → piece height spans roll width, width runs along roll
-    let acrossSize, alongSize;
-    if (orientation === 'w-across') {
-        acrossSize = w; alongSize = h;
-    } else {
-        acrossSize = h; alongSize = w;
-    }
+function _ffdhPack(sortedItems, roll) {
+    // shelves: [{y, shelfH, nextX, pieces:[{x,w,h,label,origW,origH,rotated}]}]
+    const shelves = [];
 
-    if (acrossSize > roll.width) return null;  // doesn't fit
+    for (const item of sortedItems) {
+        // Build valid orientations (only those whose placed-width ≤ roll.width)
+        const orients = [];
+        if (item.w <= roll.width) orients.push({ pw: item.w, ph: item.h, rotated: false });
+        if (item.h !== item.w && item.h <= roll.width) orients.push({ pw: item.h, ph: item.w, rotated: true });
+        if (orients.length === 0) return null;  // piece too wide for this roll width
 
-    const piecesPerRow = Math.floor(roll.width / acrossSize);
-    const rowsNeeded   = Math.ceil(qty / piecesPerRow);
-    const lengthUsed   = rowsNeeded * alongSize;
-    const rollsNeeded  = Math.ceil(lengthUsed / roll.length);
-    const areaUsed     = rollsNeeded * roll.width * roll.length;
-    const piecesArea   = qty * w * h;
-    const wasteArea    = areaUsed - piecesArea;
-
-    return {
-        orientation,
-        pieceQty: qty,       // actual pieces allocated to this roll segment
-        piecesPerRow,
-        rowsNeeded,
-        lengthUsed: Math.round(lengthUsed * 100) / 100,
-        rollsNeeded,
-        areaUsed,
-        wasteArea,
-        roll
-    };
-}
-
-/**
- * Best single-roll fit for qty pieces of (w×h) on a given roll (either orientation).
- */
-function _bestFitOnRoll(w, h, qty, roll) {
-    const o1 = _netRollUsage(w, h, qty, roll, 'w-across');
-    const o2 = _netRollUsage(w, h, qty, roll, 'h-across');
-    const opts = [o1, o2].filter(Boolean);
-    if (!opts.length) return null;
-    return opts.reduce((a, b) => a.areaUsed < b.areaUsed ? a : b);
-}
-
-/**
- * Optimise cutting of qty identical pieces (w×h) from available roll stock.
- * Tries every single-roll option and every split between two roll widths.
- * Returns the winning plan object.
- */
-function _optimiseSingleSize(w, h, qty, availableRolls) {
-    let bestPlan  = null;
-    let bestArea  = Infinity;
-    let bestCost  = Infinity;
-
-    const evalPlan = (plan) => {
-        const area = plan.segments.reduce((s, seg) => s + seg.areaUsed, 0);
-        const cost = plan.segments.reduce((s, seg) => s + seg.rollsNeeded * seg.roll.costPerRoll, 0);
-        if (area < bestArea || (area === bestArea && cost < bestCost)) {
-            bestArea = area; bestCost = cost; bestPlan = plan;
-        }
-    };
-
-    // 1. Try each single roll width
-    availableRolls.forEach(roll => {
-        const seg = _bestFitOnRoll(w, h, qty, roll);
-        if (seg) evalPlan({ segments: [seg] });
-    });
-
-    // 2. Try all pairs of roll widths (allocate k to roll1, qty-k to roll2)
-    for (let i = 0; i < availableRolls.length; i++) {
-        for (let j = i + 1; j < availableRolls.length; j++) {
-            for (let k = 1; k < qty; k++) {
-                const seg1 = _bestFitOnRoll(w, h, k,       availableRolls[i]);
-                const seg2 = _bestFitOnRoll(w, h, qty - k, availableRolls[j]);
-                if (seg1 && seg2) evalPlan({ segments: [seg1, seg2] });
-
-                // Also try with roles swapped
-                const seg1b = _bestFitOnRoll(w, h, k,       availableRolls[j]);
-                const seg2b = _bestFitOnRoll(w, h, qty - k, availableRolls[i]);
-                if (seg1b && seg2b) evalPlan({ segments: [seg1b, seg2b] });
+        // Best-Fit: find (shelf, orientation) pair with minimum vertical waste
+        let bestSi = -1, bestO = null, bestWaste = Infinity;
+        for (const o of orients) {
+            for (let si = 0; si < shelves.length; si++) {
+                const sh = shelves[si];
+                if (o.ph <= sh.shelfH && sh.nextX + o.pw <= roll.width) {
+                    const waste = sh.shelfH - o.ph;
+                    if (waste < bestWaste) {
+                        bestWaste = waste;
+                        bestSi    = si;
+                        bestO     = o;
+                    }
+                }
             }
         }
+
+        if (bestSi >= 0) {
+            // Place in existing shelf
+            const sh = shelves[bestSi];
+            sh.pieces.push({ x: sh.nextX, w: bestO.pw, h: bestO.ph,
+                             label: item.label, origW: item.w, origH: item.h, rotated: bestO.rotated });
+            sh.nextX += bestO.pw;
+        } else {
+            // Open new shelf — choose orientation that minimises shelf height
+            const o = orients.reduce((a, b) => a.ph <= b.ph ? a : b);
+            const newY = shelves.length === 0 ? 0
+                       : shelves[shelves.length - 1].y + shelves[shelves.length - 1].shelfH;
+            shelves.push({
+                y: newY, shelfH: o.ph, nextX: o.pw,
+                pieces: [{ x: 0, w: o.pw, h: o.ph,
+                           label: item.label, origW: item.w, origH: item.h, rotated: o.rotated }]
+            });
+        }
     }
 
-    return bestPlan;
+    const totalLength = shelves.length === 0 ? 0
+        : shelves[shelves.length - 1].y + shelves[shelves.length - 1].shelfH;
+    const rollsNeeded = Math.max(1, Math.ceil(totalLength / roll.length));
+    const areaUsed    = rollsNeeded * roll.width * roll.length;
+    const piecesArea  = sortedItems.reduce((s, p) => s + p.w * p.h, 0);
+
+    return {
+        roll, shelves, totalLength, rollsNeeded, areaUsed,
+        wasteArea: areaUsed - piecesArea, piecesArea,
+        efficiency: areaUsed > 0 ? Math.round(piecesArea / areaUsed * 1000) / 10 : 0
+    };
 }
 
 /**
- * Main entry point: optimise net cutting for all pieces collected from project.
- * Pieces from the same window config that have the same (w, h) are merged.
- * Returns [{ w, h, qty, labels[], plan }] — one entry per unique piece size.
+ * Main net cutting entry point: 2D FFDH with rotation across ALL pieces.
+ * Tries 4 sort strategies × all available roll widths → returns minimum-waste layout.
+ *
+ * @param {Array}  allPieces      [{w, h, qty, label, series}]
+ * @param {Array}  availableRolls [{name, width, length, costPerRoll}]
+ * @returns best layout object, or null if nothing fits
  */
-function optimizeNetCutting(allPieces, availableRolls) {
-    if (!allPieces.length || !availableRolls.length) return [];
+function packNetFFDH(allPieces, availableRolls) {
+    if (!allPieces.length || !availableRolls.length) return null;
 
-    // Group by size
-    const sizeMap = new Map();
+    // Expand qty → individual item entries
+    const items = [];
     allPieces.forEach(p => {
-        const key = `${p.w}x${p.h}`;
-        if (!sizeMap.has(key)) sizeMap.set(key, { w: p.w, h: p.h, qty: 0, labels: [] });
-        const g = sizeMap.get(key);
-        g.qty    += p.qty;
-        g.labels.push(`${p.label} ×${p.qty}`);
+        for (let i = 0; i < p.qty; i++) {
+            items.push({ w: p.w, h: p.h, label: p.label });
+        }
     });
 
-    const results = [];
-    for (const [, group] of sizeMap) {
-        const { w, h, qty, labels } = group;
-        const plan = _optimiseSingleSize(w, h, qty, availableRolls);
-        results.push({ w, h, qty, labels, plan });
-    }
+    // 4 sort strategies (all descending)
+    const sorts = [
+        arr => [...arr].sort((a, b) => b.w * b.h                  - a.w * a.h),           // area ↓
+        arr => [...arr].sort((a, b) => Math.max(b.w, b.h)         - Math.max(a.w, a.h)),  // max-dim ↓
+        arr => [...arr].sort((a, b) => b.w                         - a.w),                 // width ↓
+        arr => [...arr].sort((a, b) => b.h                         - a.h),                 // height ↓
+    ];
 
-    return results;
+    let best = null;
+
+    availableRolls.forEach(roll => {
+        sorts.forEach(sortFn => {
+            const res = _ffdhPack(sortFn(items), roll);
+            if (res && (!best || res.areaUsed < best.areaUsed ||
+                       (res.areaUsed === best.areaUsed &&
+                        res.rollsNeeded * res.roll.costPerRoll < best.rollsNeeded * best.roll.costPerRoll))) {
+                best = res;
+            }
+        });
+    });
+
+    return best;
 }
 
 // ============================================================================
