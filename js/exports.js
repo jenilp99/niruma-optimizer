@@ -364,14 +364,14 @@ function displayResults() {
     // ── Mosquito Net Section (2D FFDH with rotation) ──────────────────────────
     const netLayout = r.netResults;
     if (netLayout) {
-        const roll         = netLayout.roll;
-        const rollsNeeded  = netLayout.rollsNeeded;
-        const totalLen     = netLayout.totalLength;
-        const eff          = netLayout.efficiency;
-        const piecesAreaSqft = (netLayout.piecesArea / 144).toFixed(2);
-        const rollAreaSqft   = (netLayout.areaUsed  / 144).toFixed(2);
-        const wasteAreaSqft  = (netLayout.wasteArea  / 144).toFixed(2);
-        const rollCost       = rollsNeeded * (roll.costPerRoll || 0);
+        const roll            = netLayout.roll;
+        const rollsNeeded     = netLayout.rollsNeeded;
+        const totalLen        = netLayout.totalLength;
+        const eff             = netLayout.efficiency;           // based on linear area consumed
+        const piecesAreaSqft  = (netLayout.piecesArea  / 144).toFixed(2);
+        const linearAreaSqft  = (netLayout.linearArea  / 144).toFixed(2);  // width × totalLength
+        const wasteAreaSqft   = (netLayout.wasteArea   / 144).toFixed(2);  // linearArea - piecesArea
+        const rollCost        = rollsNeeded * (roll.costPerRoll || 0);
 
         html += `<div class="material-section" style="border-left:4px solid #8e44ad;margin-top:24px;">
             <h3 style="margin:0 0 4px 0;color:#6c3483;">🕸️ Mosquito Net Cutting Plan</h3>
@@ -397,8 +397,13 @@ function displayResults() {
                 <div style="font-size:16px;font-weight:700;color:#4a0072;">${piecesAreaSqft} sqft</div>
             </div>
             <div style="${CS}">
-                <div style="font-size:11px;color:#6c3483;margin-bottom:3px;">Efficiency</div>
+                <div style="font-size:11px;color:#6c3483;margin-bottom:3px;">Consumed Area</div>
+                <div style="font-size:16px;font-weight:700;color:#4a0072;">${linearAreaSqft} sqft</div>
+            </div>
+            <div style="${CS}">
+                <div style="font-size:11px;color:#6c3483;margin-bottom:3px;">Cut Efficiency</div>
                 <div style="font-size:16px;font-weight:700;color:${effColor};">${eff}%</div>
+                <div style="font-size:10px;color:#888;margin-top:2px;">of consumed length</div>
             </div>
             ${rollCost > 0 ? `<div style="${CS}">
                 <div style="font-size:11px;color:#6c3483;margin-bottom:3px;">Net Cost</div>
@@ -413,8 +418,9 @@ function displayResults() {
             <strong>${roll.name}</strong>
             (${roll.width}" wide × ${(roll.length / 12).toFixed(0)}ft long each)
             &nbsp;|&nbsp; Linear cut: <strong>${totalLen.toFixed(1)}"</strong> (${(totalLen / 12).toFixed(2)} ft)
-            &nbsp;|&nbsp; Roll area: <strong>${rollAreaSqft} sqft</strong>
-            &nbsp;|&nbsp; Waste: <strong>${wasteAreaSqft} sqft</strong>
+            &nbsp;|&nbsp; Area consumed: <strong>${linearAreaSqft} sqft</strong>
+            <span style="font-size:11px;color:#6c3483;">(= ${roll.width}" × ${totalLen.toFixed(1)}", leftover stored &amp; reused)</span>
+            &nbsp;|&nbsp; Waste in cut: <strong>${wasteAreaSqft} sqft</strong>
             ${rollsNeeded > 1 ? `<br><em style="color:#880e4f;">⚠️ Layout spans ${rollsNeeded} rolls — continue cut on next roll after ${(roll.length / 12).toFixed(0)} ft.</em>` : ''}
         </div>`;
 

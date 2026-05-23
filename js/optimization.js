@@ -955,16 +955,21 @@ function _ffdhPack(sortedItems, roll) {
         }
     }
 
-    const totalLength = shelves.length === 0 ? 0
+    const totalLength  = shelves.length === 0 ? 0
         : shelves[shelves.length - 1].y + shelves[shelves.length - 1].shelfH;
-    const rollsNeeded = Math.max(1, Math.ceil(totalLength / roll.length));
-    const areaUsed    = rollsNeeded * roll.width * roll.length;
-    const piecesArea  = sortedItems.reduce((s, p) => s + p.w * p.h, 0);
+    const rollsNeeded  = Math.max(1, Math.ceil(totalLength / roll.length));
+    // areaUsed = full rolls purchased (for ordering cost)
+    const areaUsed     = rollsNeeded * roll.width * roll.length;
+    // linearArea = only the roll length actually consumed (leftover stored & reused)
+    const linearArea   = roll.width * totalLength;
+    const piecesArea   = sortedItems.reduce((s, p) => s + p.w * p.h, 0);
 
     return {
-        roll, shelves, totalLength, rollsNeeded, areaUsed,
-        wasteArea: areaUsed - piecesArea, piecesArea,
-        efficiency: areaUsed > 0 ? Math.round(piecesArea / areaUsed * 1000) / 10 : 0
+        roll, shelves, totalLength, rollsNeeded, areaUsed, linearArea,
+        wasteArea: linearArea - piecesArea,   // waste = consumed length minus pieces
+        piecesArea,
+        // efficiency based on linear consumption only (not full roll)
+        efficiency: linearArea > 0 ? Math.round(piecesArea / linearArea * 1000) / 10 : 0
     };
 }
 
@@ -1000,8 +1005,8 @@ function packNetFFDH(allPieces, availableRolls) {
     availableRolls.forEach(roll => {
         sorts.forEach(sortFn => {
             const res = _ffdhPack(sortFn(items), roll);
-            if (res && (!best || res.areaUsed < best.areaUsed ||
-                       (res.areaUsed === best.areaUsed &&
+            if (res && (!best || res.linearArea < best.linearArea ||
+                       (res.linearArea === best.linearArea &&
                         res.rollsNeeded * res.roll.costPerRoll < best.rollsNeeded * best.roll.costPerRoll))) {
                 best = res;
             }
