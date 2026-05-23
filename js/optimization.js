@@ -155,10 +155,24 @@ function runOptimization() {
         });
     }
 
+    // ── Mosquito Net Optimization ──────────────────────────────────────────────
+    let netResults = [];
+    // Only use rolls that are flagged in-stock (inStock === false means user unchecked it)
+    const availableNetRolls = (ratesConfig.netStock || []).filter(r => r.width > 0 && r.length > 0 && r.inStock !== false);
+    if (availableNetRolls.length > 0) {
+        const netPieces = computeNetPieces(projectWindows);
+        if (netPieces.length > 0) {
+            netResults = optimizeNetCutting(netPieces, availableNetRolls);
+            console.log('%c🕸️ Net optimization complete:', 'background: #8e44ad; color: white; padding: 2px 6px;', netResults);
+        }
+    }
+    // ──────────────────────────────────────────────────────────────────────────
+
     optimizationResults = {
         project: selectedProject,
         results: results,
         componentSections: componentSections, // Include pre-selected thicknesses
+        netResults: netResults,               // Mosquito net 2D cutting plans
         stats: {
             totalSticks: totalSticks,
             totalUsed: totalUsed.toFixed(2),
@@ -819,6 +833,190 @@ function findBestPattern(pieces, stockLen, kerf) {
     }
 
     return bestPattern;
+}
+
+// ============================================================================
+// MOSQUITO NET 2D OPTIMIZATION
+// ============================================================================
+
+/**
+ * Compute all net pieces required for project windows that have mosquito shutters.
+ * Returns [{w, h, qty, label, series}] — one entry per unique window config.
+ */
+function computeNetPieces(projectWindows) {
+    const pieces = [];
+
+    projectWindows.forEach(win => {
+        const MS = win.mosquitoShutters || 0;
+        if (MS <= 0) return;
+
+        const series = win.series;
+        const deductionCfg = (ratesConfig.netDeductions && ratesConfig.netDeductions[series]) || null;
+        if (!deductionCfg) {
+            console.log(`ℹ️ No net deduction config for series "${series}" — skipping mosquito net`);
+            return;
+        }
+
+        const W = win.width;
+        const H = win.height;
+        const S = win.shutters || 2;
+
+        // Mosquito shutter frame piece lengths (same formula as C-channel / shutter pieces)
+        let shutterH, shutterW;
+
+        if (series === '27mm Domal') {
+            shutterH = H - 2.75;                          // vertical profile length
+            shutterW = (W - 3 + 2.5 * (S - 1)) / S;      // horizontal profile length
+        } else {
+            // Fallback for future series: use full window dims
+            shutterH = H;
+            shutterW = W / Math.max(1, S);
+        }
+
+        const netW = Math.max(0, shutterW - deductionCfg.deductW);
+        const netH = Math.max(0, shutterH - deductionCfg.deductH);
+
+        if (netW <= 0 || netH <= 0) {
+            console.warn(`⚠️ Net piece size ≤ 0 for window ${win.configId}: netW=${netW.toFixed(2)}" netH=${netH.toFixed(2)}"`);
+            return;
+        }
+
+        console.log(
+            `%c🕸️ Net ${win.configId} | Series: ${series} | MS=${MS} | ` +
+            `shutterH=${shutterH.toFixed(2)}" shutterW=${shutterW.toFixed(2)}" | ` +
+            `net ${netW.toFixed(2)}"×${netH.toFixed(2)}"`,
+            'background: #8e44ad; color: white; padding: 2px 6px;'
+        );
+
+        pieces.push({
+            w: Math.round(netW * 100) / 100,
+            h: Math.round(netH * 100) / 100,
+            qty: MS,
+            label: `${win.configId} (${series})`,
+            series
+        });
+    });
+
+    return pieces;
+}
+
+/**
+ * For a given piece count on a single roll width + orientation, compute roll usage.
+ * Returns { orientation, piecesPerRow, rowsNeeded, lengthUsed, rollsNeeded,
+ *           areaUsed (sq-in of roll consumed), wasteArea, roll }
+ */
+function _netRollUsage(w, h, qty, roll, orientation) {
+    // orientation: 'w-across' → piece width spans roll width, height runs along roll
+    //              'h-across' → piece height spans roll width, width runs along roll
+    let acrossSize, alongSize;
+    if (orientation === 'w-across') {
+        acrossSize = w; alongSize = h;
+    } else {
+        acrossSize = h; alongSize = w;
+    }
+
+    if (acrossSize > roll.width) return null;  // doesn't fit
+
+    const piecesPerRow = Math.floor(roll.width / acrossSize);
+    const rowsNeeded   = Math.ceil(qty / piecesPerRow);
+    const lengthUsed   = rowsNeeded * alongSize;
+    const rollsNeeded  = Math.ceil(lengthUsed / roll.length);
+    const areaUsed     = rollsNeeded * roll.width * roll.length;
+    const piecesArea   = qty * w * h;
+    const wasteArea    = areaUsed - piecesArea;
+
+    return {
+        orientation,
+        piecesPerRow,
+        rowsNeeded,
+        lengthUsed: Math.round(lengthUsed * 100) / 100,
+        rollsNeeded,
+        areaUsed,
+        wasteArea,
+        roll
+    };
+}
+
+/**
+ * Best single-roll fit for qty pieces of (w×h) on a given roll (either orientation).
+ */
+function _bestFitOnRoll(w, h, qty, roll) {
+    const o1 = _netRollUsage(w, h, qty, roll, 'w-across');
+    const o2 = _netRollUsage(w, h, qty, roll, 'h-across');
+    const opts = [o1, o2].filter(Boolean);
+    if (!opts.length) return null;
+    return opts.reduce((a, b) => a.areaUsed < b.areaUsed ? a : b);
+}
+
+/**
+ * Optimise cutting of qty identical pieces (w×h) from available roll stock.
+ * Tries every single-roll option and every split between two roll widths.
+ * Returns the winning plan object.
+ */
+function _optimiseSingleSize(w, h, qty, availableRolls) {
+    let bestPlan  = null;
+    let bestArea  = Infinity;
+    let bestCost  = Infinity;
+
+    const evalPlan = (plan) => {
+        const area = plan.segments.reduce((s, seg) => s + seg.areaUsed, 0);
+        const cost = plan.segments.reduce((s, seg) => s + seg.rollsNeeded * seg.roll.costPerRoll, 0);
+        if (area < bestArea || (area === bestArea && cost < bestCost)) {
+            bestArea = area; bestCost = cost; bestPlan = plan;
+        }
+    };
+
+    // 1. Try each single roll width
+    availableRolls.forEach(roll => {
+        const seg = _bestFitOnRoll(w, h, qty, roll);
+        if (seg) evalPlan({ segments: [seg] });
+    });
+
+    // 2. Try all pairs of roll widths (allocate k to roll1, qty-k to roll2)
+    for (let i = 0; i < availableRolls.length; i++) {
+        for (let j = i + 1; j < availableRolls.length; j++) {
+            for (let k = 1; k < qty; k++) {
+                const seg1 = _bestFitOnRoll(w, h, k,       availableRolls[i]);
+                const seg2 = _bestFitOnRoll(w, h, qty - k, availableRolls[j]);
+                if (seg1 && seg2) evalPlan({ segments: [seg1, seg2] });
+
+                // Also try with roles swapped
+                const seg1b = _bestFitOnRoll(w, h, k,       availableRolls[j]);
+                const seg2b = _bestFitOnRoll(w, h, qty - k, availableRolls[i]);
+                if (seg1b && seg2b) evalPlan({ segments: [seg1b, seg2b] });
+            }
+        }
+    }
+
+    return bestPlan;
+}
+
+/**
+ * Main entry point: optimise net cutting for all pieces collected from project.
+ * Pieces from the same window config that have the same (w, h) are merged.
+ * Returns [{ w, h, qty, labels[], plan }] — one entry per unique piece size.
+ */
+function optimizeNetCutting(allPieces, availableRolls) {
+    if (!allPieces.length || !availableRolls.length) return [];
+
+    // Group by size
+    const sizeMap = new Map();
+    allPieces.forEach(p => {
+        const key = `${p.w}x${p.h}`;
+        if (!sizeMap.has(key)) sizeMap.set(key, { w: p.w, h: p.h, qty: 0, labels: [] });
+        const g = sizeMap.get(key);
+        g.qty    += p.qty;
+        g.labels.push(`${p.label} ×${p.qty}`);
+    });
+
+    const results = [];
+    for (const [, group] of sizeMap) {
+        const { w, h, qty, labels } = group;
+        const plan = _optimiseSingleSize(w, h, qty, availableRolls);
+        results.push({ w, h, qty, labels, plan });
+    }
+
+    return results;
 }
 
 // ============================================================================

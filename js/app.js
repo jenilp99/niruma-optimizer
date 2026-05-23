@@ -137,6 +137,19 @@ let ratesConfig = {
         'ParticleBoard_18mm': 0,
         'PartitionSheet_3mm': 0,
         'PartitionSheet_4mm': 0
+    },
+    // SS Mosquito Net Roll Stock — 4 standard widths × 50' (600") rolls
+    // costPerRoll: ₹ per full roll (update to current market price)
+    netStock: [
+        { name: "2' (24\")",  width: 24, length: 600, costPerRoll: 0 },
+        { name: "3' (36\")",  width: 36, length: 600, costPerRoll: 0 },
+        { name: "4' (48\")",  width: 48, length: 600, costPerRoll: 0 },
+        { name: "5' (60\")",  width: 60, length: 600, costPerRoll: 0 }
+    ],
+    // Net deductions per series: subtract from shutter frame piece dimensions
+    // to get the net piece size (both width and height, in inches)
+    netDeductions: {
+        '27mm Domal': { deductW: 2, deductH: 2 }
     }
 };
 
@@ -167,6 +180,19 @@ function initializeDefaults() {
                 // Deep merge so per-series desc fields are preserved alongside numeric offsets
                 for (const [s, v] of Object.entries(parsed.glassOffsets)) {
                     ratesConfig.glassOffsets[s] = Object.assign(ratesConfig.glassOffsets[s] || {}, v);
+                }
+            }
+            // Restore net stock (merge by roll width so new widths added to defaults survive)
+            if (parsed.netStock && Array.isArray(parsed.netStock)) {
+                parsed.netStock.forEach(savedRoll => {
+                    const idx = ratesConfig.netStock.findIndex(r => r.width === savedRoll.width);
+                    if (idx >= 0) Object.assign(ratesConfig.netStock[idx], savedRoll);
+                    else ratesConfig.netStock.push(savedRoll);
+                });
+            }
+            if (parsed.netDeductions) {
+                for (const [s, v] of Object.entries(parsed.netDeductions)) {
+                    ratesConfig.netDeductions[s] = Object.assign(ratesConfig.netDeductions[s] || {}, v);
                 }
             }
         }
@@ -359,6 +385,7 @@ function refreshRatesDisplay() {
 
     renderGlassOffsetsList();
     renderPartitionRatesList();
+    renderNetStockList();
 }
 
 function renderPartitionRatesList() {
@@ -412,6 +439,51 @@ function savePartitionRates() {
     });
     autoSaveRates();
     showAlert('✅ Partition rates saved!');
+}
+
+// ── Net Stock UI ─────────────────────────────────────────────────────────────
+
+function renderNetStockList() {
+    const container = document.getElementById('netStockList');
+    if (!container) return;
+
+    const rolls = ratesConfig.netStock || [];
+    const rowStyle = 'display:grid;grid-template-columns:100px 80px 80px 130px;gap:10px;align-items:center;padding:5px 0;border-bottom:1px solid #f0f0f0;';
+    const hdrStyle = 'font-weight:600;font-size:11px;color:#6c3483;';
+
+    let html = `<div style="${rowStyle}">
+        <span style="${hdrStyle}">Roll Width</span>
+        <span style="${hdrStyle}">Length (ft)</span>
+        <span style="${hdrStyle}">In Stock</span>
+        <span style="${hdrStyle}">Cost / Roll (₹)</span>
+    </div>`;
+
+    rolls.forEach((roll, idx) => {
+        html += `<div style="${rowStyle}">
+            <span style="font-size:13px;font-weight:600;color:#6c3483;">${roll.name}</span>
+            <span style="font-size:12px;color:#555;">${(roll.length/12).toFixed(0)} ft</span>
+            <input type="checkbox" id="netRollInStock_${idx}" ${roll.inStock !== false ? 'checked' : ''}
+                   title="Uncheck if this roll width is currently not available in stock"
+                   style="width:20px;height:20px;cursor:pointer;">
+            <input type="number" id="netRollCost_${idx}" value="${roll.costPerRoll || 0}" min="0" step="50"
+                   style="padding:4px 6px;border:1px solid #ddd;border-radius:4px;font-size:12px;width:110px;"
+                   placeholder="₹ per roll">
+        </div>`;
+    });
+
+    container.innerHTML = html;
+}
+
+function saveNetStock() {
+    const rolls = ratesConfig.netStock || [];
+    rolls.forEach((roll, idx) => {
+        const costEl    = document.getElementById(`netRollCost_${idx}`);
+        const stockEl   = document.getElementById(`netRollInStock_${idx}`);
+        if (costEl)  roll.costPerRoll = parseFloat(costEl.value) || 0;
+        if (stockEl) roll.inStock     = stockEl.checked;
+    });
+    autoSaveRates();
+    showAlert('✅ Net stock prices saved!');
 }
 
 function renderGlassOffsetsList() {

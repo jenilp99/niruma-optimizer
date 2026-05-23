@@ -1,6 +1,81 @@
 // Niruma Aluminum Profile Optimizer - Export & Display Functions
 
 // ============================================================================
+// NET CUTTING VISUAL DIAGRAM
+// ============================================================================
+
+/**
+ * Render a simple SVG grid showing how pieces tile on a roll.
+ * seg = one segment from _optimiseSingleSize (single roll usage for k pieces).
+ */
+function generateNetDiagram(pieceW, pieceH, qty, seg) {
+    const rollW = seg.roll.width;
+    const cpp   = seg.piecesPerRow;    // pieces across roll width
+    const rows  = seg.rowsNeeded;
+    const orientation = seg.orientation;
+
+    // Displayed grid dimensions (piece in grid coords: across = acrossSize, along = alongSize)
+    let acrossSize, alongSize;
+    if (orientation === 'w-across') { acrossSize = pieceW; alongSize = pieceH; }
+    else                            { acrossSize = pieceH; alongSize = pieceW; }
+
+    // SVG canvas: show up to 10 rows before truncating (just visual)
+    const maxRows = Math.min(rows, 10);
+    const svgW  = 700;
+    const scaleA = Math.min(svgW / rollW, 8);  // px per inch (across)
+    const svgH  = Math.min(maxRows * alongSize * scaleA + 30, 300);
+    const scaleL = (svgH - 30) / (maxRows * alongSize); // px per inch (along)
+    const scale  = Math.min(scaleA, scaleL);
+
+    const canvasW = rollW  * scale;
+    const canvasH = maxRows * alongSize * scale;
+
+    let pieceCount = 0;
+    let svg = `<svg width="${canvasW + 2}" height="${canvasH + 30}" style="border:1px solid #ccc;display:block;margin:6px 0;">`;
+    // Roll background
+    svg += `<rect x="0" y="0" width="${canvasW}" height="${canvasH}" fill="#f5f0ff" stroke="#8e44ad" stroke-width="1.5"/>`;
+
+    // Draw pieces
+    const colors = ['#9b59b6','#8e44ad','#6c3483','#a569bd','#c39bd3'];
+    for (let row = 0; row < maxRows; row++) {
+        for (let col = 0; col < cpp; col++) {
+            if (pieceCount >= qty) break;
+            const x = col * acrossSize * scale;
+            const y = row * alongSize  * scale;
+            const pw = acrossSize * scale;
+            const ph = alongSize  * scale;
+            const color = colors[pieceCount % colors.length];
+            svg += `<rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${pw.toFixed(1)}" height="${ph.toFixed(1)}" fill="${color}" opacity="0.75" stroke="white" stroke-width="1"/>`;
+            // Label
+            const lx = (x + pw / 2).toFixed(1);
+            const ly = (y + ph / 2).toFixed(1);
+            const label = orientation === 'w-across'
+                ? `${pieceW.toFixed(1)}"×${pieceH.toFixed(1)}"`
+                : `${pieceH.toFixed(1)}"×${pieceW.toFixed(1)}"`;
+            svg += `<text x="${lx}" y="${ly}" font-size="9" fill="white" text-anchor="middle" dy="3">#${pieceCount+1} ${label}</text>`;
+            pieceCount++;
+        }
+        if (pieceCount >= qty) break;
+    }
+
+    // Waste strip on right (if not full width)
+    const usedAcross = cpp * acrossSize * scale;
+    if (rollW * scale - usedAcross > 1) {
+        svg += `<rect x="${usedAcross.toFixed(1)}" y="0" width="${(rollW*scale - usedAcross).toFixed(1)}" height="${canvasH}" fill="#e0c8f0" opacity="0.5"/>`;
+        svg += `<text x="${(usedAcross + (rollW*scale-usedAcross)/2).toFixed(1)}" y="${(canvasH/2).toFixed(1)}" font-size="8" fill="#6c3483" text-anchor="middle">waste</text>`;
+    }
+
+    // Annotation line
+    const truncNote = rows > maxRows ? ` (showing ${maxRows} of ${rows} rows)` : '';
+    svg += `<text x="4" y="${(canvasH + 18).toFixed(1)}" font-size="10" fill="#6c3483">
+        Roll ${seg.roll.name} | ${cpp} piece${cpp>1?'s':''}/row × ${rows} rows = ${seg.lengthUsed.toFixed(1)}" linear (${(seg.lengthUsed/12).toFixed(2)} ft)${truncNote}
+    </text>`;
+
+    svg += '</svg>';
+    return svg;
+}
+
+// ============================================================================
 // RESULTS DISPLAY
 // ============================================================================
 
@@ -205,7 +280,112 @@ function displayResults() {
         
         html += '</tbody></table></div>';
     }
-    
+
+    // ── Mosquito Net Section ───────────────────────────────────────────────────
+    const netResults = r.netResults || [];
+    if (netResults.length > 0) {
+        html += `<div class="material-section" style="border-left: 4px solid #8e44ad; margin-top: 24px;">
+            <h3 style="margin:0 0 6px 0; color:#6c3483;">🕸️ Mosquito Net Cutting Plan</h3>
+            <p style="font-size:13px;color:#555;margin:0 0 12px 0;">
+                SS Mosquito Net — 2D roll cutting optimized for minimum wastage.
+                Dimensions are net piece sizes (after deducting 2" from shutter frame).
+            </p>`;
+
+        let netTotalArea = 0, netTotalPieceArea = 0, netTotalCost = 0, netTotalRolls = 0;
+
+        netResults.forEach((group, gi) => {
+            const { w, h, qty, labels, plan } = group;
+            const piecesArea = qty * w * h;
+
+            if (!plan) {
+                html += `<div style="background:#fdecea;padding:10px;border-radius:6px;margin-bottom:10px;">
+                    ⚠️ No suitable roll found for piece ${w.toFixed(2)}"×${h.toFixed(2)}"
+                    (check that net roll widths ≥ ${Math.min(w,h).toFixed(2)}").
+                </div>`;
+                return;
+            }
+
+            const segAreaTotal = plan.segments.reduce((s, seg) => s + seg.areaUsed, 0);
+            const segCostTotal = plan.segments.reduce((s, seg) => s + seg.rollsNeeded * seg.roll.costPerRoll, 0);
+            const segRollsTotal = plan.segments.reduce((s, seg) => s + seg.rollsNeeded, 0);
+            const wasteArea    = segAreaTotal - piecesArea;
+            const efficiency   = segAreaTotal > 0 ? ((piecesArea / segAreaTotal) * 100).toFixed(1) : '0.0';
+
+            netTotalArea     += segAreaTotal;
+            netTotalPieceArea += piecesArea;
+            netTotalCost     += segCostTotal;
+            netTotalRolls    += segRollsTotal;
+
+            // Summary card
+            html += `<div style="background:#f3e5f5;padding:12px;border-radius:8px;margin-bottom:12px;border-left:4px solid #8e44ad;">
+                <strong style="font-size:15px;color:#6c3483;">
+                    Piece ${gi+1}: ${w.toFixed(2)}" × ${h.toFixed(2)}"
+                    (${(w/12).toFixed(2)}ft × ${(h/12).toFixed(2)}ft) — Qty: ${qty}
+                </strong><br>
+                <span style="font-size:13px;color:#555;">Windows: ${labels.join(', ')}</span><br>
+                <div style="margin-top:8px;font-size:13px;line-height:1.8;">
+                    <strong>Total Rolls Needed:</strong> ${segRollsTotal} &nbsp;|&nbsp;
+                    <strong>Efficiency:</strong> ${efficiency}% &nbsp;|&nbsp;
+                    <strong>Net Area Used:</strong> ${(piecesArea/144).toFixed(2)} sqft &nbsp;|&nbsp;
+                    <strong>Roll Area Used:</strong> ${(segAreaTotal/144).toFixed(2)} sqft &nbsp;|&nbsp;
+                    <strong>Waste:</strong> ${(wasteArea/144).toFixed(2)} sqft
+                    ${segCostTotal > 0 ? `&nbsp;|&nbsp;<strong>Cost: ₹${segCostTotal.toFixed(0)}</strong>` : ''}
+                </div>
+            </div>`;
+
+            // Detail table for each roll segment
+            html += `<table><thead><tr>
+                <th>Segment</th><th>Roll Width</th><th>Orientation</th>
+                <th>Pieces/Row</th><th>Rows Needed</th><th>Linear Ft Used</th>
+                <th>Rolls Needed</th><th>Roll Area (sqft)</th><th>Cost</th>
+            </tr></thead><tbody>`;
+
+            plan.segments.forEach((seg, si) => {
+                const orientLabel = seg.orientation === 'w-across'
+                    ? `${w.toFixed(2)}" across (${h.toFixed(2)}" along roll)`
+                    : `${h.toFixed(2)}" across (${w.toFixed(2)}" along roll)`;
+                const rollArea = (seg.rollsNeeded * seg.roll.width * seg.roll.length / 144).toFixed(2);
+                const segCost  = (seg.rollsNeeded * seg.roll.costPerRoll).toFixed(0);
+
+                html += `<tr>
+                    <td>${si + 1}</td>
+                    <td><strong>${seg.roll.name}</strong></td>
+                    <td>${orientLabel}</td>
+                    <td>${seg.piecesPerRow}</td>
+                    <td>${seg.rowsNeeded}</td>
+                    <td>${(seg.lengthUsed/12).toFixed(2)} ft (${seg.lengthUsed.toFixed(2)}")</td>
+                    <td><strong>${seg.rollsNeeded}</strong></td>
+                    <td>${rollArea}</td>
+                    <td>${seg.roll.costPerRoll > 0 ? '₹' + segCost : '<em style="color:#999">set price</em>'}</td>
+                </tr>`;
+
+                // 2D visual diagram for this segment
+                html += `<tr><td colspan="9">
+                    ${generateNetDiagram(w, h, qty, seg)}
+                </td></tr>`;
+            });
+
+            html += '</tbody></table>';
+        });
+
+        // Net grand summary
+        if (netResults.length > 1 || netTotalRolls > 0) {
+            const netWasteArea = netTotalArea - netTotalPieceArea;
+            const netEfficiency = netTotalArea > 0 ? ((netTotalPieceArea / netTotalArea) * 100).toFixed(1) : '0.0';
+            html += `<div style="background:#6c3483;color:white;padding:12px;border-radius:8px;margin-top:8px;">
+                <strong>🕸️ Net Grand Total:</strong> &nbsp;
+                ${netTotalRolls} rolls &nbsp;|&nbsp;
+                ${(netTotalPieceArea/144).toFixed(2)} sqft net used &nbsp;|&nbsp;
+                ${(netWasteArea/144).toFixed(2)} sqft waste &nbsp;|&nbsp;
+                Efficiency: ${netEfficiency}%
+                ${netTotalCost > 0 ? ` &nbsp;|&nbsp; Cost: ₹${netTotalCost.toFixed(0)}` : ''}
+            </div>`;
+        }
+
+        html += '</div>';  // close net section
+    }
+    // ──────────────────────────────────────────────────────────────────────────
+
     container.innerHTML = html;
 }
 
