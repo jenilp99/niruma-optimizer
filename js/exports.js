@@ -284,103 +284,165 @@ function displayResults() {
     // ── Mosquito Net Section ───────────────────────────────────────────────────
     const netResults = r.netResults || [];
     if (netResults.length > 0) {
-        html += `<div class="material-section" style="border-left: 4px solid #8e44ad; margin-top: 24px;">
-            <h3 style="margin:0 0 6px 0; color:#6c3483;">🕸️ Mosquito Net Cutting Plan</h3>
-            <p style="font-size:13px;color:#555;margin:0 0 12px 0;">
-                SS Mosquito Net — 2D roll cutting optimized for minimum wastage.
-                Dimensions are net piece sizes (after deducting 2" from shutter frame).
+        html += `<div class="material-section" style="border-left:4px solid #8e44ad;margin-top:24px;">
+            <h3 style="margin:0 0 4px 0;color:#6c3483;">🕸️ Mosquito Net Cutting Plan</h3>
+            <p style="font-size:13px;color:#555;margin:0 0 14px 0;">
+                SS Mosquito Net — cuts grouped by roll width for easy ordering &amp; site use.
+                Piece sizes are after deducting 2" from each shutter frame dimension.
             </p>`;
 
-        let netTotalArea = 0, netTotalPieceArea = 0, netTotalCost = 0, netTotalRolls = 0;
-
-        netResults.forEach((group, gi) => {
-            const { w, h, qty, labels, plan } = group;
-            const piecesArea = qty * w * h;
-
-            if (!plan) {
+        // ── 1. Collect all errors (groups with no plan) ──────────────────────
+        netResults.forEach(group => {
+            if (!group.plan) {
                 html += `<div style="background:#fdecea;padding:10px;border-radius:6px;margin-bottom:10px;">
-                    ⚠️ No suitable roll found for piece ${w.toFixed(2)}"×${h.toFixed(2)}"
-                    (check that net roll widths ≥ ${Math.min(w,h).toFixed(2)}").
+                    ⚠️ No suitable roll found for piece ${group.w.toFixed(2)}"×${group.h.toFixed(2)}"
+                    — check that at least one net roll width ≥ ${Math.min(group.w,group.h).toFixed(2)}".
                 </div>`;
-                return;
             }
-
-            const segAreaTotal = plan.segments.reduce((s, seg) => s + seg.areaUsed, 0);
-            const segCostTotal = plan.segments.reduce((s, seg) => s + seg.rollsNeeded * seg.roll.costPerRoll, 0);
-            const segRollsTotal = plan.segments.reduce((s, seg) => s + seg.rollsNeeded, 0);
-            const wasteArea    = segAreaTotal - piecesArea;
-            const efficiency   = segAreaTotal > 0 ? ((piecesArea / segAreaTotal) * 100).toFixed(1) : '0.0';
-
-            netTotalArea     += segAreaTotal;
-            netTotalPieceArea += piecesArea;
-            netTotalCost     += segCostTotal;
-            netTotalRolls    += segRollsTotal;
-
-            // Summary card
-            html += `<div style="background:#f3e5f5;padding:12px;border-radius:8px;margin-bottom:12px;border-left:4px solid #8e44ad;">
-                <strong style="font-size:15px;color:#6c3483;">
-                    Piece ${gi+1}: ${w.toFixed(2)}" × ${h.toFixed(2)}"
-                    (${(w/12).toFixed(2)}ft × ${(h/12).toFixed(2)}ft) — Qty: ${qty}
-                </strong><br>
-                <span style="font-size:13px;color:#555;">Windows: ${labels.join(', ')}</span><br>
-                <div style="margin-top:8px;font-size:13px;line-height:1.8;">
-                    <strong>Total Rolls Needed:</strong> ${segRollsTotal} &nbsp;|&nbsp;
-                    <strong>Efficiency:</strong> ${efficiency}% &nbsp;|&nbsp;
-                    <strong>Net Area Used:</strong> ${(piecesArea/144).toFixed(2)} sqft &nbsp;|&nbsp;
-                    <strong>Roll Area Used:</strong> ${(segAreaTotal/144).toFixed(2)} sqft &nbsp;|&nbsp;
-                    <strong>Waste:</strong> ${(wasteArea/144).toFixed(2)} sqft
-                    ${segCostTotal > 0 ? `&nbsp;|&nbsp;<strong>Cost: ₹${segCostTotal.toFixed(0)}</strong>` : ''}
-                </div>
-            </div>`;
-
-            // Detail table for each roll segment
-            html += `<table><thead><tr>
-                <th>Segment</th><th>Roll Width</th><th>Orientation</th>
-                <th>Pieces/Row</th><th>Rows Needed</th><th>Linear Ft Used</th>
-                <th>Rolls Needed</th><th>Roll Area (sqft)</th><th>Cost</th>
-            </tr></thead><tbody>`;
-
-            plan.segments.forEach((seg, si) => {
-                const orientLabel = seg.orientation === 'w-across'
-                    ? `${w.toFixed(2)}" across (${h.toFixed(2)}" along roll)`
-                    : `${h.toFixed(2)}" across (${w.toFixed(2)}" along roll)`;
-                const rollArea = (seg.rollsNeeded * seg.roll.width * seg.roll.length / 144).toFixed(2);
-                const segCost  = (seg.rollsNeeded * seg.roll.costPerRoll).toFixed(0);
-
-                html += `<tr>
-                    <td>${si + 1}</td>
-                    <td><strong>${seg.roll.name}</strong></td>
-                    <td>${orientLabel}</td>
-                    <td>${seg.piecesPerRow}</td>
-                    <td>${seg.rowsNeeded}</td>
-                    <td>${(seg.lengthUsed/12).toFixed(2)} ft (${seg.lengthUsed.toFixed(2)}")</td>
-                    <td><strong>${seg.rollsNeeded}</strong></td>
-                    <td>${rollArea}</td>
-                    <td>${seg.roll.costPerRoll > 0 ? '₹' + segCost : '<em style="color:#999">set price</em>'}</td>
-                </tr>`;
-
-                // 2D visual diagram for this segment
-                html += `<tr><td colspan="9">
-                    ${generateNetDiagram(w, h, qty, seg)}
-                </td></tr>`;
-            });
-
-            html += '</tbody></table>';
         });
 
-        // Net grand summary
-        if (netResults.length > 1 || netTotalRolls > 0) {
-            const netWasteArea = netTotalArea - netTotalPieceArea;
-            const netEfficiency = netTotalArea > 0 ? ((netTotalPieceArea / netTotalArea) * 100).toFixed(1) : '0.0';
-            html += `<div style="background:#6c3483;color:white;padding:12px;border-radius:8px;margin-top:8px;">
-                <strong>🕸️ Net Grand Total:</strong> &nbsp;
-                ${netTotalRolls} rolls &nbsp;|&nbsp;
-                ${(netTotalPieceArea/144).toFixed(2)} sqft net used &nbsp;|&nbsp;
-                ${(netWasteArea/144).toFixed(2)} sqft waste &nbsp;|&nbsp;
-                Efficiency: ${netEfficiency}%
-                ${netTotalCost > 0 ? ` &nbsp;|&nbsp; Cost: ₹${netTotalCost.toFixed(0)}` : ''}
-            </div>`;
-        }
+        // ── 2. Build roll-width index: rollWidth → [{group, seg}] ───────────
+        //    Order by roll.width ascending (24 → 36 → 48 → 60)
+        const rollMap = new Map();  // key = roll.width, value = { roll, entries:[] }
+        netResults.forEach(group => {
+            if (!group.plan) return;
+            group.plan.segments.forEach(seg => {
+                const w = seg.roll.width;
+                if (!rollMap.has(w)) rollMap.set(w, { roll: seg.roll, entries: [] });
+                rollMap.get(w).entries.push({ group, seg });
+            });
+        });
+        // Sort by width ascending
+        const sortedRolls = [...rollMap.entries()].sort((a, b) => a[0] - b[0]);
+
+        // ── 3. ORDER SUMMARY TABLE ───────────────────────────────────────────
+        let grandTotalRolls = 0, grandTotalArea = 0, grandPieceArea = 0, grandCost = 0;
+        netResults.forEach(g => {
+            if (!g.plan) return;
+            grandPieceArea += g.qty * g.w * g.h;
+            g.plan.segments.forEach(seg => {
+                grandTotalRolls += seg.rollsNeeded;
+                grandTotalArea  += seg.areaUsed;
+                grandCost       += seg.rollsNeeded * seg.roll.costPerRoll;
+            });
+        });
+
+        html += `<div style="background:#f3e5f5;border:1px solid #ce93d8;border-radius:8px;padding:14px;margin-bottom:18px;">
+            <strong style="font-size:14px;color:#6c3483;">📋 Order Summary — Rolls to Purchase</strong>
+            <table style="width:100%;margin-top:10px;border-collapse:collapse;font-size:13px;">
+            <thead><tr style="background:#8e44ad;color:white;">
+                <th style="padding:7px 12px;text-align:left;">Roll Width</th>
+                <th style="padding:7px 12px;text-align:center;">Rolls to Order</th>
+                <th style="padding:7px 12px;text-align:center;">Roll Length Each</th>
+                <th style="padding:7px 12px;text-align:center;">Total Roll Area</th>
+                <th style="padding:7px 12px;text-align:right;">Cost</th>
+            </tr></thead><tbody>`;
+
+        let summaryRollCount = 0;
+        sortedRolls.forEach(([, { roll, entries }]) => {
+            const rollsHere   = entries.reduce((s, e) => s + e.seg.rollsNeeded, 0);
+            const areaHere    = entries.reduce((s, e) => s + e.seg.areaUsed, 0);
+            const costHere    = entries.reduce((s, e) => s + e.seg.rollsNeeded * e.seg.roll.costPerRoll, 0);
+            summaryRollCount += rollsHere;
+            html += `<tr style="border-bottom:1px solid #e1bee7;">
+                <td style="padding:7px 12px;font-weight:700;color:#6c3483;">${roll.name}</td>
+                <td style="padding:7px 12px;text-align:center;"><strong>${rollsHere}</strong></td>
+                <td style="padding:7px 12px;text-align:center;color:#555;">${(roll.length/12).toFixed(0)} ft (${roll.length}")</td>
+                <td style="padding:7px 12px;text-align:center;color:#555;">${(areaHere/144).toFixed(1)} sqft</td>
+                <td style="padding:7px 12px;text-align:right;">${costHere > 0 ? '₹' + costHere.toFixed(0) : '<em style="color:#aaa">—</em>'}</td>
+            </tr>`;
+        });
+
+        const grandEfficiency = grandTotalArea > 0 ? ((grandPieceArea / grandTotalArea) * 100).toFixed(1) : '0.0';
+        html += `<tr style="background:#6c3483;color:white;font-weight:700;">
+            <td style="padding:8px 12px;">TOTAL</td>
+            <td style="padding:8px 12px;text-align:center;">${grandTotalRolls} rolls</td>
+            <td style="padding:8px 12px;text-align:center;">—</td>
+            <td style="padding:8px 12px;text-align:center;">${(grandTotalArea/144).toFixed(1)} sqft</td>
+            <td style="padding:8px 12px;text-align:right;">${grandCost > 0 ? '₹' + grandCost.toFixed(0) : '—'}</td>
+        </tr>`;
+        html += `</tbody></table>
+            <div style="font-size:12px;color:#6c3483;margin-top:8px;">
+                Net area needed: ${(grandPieceArea/144).toFixed(2)} sqft &nbsp;|&nbsp;
+                Waste: ${((grandTotalArea-grandPieceArea)/144).toFixed(2)} sqft &nbsp;|&nbsp;
+                Overall efficiency: ${grandEfficiency}%
+            </div>
+        </div>`;
+
+        // ── 4. ROLL-BY-ROLL CUTTING DETAIL ───────────────────────────────────
+        sortedRolls.forEach(([, { roll, entries }]) => {
+            const rollsHere = entries.reduce((s, e) => s + e.seg.rollsNeeded, 0);
+            const costHere  = entries.reduce((s, e) => s + e.seg.rollsNeeded * e.seg.roll.costPerRoll, 0);
+
+            html += `<div style="border:2px solid #8e44ad;border-radius:10px;margin-bottom:20px;overflow:hidden;">
+                <!-- Roll header -->
+                <div style="background:#8e44ad;color:white;padding:10px 16px;display:flex;justify-content:space-between;align-items:center;">
+                    <strong style="font-size:15px;">📦 ${roll.name} — ${rollsHere} roll${rollsHere>1?'s':''} needed</strong>
+                    <span style="font-size:13px;opacity:0.9;">
+                        Roll size: ${roll.width}" wide × ${(roll.length/12).toFixed(0)}ft long
+                        ${costHere > 0 ? ' &nbsp;|&nbsp; ₹' + costHere.toFixed(0) : ''}
+                    </span>
+                </div>`;
+
+            // One row per cut entry from this roll width
+            entries.forEach((entry, ei) => {
+                const { group, seg } = entry;
+                const { w, h, labels } = group;
+                const pq = seg.pieceQty;  // actual pieces allocated to this roll
+
+                // Orientation description
+                const acrossInch = seg.orientation === 'w-across' ? w : h;
+                const alongInch  = seg.orientation === 'w-across' ? h : w;
+                const orientDesc = `${acrossInch.toFixed(2)}" across roll width, ${alongInch.toFixed(2)}" along roll`;
+
+                // Piece size label (w × h, always width × height)
+                const pieceDims = `${w.toFixed(2)}" × ${h.toFixed(2)}" (${(w/12).toFixed(2)}ft × ${(h/12).toFixed(2)}ft)`;
+
+                const rollAreaSqft = (seg.rollsNeeded * roll.width * roll.length / 144).toFixed(2);
+                const piecesAreaSqft = (pq * w * h / 144).toFixed(2);
+                const wasteAreaSqft  = ((seg.areaUsed - pq*w*h) / 144).toFixed(2);
+                const eff = seg.areaUsed > 0 ? ((pq*w*h / seg.areaUsed)*100).toFixed(1) : '0.0';
+                const entryBg = ei % 2 === 0 ? '#faf5ff' : 'white';
+
+                html += `<div style="padding:14px 16px;background:${entryBg};border-top:1px solid #e1bee7;">
+                    <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:8px;">
+                        <div>
+                            <span style="font-size:14px;font-weight:700;color:#4a0072;">
+                                Piece: ${pieceDims}
+                            </span>
+                            <span style="background:#8e44ad;color:white;border-radius:10px;padding:2px 10px;font-size:12px;font-weight:600;margin-left:8px;">
+                                Qty: ${pq}
+                            </span><br>
+                            <span style="font-size:12px;color:#666;margin-top:3px;display:inline-block;">
+                                From: ${labels.join(', ')}
+                            </span>
+                        </div>
+                        <div style="text-align:right;font-size:12px;color:#555;line-height:1.8;">
+                            <strong>${seg.rollsNeeded}</strong> roll${seg.rollsNeeded>1?'s':''} of ${roll.name} &nbsp;|&nbsp;
+                            Efficiency: <strong>${eff}%</strong><br>
+                            Roll area used: ${rollAreaSqft} sqft &nbsp;|&nbsp; Waste: ${wasteAreaSqft} sqft
+                        </div>
+                    </div>
+
+                    <!-- Cut instructions -->
+                    <div style="background:#ede7f6;border-radius:6px;padding:8px 12px;margin-top:10px;font-size:13px;line-height:1.9;">
+                        <strong style="color:#4a0072;">✂️ Cutting Instructions:</strong><br>
+                        Place piece <strong>${orientDesc}</strong><br>
+                        Pieces per row: <strong>${seg.piecesPerRow}</strong> &nbsp;|&nbsp;
+                        Rows to cut: <strong>${seg.rowsNeeded}</strong> &nbsp;|&nbsp;
+                        Linear length to cut: <strong>${(seg.lengthUsed/12).toFixed(2)} ft (${seg.lengthUsed.toFixed(2)}")</strong>
+                        ${seg.rollsNeeded > 1 ? `<br><em style="color:#880e4f;">⚠️ Requires ${seg.rollsNeeded} rolls — continue on next roll after ${(roll.length/12).toFixed(0)} ft.</em>` : ''}
+                    </div>
+
+                    <!-- 2D diagram -->
+                    <div style="margin-top:10px;">
+                        ${generateNetDiagram(w, h, pq, seg)}
+                    </div>
+                </div>`;
+            });
+
+            html += '</div>';  // close roll block
+        });
 
         html += '</div>';  // close net section
     }

@@ -927,6 +927,7 @@ function _netRollUsage(w, h, qty, roll, orientation) {
 
     return {
         orientation,
+        pieceQty: qty,       // actual pieces allocated to this roll segment
         piecesPerRow,
         rowsNeeded,
         lengthUsed: Math.round(lengthUsed * 100) / 100,
