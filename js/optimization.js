@@ -162,8 +162,12 @@ function runOptimization() {
     if (availableNetRolls.length > 0) {
         const netPieces = computeNetPieces(projectWindows);
         if (netPieces.length > 0) {
-            netResults = packNetFFDH(netPieces, availableNetRolls);
+            const partialRolls = (window.netPartialRolls || []).slice();
+            netResults = packNetFFDH(netPieces, availableNetRolls, partialRolls);
             console.log('%c🕸️ Net FFDH optimization complete:', 'background: #8e44ad; color: white; padding: 2px 6px;', netResults);
+            if (partialRolls.length > 0) {
+                console.log(`%c📦 Used ${netResults?.storeRollsUsed||0} partial roll(s) + ${netResults?.newRollsUsed||0} new roll(s)`, 'color: #1b5e20; font-weight: bold;');
+            }
         }
     }
     // ──────────────────────────────────────────────────────────────────────────
@@ -901,88 +905,129 @@ function computeNetPieces(projectWindows) {
 }
 
 /**
- * 2D FFDH (First-Fit Decreasing Height) strip packer with rotation.
- * Packs ALL items onto a single roll width; returns layout object or null
- * if any piece is too wide for this roll.
+ * Pack pieces into ONE bin (single roll segment) using FFDH-BF with rotation.
+ * Returns { shelves, usedLength, placed[], remaining[] }
  *
- * @param {Array}  sortedItems  [{w, h, label}] — pre-sorted, individual pieces (qty already expanded)
- * @param {Object} roll         {name, width, length, costPerRoll}
- * @returns layout object or null
+ * @param {Array}  items     [{w, h, label}] in chosen sort order
+ * @param {number} binWidth  bin's roll width
+ * @param {number} binLength bin's available length (remaining for partials, full for new)
  */
-function _ffdhPack(sortedItems, roll) {
-    // shelves: [{y, shelfH, nextX, pieces:[{x,w,h,label,origW,origH,rotated}]}]
-    const shelves = [];
+function _packBin(items, binWidth, binLength) {
+    const shelves   = [];          // [{y, shelfH, nextX, pieces:[...]}]
+    let usedLength  = 0;
+    const placed    = [];
+    const remaining = [];
 
-    for (const item of sortedItems) {
-        // Build valid orientations (only those whose placed-width ≤ roll.width)
+    for (const item of items) {
         const orients = [];
-        if (item.w <= roll.width) orients.push({ pw: item.w, ph: item.h, rotated: false });
-        if (item.h !== item.w && item.h <= roll.width) orients.push({ pw: item.h, ph: item.w, rotated: true });
-        if (orients.length === 0) return null;  // piece too wide for this roll width
+        if (item.w <= binWidth) orients.push({ pw: item.w, ph: item.h, rotated: false });
+        if (item.h !== item.w && item.h <= binWidth) orients.push({ pw: item.h, ph: item.w, rotated: true });
+        if (orients.length === 0) { remaining.push(item); continue; }
 
-        // Best-Fit: find (shelf, orientation) pair with minimum vertical waste
+        // Best-Fit on existing shelves
         let bestSi = -1, bestO = null, bestWaste = Infinity;
         for (const o of orients) {
             for (let si = 0; si < shelves.length; si++) {
                 const sh = shelves[si];
-                if (o.ph <= sh.shelfH && sh.nextX + o.pw <= roll.width) {
+                if (o.ph <= sh.shelfH && sh.nextX + o.pw <= binWidth) {
                     const waste = sh.shelfH - o.ph;
-                    if (waste < bestWaste) {
-                        bestWaste = waste;
-                        bestSi    = si;
-                        bestO     = o;
-                    }
+                    if (waste < bestWaste) { bestWaste = waste; bestSi = si; bestO = o; }
                 }
             }
         }
 
         if (bestSi >= 0) {
-            // Place in existing shelf
             const sh = shelves[bestSi];
-            sh.pieces.push({ x: sh.nextX, w: bestO.pw, h: bestO.ph,
-                             label: item.label, origW: item.w, origH: item.h, rotated: bestO.rotated });
+            const placedPiece = { x: sh.nextX, w: bestO.pw, h: bestO.ph,
+                                  label: item.label, origW: item.w, origH: item.h, rotated: bestO.rotated };
+            sh.pieces.push(placedPiece);
             sh.nextX += bestO.pw;
-        } else {
-            // Open new shelf — choose orientation that minimises shelf height
-            const o = orients.reduce((a, b) => a.ph <= b.ph ? a : b);
-            const newY = shelves.length === 0 ? 0
-                       : shelves[shelves.length - 1].y + shelves[shelves.length - 1].shelfH;
+            placed.push(item);
+            continue;
+        }
+
+        // Try opening a new shelf — must fit within bin's remaining length
+        const o = orients.reduce((a, b) => a.ph <= b.ph ? a : b);
+        if (usedLength + o.ph <= binLength) {
             shelves.push({
-                y: newY, shelfH: o.ph, nextX: o.pw,
+                y: usedLength, shelfH: o.ph, nextX: o.pw,
                 pieces: [{ x: 0, w: o.pw, h: o.ph,
                            label: item.label, origW: item.w, origH: item.h, rotated: o.rotated }]
             });
+            usedLength += o.ph;
+            placed.push(item);
+        } else {
+            remaining.push(item);
         }
     }
 
-    const totalLength  = shelves.length === 0 ? 0
-        : shelves[shelves.length - 1].y + shelves[shelves.length - 1].shelfH;
-    const rollsNeeded  = Math.max(1, Math.ceil(totalLength / roll.length));
-    // areaUsed = full rolls purchased (for ordering cost)
-    const areaUsed     = rollsNeeded * roll.width * roll.length;
-    // linearArea = only the roll length actually consumed (leftover stored & reused)
-    const linearArea   = roll.width * totalLength;
-    const piecesArea   = sortedItems.reduce((s, p) => s + p.w * p.h, 0);
-
-    return {
-        roll, shelves, totalLength, rollsNeeded, areaUsed, linearArea,
-        wasteArea: linearArea - piecesArea,   // waste = consumed length minus pieces
-        piecesArea,
-        // efficiency based on linear consumption only (not full roll)
-        efficiency: linearArea > 0 ? Math.round(piecesArea / linearArea * 1000) / 10 : 0
-    };
+    return { shelves, usedLength, placed, remaining };
 }
 
 /**
- * Main net cutting entry point: 2D FFDH with rotation across ALL pieces.
- * Tries 4 sort strategies × all available roll widths → returns minimum-waste layout.
+ * Multi-bin packer: tries to place ALL items, using partial bins (in priority order)
+ * first, then opening new rolls as needed. Returns array of bins or null on failure.
+ *
+ * @param {Array}  sortedItems    pre-sorted items
+ * @param {Array}  partialBins    [{kind:'store', width, length, label, sourceQtyIdx}] — pre-sorted (smallest length first)
+ * @param {Object} newRollSpec    {name, width, length, costPerRoll} — used to open new rolls
+ */
+function _packMultiBin(sortedItems, partialBins, newRollSpec) {
+    let pending = [...sortedItems];
+    const usedBins = [];
+
+    // Phase 1: try partial bins (smallest first) for the chosen width
+    for (const pBin of partialBins) {
+        if (pending.length === 0) break;
+        const res = _packBin(pending, pBin.width, pBin.length);
+        if (res.shelves.length > 0) {
+            usedBins.push({
+                kind: 'store',
+                label: pBin.label || `Stock partial (${pBin.width}"×${pBin.length}")`,
+                width: pBin.width,
+                capacityLength: pBin.length,
+                usedLength: res.usedLength,
+                shelves: res.shelves
+            });
+        }
+        pending = res.remaining;
+    }
+
+    // Phase 2: use new rolls for remaining items
+    let newRollIdx = 0;
+    while (pending.length > 0) {
+        newRollIdx++;
+        const res = _packBin(pending, newRollSpec.width, newRollSpec.length);
+        if (res.shelves.length === 0) {
+            // Even a fresh new roll can't accept any of the pending pieces → fail
+            return null;
+        }
+        usedBins.push({
+            kind: 'new',
+            label: `New roll #${newRollIdx}`,
+            width: newRollSpec.width,
+            capacityLength: newRollSpec.length,
+            usedLength: res.usedLength,
+            shelves: res.shelves
+        });
+        pending = res.remaining;
+    }
+
+    return usedBins;
+}
+
+/**
+ * Main net cutting entry point: 2D FFDH with rotation + multi-bin (store + new rolls).
+ * Tries 4 sort strategies × all available roll widths → returns minimum-cost layout.
  *
  * @param {Array}  allPieces      [{w, h, qty, label, series}]
- * @param {Array}  availableRolls [{name, width, length, costPerRoll}]
+ * @param {Array}  availableRolls [{name, width, length, costPerRoll}] (new-roll specs)
+ * @param {Array}  partialRolls   [{width, remainingLength, qty, label}] — leftover stock (optional)
  * @returns best layout object, or null if nothing fits
  */
-function packNetFFDH(allPieces, availableRolls) {
+function packNetFFDH(allPieces, availableRolls, partialRolls) {
     if (!allPieces.length || !availableRolls.length) return null;
+    partialRolls = partialRolls || [];
 
     // Expand qty → individual item entries
     const items = [];
@@ -1000,18 +1045,93 @@ function packNetFFDH(allPieces, availableRolls) {
         arr => [...arr].sort((a, b) => b.h                         - a.h),                 // height ↓
     ];
 
+    // Expand partial rolls (qty) into individual bins, indexed by width
+    const partialBinsByWidth = {};
+    partialRolls.forEach(p => {
+        if (!p.width || !p.remainingLength || p.remainingLength <= 0) return;
+        const w = p.width;
+        if (!partialBinsByWidth[w]) partialBinsByWidth[w] = [];
+        const qty = Math.max(1, p.qty || 1);
+        for (let i = 0; i < qty; i++) {
+            partialBinsByWidth[w].push({
+                kind: 'store',
+                width: w,
+                length: p.remainingLength,
+                label: p.label ? `${p.label} (${w}"×${p.remainingLength}")` : `Stock partial (${w}"×${p.remainingLength}")`
+            });
+        }
+    });
+
     let best = null;
 
-    availableRolls.forEach(roll => {
+    availableRolls.forEach(newRoll => {
+        // Bins of this width — sorted smallest remaining first (use up small partials)
+        const partialsForWidth = (partialBinsByWidth[newRoll.width] || [])
+            .slice()
+            .sort((a, b) => a.length - b.length);
+
         sorts.forEach(sortFn => {
-            const res = _ffdhPack(sortFn(items), roll);
-            if (res && (!best || res.linearArea < best.linearArea ||
-                       (res.linearArea === best.linearArea &&
-                        res.rollsNeeded * res.roll.costPerRoll < best.rollsNeeded * best.roll.costPerRoll))) {
-                best = res;
+            const sortedItems = sortFn(items);
+            const bins = _packMultiBin(sortedItems, partialsForWidth, newRoll);
+            if (!bins) return;
+
+            const piecesArea  = items.reduce((s, p) => s + p.w * p.h, 0);
+            const totalLength = bins.reduce((s, b) => s + b.usedLength, 0);
+            const linearArea  = newRoll.width * totalLength;
+            const newRollsUsed = bins.filter(b => b.kind === 'new').length;
+            const storeRollsUsed = bins.filter(b => b.kind === 'store').length;
+            const wasteArea   = linearArea - piecesArea;
+            const efficiency  = linearArea > 0 ? Math.round(piecesArea / linearArea * 1000) / 10 : 0;
+            const cost        = newRollsUsed * (newRoll.costPerRoll || 0);
+
+            const candidate = {
+                roll: newRoll,        // the new-roll spec (for cost / ordering)
+                bins,
+                piecesArea, totalLength, linearArea, wasteArea, efficiency,
+                newRollsUsed, storeRollsUsed, cost
+            };
+
+            // Priority: fewer new rolls > less linear area > lower cost
+            if (!best
+                || candidate.newRollsUsed < best.newRollsUsed
+                || (candidate.newRollsUsed === best.newRollsUsed
+                    && candidate.linearArea < best.linearArea)
+                || (candidate.newRollsUsed === best.newRollsUsed
+                    && candidate.linearArea === best.linearArea
+                    && candidate.cost < best.cost)) {
+                best = candidate;
             }
         });
     });
+
+    // Compute leftover suggestion (informational only — for user's manual record)
+    if (best) {
+        best.leftover = best.bins
+            .filter(b => b.capacityLength - b.usedLength > 0)
+            .map(b => ({
+                kind: b.kind,
+                width: b.width,
+                remainingAfter: b.capacityLength - b.usedLength,
+                label: b.label
+            }));
+        // Add fully-unused partial bins (those that weren't used at all)
+        Object.entries(partialBinsByWidth).forEach(([w, bins]) => {
+            bins.forEach(pb => {
+                // Check if this partial was used (matched by length & label heuristic)
+                const wasUsed = best.bins.some(used =>
+                    used.kind === 'store' && used.width === pb.width
+                    && used.capacityLength === pb.length && used.label === pb.label);
+                if (!wasUsed) {
+                    best.leftover.push({
+                        kind: 'store-unused',
+                        width: pb.width,
+                        remainingAfter: pb.length,
+                        label: pb.label
+                    });
+                }
+            });
+        });
+    }
 
     return best;
 }

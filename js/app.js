@@ -386,6 +386,7 @@ function refreshRatesDisplay() {
     renderGlassOffsetsList();
     renderPartitionRatesList();
     renderNetStockList();
+    renderNetPartialRollsList();
 }
 
 function renderPartitionRatesList() {
@@ -484,6 +485,104 @@ function saveNetStock() {
     });
     autoSaveRates();
     showAlert('✅ Net stock prices saved!');
+}
+
+// ── Net Partial Rolls (per-project, in-memory only — not persisted) ──────────
+
+// Global in-memory list of partial rolls for the current session
+window.netPartialRolls = window.netPartialRolls || [];
+
+function renderNetPartialRollsList() {
+    const container = document.getElementById('netPartialRollsList');
+    if (!container) return;
+
+    const rolls = window.netPartialRolls;
+    const rowStyle = 'display:grid;grid-template-columns:130px 150px 80px 200px 50px;gap:10px;align-items:center;padding:6px 0;border-bottom:1px solid #f0f0f0;';
+    const hdrStyle = 'font-weight:600;font-size:11px;color:#1b5e20;';
+
+    let html = `<div style="${rowStyle}">
+        <span style="${hdrStyle}">Roll Width</span>
+        <span style="${hdrStyle}">Remaining Length (")</span>
+        <span style="${hdrStyle}">Qty</span>
+        <span style="${hdrStyle}">Label (optional)</span>
+        <span style="${hdrStyle}"></span>
+    </div>`;
+
+    if (rolls.length === 0) {
+        html += `<div style="text-align:center;padding:20px 10px;color:#888;font-size:12px;font-style:italic;">
+            No partial rolls added. Click "➕ Add Partial Roll" to enter leftover stock for this project.
+        </div>`;
+    } else {
+        rolls.forEach((r, idx) => {
+            html += `<div style="${rowStyle}">
+                <select id="npr_width_${idx}" onchange="updateNetPartialRoll(${idx})" style="padding:5px 6px;border:1px solid #c8e6c9;border-radius:4px;font-size:13px;">
+                    <option value="24" ${r.width===24?'selected':''}>2' (24")</option>
+                    <option value="36" ${r.width===36?'selected':''}>3' (36")</option>
+                    <option value="48" ${r.width===48?'selected':''}>4' (48")</option>
+                    <option value="60" ${r.width===60?'selected':''}>5' (60")</option>
+                </select>
+                <input type="number" id="npr_len_${idx}" value="${r.remainingLength}" min="1" step="1"
+                       onchange="updateNetPartialRoll(${idx})"
+                       style="padding:5px 6px;border:1px solid #c8e6c9;border-radius:4px;font-size:13px;width:100%;"
+                       placeholder="inches">
+                <input type="number" id="npr_qty_${idx}" value="${r.qty}" min="1" step="1"
+                       onchange="updateNetPartialRoll(${idx})"
+                       style="padding:5px 6px;border:1px solid #c8e6c9;border-radius:4px;font-size:13px;width:60px;">
+                <input type="text" id="npr_label_${idx}" value="${r.label || ''}"
+                       onchange="updateNetPartialRoll(${idx})"
+                       style="padding:5px 6px;border:1px solid #c8e6c9;border-radius:4px;font-size:12px;width:100%;"
+                       placeholder="e.g. From Project X">
+                <button onclick="deleteNetPartialRoll(${idx})"
+                        style="background:#e74c3c;color:white;border:none;border-radius:4px;width:36px;height:30px;cursor:pointer;font-size:14px;">🗑️</button>
+            </div>`;
+        });
+
+        // Summary line
+        const totalRolls = rolls.reduce((s, r) => s + r.qty, 0);
+        const totalLen   = rolls.reduce((s, r) => s + r.qty * r.remainingLength, 0);
+        html += `<div style="margin-top:10px;padding:8px 12px;background:#f1f8f4;border-radius:6px;font-size:12px;color:#1b5e20;">
+            <strong>Summary:</strong> ${totalRolls} partial roll${totalRolls>1?'s':''}, total ${totalLen.toFixed(0)}" (${(totalLen/12).toFixed(1)} ft) available.
+        </div>`;
+    }
+
+    container.innerHTML = html;
+}
+
+function addNetPartialRoll() {
+    window.netPartialRolls.push({
+        width: 48,
+        remainingLength: 200,
+        qty: 1,
+        label: ''
+    });
+    renderNetPartialRollsList();
+}
+
+function updateNetPartialRoll(idx) {
+    const r = window.netPartialRolls[idx];
+    if (!r) return;
+    const wEl = document.getElementById(`npr_width_${idx}`);
+    const lEl = document.getElementById(`npr_len_${idx}`);
+    const qEl = document.getElementById(`npr_qty_${idx}`);
+    const labEl = document.getElementById(`npr_label_${idx}`);
+    if (wEl)  r.width           = parseInt(wEl.value, 10) || 48;
+    if (lEl)  r.remainingLength = Math.max(1, parseFloat(lEl.value) || 0);
+    if (qEl)  r.qty             = Math.max(1, parseInt(qEl.value, 10) || 1);
+    if (labEl) r.label          = labEl.value.trim();
+    renderNetPartialRollsList();
+}
+
+function deleteNetPartialRoll(idx) {
+    if (idx < 0 || idx >= window.netPartialRolls.length) return;
+    window.netPartialRolls.splice(idx, 1);
+    renderNetPartialRollsList();
+}
+
+function clearNetPartialRolls() {
+    if (window.netPartialRolls.length === 0) return;
+    if (!confirm('Clear all partial rolls? This cannot be undone.')) return;
+    window.netPartialRolls = [];
+    renderNetPartialRollsList();
 }
 
 function renderGlassOffsetsList() {

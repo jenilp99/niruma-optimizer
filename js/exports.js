@@ -1,98 +1,99 @@
 // Niruma Aluminum Profile Optimizer - Export & Display Functions
 
 // ============================================================================
-// NET CUTTING VISUAL DIAGRAM  (2D FFDH — uniform proportional scale)
+// NET CUTTING VISUAL DIAGRAM  (2D FFDH — uniform proportional scale, per bin)
 // ============================================================================
 
+// Per-label color cache so the same window keeps the same color across bins
+function _netLabelColor(label, cache) {
+    if (cache[label]) return cache[label];
+    const PALETTE = [
+        '#9b59b6','#2980b9','#27ae60','#e67e22',
+        '#e74c3c','#16a085','#d35400','#1a237e',
+        '#880e4f','#006064','#33691e','#4a148c'
+    ];
+    const idx = Object.keys(cache).length;
+    cache[label] = PALETTE[idx % PALETTE.length];
+    return cache[label];
+}
+
 /**
- * Generate a proportionally-correct SVG diagram of the FFDH layout.
- * Uses ONE uniform px/inch scale for BOTH axes so piece aspect ratios are accurate.
+ * Generate a proportionally-correct SVG for ONE bin (store partial or new roll).
+ * Uses uniform px/inch scale for both axes.
  *
- * @param {Object} layout — result from packNetFFDH()
- *   { roll, shelves:[{y,shelfH,nextX,pieces:[{x,w,h,label,origW,origH,rotated}]}],
- *     totalLength, rollsNeeded, areaUsed, wasteArea, piecesArea, efficiency }
+ * @param {Object} bin         {kind, label, width, capacityLength, usedLength, shelves}
+ * @param {Object} labelColorCache  shared across bins so colors stay consistent
  */
-function generateNetDiagramFFDH(layout) {
-    if (!layout || !layout.shelves || layout.shelves.length === 0) {
-        return '<em style="color:#999;font-size:12px;">No pieces to display</em>';
+function generateNetDiagramBin(bin, labelColorCache) {
+    if (!bin || !bin.shelves || bin.shelves.length === 0) {
+        return '<em style="color:#999;font-size:12px;">No pieces in this bin</em>';
     }
 
-    const rollW    = layout.roll.width;
-    const totalLen = layout.totalLength;
-    const rollLen  = layout.roll.length;   // length of one physical roll
+    const rollW    = bin.width;
+    const totalLen = bin.capacityLength;   // draw full bin so leftover is visible
+    const usedLen  = bin.usedLength;
 
-    // ── Uniform scale: same px/inch for BOTH axes ──────────────────────────
-    // Target: roll width ~530px, capped at 14 px/in so narrow rolls aren't huge.
+    const isStore = bin.kind === 'store';
+    const borderColor   = isStore ? '#27ae60' : '#8e44ad';
+    const bgFill        = isStore ? '#f1f8f4' : '#f5f0ff';
+    const labelTextCol  = isStore ? '#1b5e20' : '#6c3483';
+
+    // Uniform scale: same px/inch for BOTH axes
     const scale = Math.min(530 / rollW, 14);
 
-    // Padding for labels around the drawing
-    const PT = 18;   // top  (roll-width label)
-    const PL = 4;    // left
-    const PR = 46;   // right (H-cut number labels)
-    const PB = 22;   // bottom (scale annotation)
+    const PT = 18;
+    const PL = 4;
+    const PR = 46;
+    const PB = 22;
 
     const canvasW = rollW    * scale;
     const canvasH = totalLen * scale;
     const svgW    = Math.ceil(canvasW + PL + PR);
     const svgH    = Math.ceil(canvasH + PT + PB);
 
-    // ── Per-label colour palette ───────────────────────────────────────────
-    const PALETTE = [
-        '#9b59b6','#2980b9','#27ae60','#e67e22',
-        '#e74c3c','#16a085','#d35400','#1a237e',
-        '#880e4f','#006064','#33691e','#4a148c'
-    ];
-    const labelColor = {};
-    let ci = 0;
-    layout.shelves.forEach(sh => sh.pieces.forEach(p => {
-        if (!labelColor[p.label]) labelColor[p.label] = PALETTE[ci++ % PALETTE.length];
-    }));
-
     let svg = `<svg xmlns="http://www.w3.org/2000/svg" `
             + `width="${svgW}" height="${svgH}" `
             + `style="display:block;margin:6px 0;font-family:sans-serif;">`;
 
-    // Hatch pattern for waste
+    // Hatch pattern (unique id per bin kind to avoid SVG id collision)
+    const hatchId = isStore ? 'netHatchStore' : 'netHatchNew';
+    const hatchColor = isStore ? '#a5d6a7' : '#c8a8e0';
     svg += `<defs>
-        <pattern id="netHatch" patternUnits="userSpaceOnUse" width="6" height="6" patternTransform="rotate(45)">
-            <line x1="0" y1="0" x2="0" y2="6" stroke="#c8a8e0" stroke-width="1.5"/>
+        <pattern id="${hatchId}" patternUnits="userSpaceOnUse" width="6" height="6" patternTransform="rotate(45)">
+            <line x1="0" y1="0" x2="0" y2="6" stroke="${hatchColor}" stroke-width="1.5"/>
         </pattern>
     </defs>`;
 
-    // Roll background
+    // Bin background (full capacity length shown; unused tail visible as leftover)
     svg += `<rect x="${PL}" y="${PT}" `
          + `width="${canvasW.toFixed(1)}" height="${canvasH.toFixed(1)}" `
-         + `fill="#f5f0ff" stroke="#8e44ad" stroke-width="1.5"/>`;
+         + `fill="${bgFill}" stroke="${borderColor}" stroke-width="1.5"/>`;
 
-    // ── Draw shelves ───────────────────────────────────────────────────────
-    layout.shelves.forEach((shelf, si) => {
+    // Draw shelves (only within usedLength)
+    bin.shelves.forEach((shelf, si) => {
         const sy = PT + shelf.y * scale;
         const sh = shelf.shelfH * scale;
 
-        // Waste background for entire shelf row (hatch)
+        // Shelf-wide hatch (cutting waste between pieces & right of last piece)
         svg += `<rect x="${PL}" y="${sy.toFixed(1)}" `
              + `width="${canvasW.toFixed(1)}" height="${sh.toFixed(1)}" `
-             + `fill="url(#netHatch)" opacity="0.35"/>`;
+             + `fill="url(#${hatchId})" opacity="0.35"/>`;
 
-        // Pieces in this shelf
         shelf.pieces.forEach(p => {
             const px = PL + p.x * scale;
             const py = sy;
             const pw = p.w * scale;
-            const ph = p.h * scale;          // actual placed height (may be < shelf height)
-            const col = labelColor[p.label] || '#9b59b6';
-            const shortLbl = p.label.split(/[\s(]/)[0];   // e.g. "W01"
+            const ph = p.h * scale;
+            const col = _netLabelColor(p.label, labelColorCache);
+            const shortLbl = p.label.split(/[\s(]/)[0];
 
-            // Piece fill
             svg += `<rect x="${px.toFixed(1)}" y="${py.toFixed(1)}" `
                  + `width="${pw.toFixed(1)}" height="${ph.toFixed(1)}" `
                  + `fill="${col}" opacity="0.85" stroke="white" stroke-width="1.2"/>`;
 
-            // Text inside piece (only if big enough to read)
             if (pw >= 20 && ph >= 14) {
                 const cx = (px + pw / 2).toFixed(1);
                 if (ph >= 30) {
-                    // Two-line label: window ID + placed dimensions
                     svg += `<text x="${cx}" y="${(py + ph/2 - 5).toFixed(1)}" `
                          + `text-anchor="middle" font-size="9" fill="white" font-weight="bold">`
                          + `${shortLbl}</text>`;
@@ -100,7 +101,6 @@ function generateNetDiagramFFDH(layout) {
                          + `text-anchor="middle" font-size="8" fill="rgba(255,255,255,0.92)">`
                          + `${p.w.toFixed(1)}"×${p.h.toFixed(1)}"${p.rotated ? ' ↺' : ''}</text>`;
                 } else {
-                    // One-line label
                     svg += `<text x="${cx}" y="${(py + ph/2 + 3).toFixed(1)}" `
                          + `text-anchor="middle" font-size="8" fill="white" font-weight="bold">`
                          + `${shortLbl}${p.rotated ? ' ↺' : ''}</text>`;
@@ -108,8 +108,8 @@ function generateNetDiagramFFDH(layout) {
             }
         });
 
-        // ── Horizontal cut line at bottom of shelf (blue dashed) ──────────
-        if (si < layout.shelves.length - 1) {
+        // Horizontal cut line at bottom of shelf
+        if (si < bin.shelves.length - 1) {
             const cutY = (PT + (shelf.y + shelf.shelfH) * scale).toFixed(1);
             svg += `<line x1="${PL}" y1="${cutY}" x2="${(PL + canvasW).toFixed(1)}" y2="${cutY}" `
                  + `stroke="#2980b9" stroke-width="1.5" stroke-dasharray="5,3"/>`;
@@ -117,7 +117,7 @@ function generateNetDiagramFFDH(layout) {
                  + `font-size="9" fill="#2980b9" font-weight="bold">H${si + 1}</text>`;
         }
 
-        // ── Vertical cut lines between pieces (red dashed) ────────────────
+        // Vertical cut lines between pieces
         let vx = 0;
         shelf.pieces.forEach((p, pi) => {
             vx += p.w;
@@ -129,26 +129,37 @@ function generateNetDiagramFFDH(layout) {
         });
     });
 
-    // ── Roll length boundaries (dashed red, only when multiple rolls) ──────
-    for (let rn = 1; rn < layout.rollsNeeded; rn++) {
-        const boundY = (PT + rollLen * rn * scale).toFixed(1);
-        svg += `<line x1="${PL}" y1="${boundY}" x2="${(PL + canvasW).toFixed(1)}" y2="${boundY}" `
-             + `stroke="#c0392b" stroke-width="2" stroke-dasharray="8,4"/>`;
-        svg += `<text x="${(PL + 4).toFixed(1)}" y="${(parseFloat(boundY) - 3).toFixed(1)}" `
-             + `font-size="9" fill="#c0392b" font-weight="bold">↑ Roll ${rn} ends | Roll ${rn + 1} starts ↓</text>`;
+    // Unused leftover region at bottom (between usedLength and capacityLength)
+    if (totalLen - usedLen > 0.5) {
+        const ly = (PT + usedLen * scale).toFixed(1);
+        const lh = ((totalLen - usedLen) * scale).toFixed(1);
+        // Cross-hatch pattern for "available for next project"
+        svg += `<rect x="${PL}" y="${ly}" `
+             + `width="${canvasW.toFixed(1)}" height="${lh}" `
+             + `fill="rgba(255,255,255,0.5)" stroke="${borderColor}" stroke-width="0.8" stroke-dasharray="4,3"/>`;
+        // "leftover" label centred in the region (if room)
+        const lTextY = (parseFloat(ly) + parseFloat(lh) / 2).toFixed(1);
+        if (parseFloat(lh) > 24) {
+            svg += `<text x="${(PL + canvasW / 2).toFixed(1)}" y="${lTextY}" `
+                 + `text-anchor="middle" font-size="11" fill="${labelTextCol}" font-style="italic">`
+                 + `↓ Leftover ${(totalLen - usedLen).toFixed(1)}" — keep for next project ↓</text>`;
+        }
+        // Cut line at usedLength
+        svg += `<line x1="${PL}" y1="${ly}" x2="${(PL + canvasW).toFixed(1)}" y2="${ly}" `
+             + `stroke="${borderColor}" stroke-width="2" stroke-dasharray="6,3"/>`;
     }
 
-    // ── Dimension annotations ──────────────────────────────────────────────
-    // Roll width label at top-centre
+    // Roll width label at top
     svg += `<text x="${(PL + canvasW / 2).toFixed(1)}" y="${(PT - 4).toFixed(1)}" `
-         + `text-anchor="middle" font-size="10" fill="#6c3483" font-weight="bold">`
-         + `${rollW}" wide</text>`;
+         + `text-anchor="middle" font-size="10" fill="${labelTextCol}" font-weight="bold">`
+         + `${rollW}" wide × ${totalLen.toFixed(1)}" long (${(totalLen/12).toFixed(2)} ft)</text>`;
 
-    // Scale + linear length annotation at bottom
+    // Bottom annotation
     svg += `<text x="${PL}" y="${(PT + canvasH + 16).toFixed(1)}" `
-         + `font-size="9" fill="#6c3483">`
+         + `font-size="9" fill="${labelTextCol}">`
          + `Scale: ${scale.toFixed(1)} px/in (proportional) `
-         + `| Linear used: ${totalLen.toFixed(1)}" (${(totalLen / 12).toFixed(2)} ft)`
+         + `| Used: ${usedLen.toFixed(1)}" of ${totalLen.toFixed(1)}" `
+         + `| Leftover: ${(totalLen - usedLen).toFixed(1)}"`
          + `</text>`;
 
     svg += '</svg>';
@@ -361,81 +372,88 @@ function displayResults() {
         html += '</tbody></table></div>';
     }
 
-    // ── Mosquito Net Section (2D FFDH with rotation) ──────────────────────────
+    // ── Mosquito Net Section (2D FFDH with rotation + multi-bin partial rolls) ─
     const netLayout = r.netResults;
-    if (netLayout) {
-        const roll            = netLayout.roll;
-        const rollsNeeded     = netLayout.rollsNeeded;
+    if (netLayout && netLayout.bins && netLayout.bins.length > 0) {
+        const roll            = netLayout.roll;          // new-roll spec used for cost
+        const newRollsUsed    = netLayout.newRollsUsed;
+        const storeRollsUsed  = netLayout.storeRollsUsed;
         const totalLen        = netLayout.totalLength;
-        const eff             = netLayout.efficiency;           // based on linear area consumed
+        const eff             = netLayout.efficiency;
         const piecesAreaSqft  = (netLayout.piecesArea  / 144).toFixed(2);
-        const linearAreaSqft  = (netLayout.linearArea  / 144).toFixed(2);  // width × totalLength
-        const wasteAreaSqft   = (netLayout.wasteArea   / 144).toFixed(2);  // linearArea - piecesArea
-        const rollCost        = rollsNeeded * (roll.costPerRoll || 0);
+        const linearAreaSqft  = (netLayout.linearArea  / 144).toFixed(2);
+        const wasteAreaSqft   = (netLayout.wasteArea   / 144).toFixed(2);
+        const newCost         = netLayout.cost;
 
         html += `<div class="material-section" style="border-left:4px solid #8e44ad;margin-top:24px;">
             <h3 style="margin:0 0 4px 0;color:#6c3483;">🕸️ Mosquito Net Cutting Plan</h3>
             <p style="font-size:13px;color:#555;margin:0 0 14px 0;">
-                2D optimized layout — pieces mixed across all windows, rotation allowed for minimum waste.
+                2D optimized layout — partial rolls from store used first (smallest leftover first), new rolls only as needed.
                 Piece sizes are after deducting 2" from each shutter frame dimension.
             </p>`;
 
         // ── Stat cards ───────────────────────────────────────────────────────
         const CS = 'background:#f3e5f5;border:1px solid #ce93d8;border-radius:8px;padding:10px 16px;flex:1;min-width:110px;text-align:center;';
+        const CS_GREEN = 'background:#e8f5e9;border:1px solid #a5d6a7;border-radius:8px;padding:10px 16px;flex:1;min-width:110px;text-align:center;';
         const effColor = eff >= 80 ? '#2e7d32' : eff >= 55 ? '#e65100' : '#c62828';
         html += `<div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px;">
             <div style="${CS}">
-                <div style="font-size:11px;color:#6c3483;margin-bottom:3px;">Best Roll</div>
+                <div style="font-size:11px;color:#6c3483;margin-bottom:3px;">Best Roll Width</div>
                 <div style="font-size:16px;font-weight:700;color:#4a0072;">${roll.name}</div>
             </div>
+            ${storeRollsUsed > 0 ? `<div style="${CS_GREEN}">
+                <div style="font-size:11px;color:#1b5e20;margin-bottom:3px;">From Stock</div>
+                <div style="font-size:16px;font-weight:700;color:#1b5e20;">${storeRollsUsed} partial${storeRollsUsed>1?'s':''}</div>
+            </div>` : ''}
             <div style="${CS}">
-                <div style="font-size:11px;color:#6c3483;margin-bottom:3px;">Rolls to Order</div>
-                <div style="font-size:16px;font-weight:700;color:#4a0072;">${rollsNeeded}</div>
+                <div style="font-size:11px;color:#6c3483;margin-bottom:3px;">Order New</div>
+                <div style="font-size:16px;font-weight:700;color:${newRollsUsed>0?'#4a0072':'#2e7d32'};">${newRollsUsed} roll${newRollsUsed!==1?'s':''}</div>
             </div>
             <div style="${CS}">
                 <div style="font-size:11px;color:#6c3483;margin-bottom:3px;">Net Area</div>
                 <div style="font-size:16px;font-weight:700;color:#4a0072;">${piecesAreaSqft} sqft</div>
             </div>
             <div style="${CS}">
-                <div style="font-size:11px;color:#6c3483;margin-bottom:3px;">Consumed Area</div>
-                <div style="font-size:16px;font-weight:700;color:#4a0072;">${linearAreaSqft} sqft</div>
-            </div>
-            <div style="${CS}">
                 <div style="font-size:11px;color:#6c3483;margin-bottom:3px;">Cut Efficiency</div>
                 <div style="font-size:16px;font-weight:700;color:${effColor};">${eff}%</div>
                 <div style="font-size:10px;color:#888;margin-top:2px;">of consumed length</div>
             </div>
-            ${rollCost > 0 ? `<div style="${CS}">
-                <div style="font-size:11px;color:#6c3483;margin-bottom:3px;">Net Cost</div>
-                <div style="font-size:16px;font-weight:700;color:#4a0072;">₹${rollCost.toFixed(0)}</div>
+            ${newCost > 0 ? `<div style="${CS}">
+                <div style="font-size:11px;color:#6c3483;margin-bottom:3px;">New Roll Cost</div>
+                <div style="font-size:16px;font-weight:700;color:#4a0072;">₹${newCost.toFixed(0)}</div>
             </div>` : ''}
         </div>`;
 
         // ── Order summary block ──────────────────────────────────────────────
+        const orderActions = [];
+        if (storeRollsUsed > 0) orderActions.push(`<strong style="color:#1b5e20;">Use ${storeRollsUsed} from stock</strong>`);
+        if (newRollsUsed > 0)   orderActions.push(`<strong style="color:#6c3483;">Order ${newRollsUsed} new roll${newRollsUsed>1?'s':''} of ${roll.name}</strong>`);
         html += `<div style="background:#ede7f6;border-radius:8px;padding:11px 14px;margin-bottom:16px;font-size:13px;line-height:2;">
             <strong style="color:#4a0072;">📦 Order Summary:</strong>
-            <strong>${rollsNeeded}</strong> roll${rollsNeeded > 1 ? 's' : ''} of
-            <strong>${roll.name}</strong>
-            (${roll.width}" wide × ${(roll.length / 12).toFixed(0)}ft long each)
-            &nbsp;|&nbsp; Linear cut: <strong>${totalLen.toFixed(1)}"</strong> (${(totalLen / 12).toFixed(2)} ft)
-            &nbsp;|&nbsp; Area consumed: <strong>${linearAreaSqft} sqft</strong>
-            <span style="font-size:11px;color:#6c3483;">(= ${roll.width}" × ${totalLen.toFixed(1)}", leftover stored &amp; reused)</span>
-            &nbsp;|&nbsp; Waste in cut: <strong>${wasteAreaSqft} sqft</strong>
-            ${rollsNeeded > 1 ? `<br><em style="color:#880e4f;">⚠️ Layout spans ${rollsNeeded} rolls — continue cut on next roll after ${(roll.length / 12).toFixed(0)} ft.</em>` : ''}
+            ${orderActions.join(' &nbsp;+&nbsp; ') || `<em>${newRollsUsed} rolls needed</em>`}
+            <br>
+            <span style="font-size:12px;color:#555;">
+                Total linear cut: <strong>${totalLen.toFixed(1)}"</strong> (${(totalLen/12).toFixed(2)} ft)
+                &nbsp;|&nbsp; Area consumed: <strong>${linearAreaSqft} sqft</strong>
+                &nbsp;|&nbsp; Cut waste: <strong>${wasteAreaSqft} sqft</strong>
+                ${newRollsUsed > 0 ? `&nbsp;|&nbsp; New roll cost: <strong>₹${newCost.toFixed(0)}</strong>` : ''}
+            </span>
         </div>`;
 
-        // ── Piece summary table (grouped by window label) ────────────────────
+        // ── Piece summary table (grouped by window label across ALL bins) ────
         const pieceSummary = {};
-        netLayout.shelves.forEach((shelf, si) => {
-            shelf.pieces.forEach(p => {
-                const key = `${p.label}|${p.origW}|${p.origH}`;
-                if (!pieceSummary[key]) {
-                    pieceSummary[key] = { label: p.label, origW: p.origW, origH: p.origH,
-                                         qty: 0, rotatedCount: 0, rows: [] };
-                }
-                pieceSummary[key].qty++;
-                if (p.rotated) pieceSummary[key].rotatedCount++;
-                pieceSummary[key].rows.push(si + 1);
+        netLayout.bins.forEach(bin => {
+            bin.shelves.forEach(shelf => {
+                shelf.pieces.forEach(p => {
+                    const key = `${p.label}|${p.origW}|${p.origH}`;
+                    if (!pieceSummary[key]) {
+                        pieceSummary[key] = { label: p.label, origW: p.origW, origH: p.origH,
+                                             qty: 0, rotatedCount: 0, bins: new Set() };
+                    }
+                    pieceSummary[key].qty++;
+                    if (p.rotated) pieceSummary[key].rotatedCount++;
+                    pieceSummary[key].bins.add(bin.label);
+                });
             });
         });
 
@@ -446,7 +464,7 @@ function displayResults() {
                 <th style="padding:6px 10px;text-align:center;">Net Size (W×H)</th>
                 <th style="padding:6px 10px;text-align:center;">Qty</th>
                 <th style="padding:6px 10px;text-align:center;">Placed As</th>
-                <th style="padding:6px 10px;text-align:center;">In Row(s)</th>
+                <th style="padding:6px 10px;text-align:left;">Cut From</th>
             </tr></thead><tbody>`;
 
         let psi = 0;
@@ -457,51 +475,91 @@ function displayResults() {
                 : ps.rotatedCount === 0
                 ? `${ps.origW.toFixed(2)}"×${ps.origH.toFixed(2)}"`
                 : `Mixed (some rotated ↺)`;
-            const uniqueRows = [...new Set(ps.rows)].sort((a, b) => a - b).join(', ');
+            const binsList = [...ps.bins].join(', ');
             html += `<tr style="background:${rowBg};border-bottom:1px solid #e8d5f0;">
                 <td style="padding:6px 10px;font-weight:600;color:#4a0072;">${ps.label}</td>
                 <td style="padding:6px 10px;text-align:center;">${ps.origW.toFixed(2)}" × ${ps.origH.toFixed(2)}"</td>
                 <td style="padding:6px 10px;text-align:center;font-weight:700;">${ps.qty}</td>
                 <td style="padding:6px 10px;text-align:center;color:${ps.rotatedCount > 0 ? '#e65100' : '#2e7d32'};">${placedDesc}</td>
-                <td style="padding:6px 10px;text-align:center;color:#555;">Row ${uniqueRows}</td>
+                <td style="padding:6px 10px;color:#555;">${binsList}</td>
             </tr>`;
         }
         html += '</tbody></table>';
 
-        // ── Row-by-row cutting instructions ──────────────────────────────────
-        html += `<strong style="font-size:13px;color:#6c3483;">✂️ Row-by-Row Cutting Instructions</strong>
-        <div style="margin:8px 0 16px 0;">`;
-        netLayout.shelves.forEach((shelf, si) => {
-            const y1 = shelf.y.toFixed(2);
-            const y2 = (shelf.y + shelf.shelfH).toFixed(2);
-            const usedW = shelf.pieces.reduce((s, p) => s + p.w, 0).toFixed(2);
-            const piecesDesc = shelf.pieces.map(p => {
-                const short = p.label.split(/[\s(]/)[0];
-                return `<strong>${short}</strong>: ${p.w.toFixed(2)}"×${p.h.toFixed(2)}"${p.rotated ? ' <span style="color:#e65100">↺</span>' : ''}`;
-            }).join(' &nbsp;|&nbsp; ');
-            html += `<div style="background:#faf5ff;border:1px solid #e1bee7;border-radius:6px;padding:8px 12px;margin-bottom:6px;font-size:12px;line-height:1.9;">
-                <strong style="color:#6c3483;">Row ${si + 1}</strong>
-                &nbsp; Cut: <strong>${y1}"</strong> → <strong>${y2}"</strong>
-                &nbsp; (row height = ${shelf.shelfH.toFixed(2)}", width used = ${usedW}")
-                &nbsp;&nbsp; ${piecesDesc}
-            </div>`;
-        });
-        html += '</div>';
-
-        // ── 2D layout diagram ─────────────────────────────────────────────────
-        html += `<strong style="font-size:13px;color:#6c3483;">📐 2D Layout Diagram</strong>
-        <div style="font-size:11px;color:#777;margin:4px 0 6px 0;">
-            <span style="display:inline-block;width:18px;height:3px;background:#2980b9;vertical-align:middle;"></span> Horizontal cuts
+        // ── Per-bin cutting instructions + diagram ───────────────────────────
+        html += `<strong style="font-size:13px;color:#6c3483;">📐 Roll-by-Roll Cutting Layout</strong>
+        <div style="font-size:11px;color:#777;margin:4px 0 10px 0;">
+            <span style="display:inline-block;width:18px;height:10px;background:#f1f8f4;border:1.5px solid #27ae60;vertical-align:middle;border-radius:2px;"></span> From your stock
             &nbsp;
-            <span style="display:inline-block;width:18px;height:3px;background:#e74c3c;vertical-align:middle;"></span> Vertical cuts
+            <span style="display:inline-block;width:18px;height:10px;background:#f5f0ff;border:1.5px solid #8e44ad;vertical-align:middle;border-radius:2px;"></span> New roll
             &nbsp;
-            <span style="display:inline-block;width:14px;height:10px;background:repeating-linear-gradient(135deg,#c8a8e0 0 2px,transparent 2px 6px);vertical-align:middle;border:1px solid #c8a8e0;"></span> Waste
+            <span style="display:inline-block;width:18px;height:3px;background:#2980b9;vertical-align:middle;"></span> H-cut
             &nbsp;
-            ↺ Rotated piece
-        </div>
-        <div style="overflow:auto;max-height:580px;border:1px solid #e1bee7;border-radius:6px;padding:8px;background:#fefefe;">
-            ${generateNetDiagramFFDH(netLayout)}
+            <span style="display:inline-block;width:18px;height:3px;background:#e74c3c;vertical-align:middle;"></span> V-cut
+            &nbsp; ↺ Rotated piece
         </div>`;
+
+        const labelColorCache = {};
+        netLayout.bins.forEach((bin, bi) => {
+            const isStore = bin.kind === 'store';
+            const bColor  = isStore ? '#27ae60' : '#8e44ad';
+            const bBg     = isStore ? '#f1f8f4' : '#faf5ff';
+            const bIcon   = isStore ? '📦' : '🆕';
+            const bKindText = isStore ? 'FROM STOCK' : 'NEW ROLL';
+
+            html += `<div style="border:2px solid ${bColor};border-radius:8px;margin-bottom:18px;background:white;overflow:hidden;">
+                <div style="background:${bColor};color:white;padding:8px 14px;font-size:13px;font-weight:700;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px;">
+                    <span>${bIcon} ${bKindText}: ${bin.label}</span>
+                    <span style="font-weight:500;font-size:12px;opacity:0.95;">
+                        Capacity: ${bin.width}"×${bin.capacityLength.toFixed(1)}"
+                        &nbsp;|&nbsp; Used: ${bin.usedLength.toFixed(1)}"
+                        &nbsp;|&nbsp; Leftover: ${(bin.capacityLength - bin.usedLength).toFixed(1)}"
+                    </span>
+                </div>
+                <div style="padding:12px 14px;background:${bBg};">`;
+
+            // Row-by-row cutting instructions for THIS bin
+            bin.shelves.forEach((shelf, si) => {
+                const y1 = shelf.y.toFixed(2);
+                const y2 = (shelf.y + shelf.shelfH).toFixed(2);
+                const usedW = shelf.pieces.reduce((s, p) => s + p.w, 0).toFixed(2);
+                const piecesDesc = shelf.pieces.map(p => {
+                    const short = p.label.split(/[\s(]/)[0];
+                    return `<strong>${short}</strong>: ${p.w.toFixed(2)}"×${p.h.toFixed(2)}"${p.rotated ? ' <span style="color:#e65100">↺</span>' : ''}`;
+                }).join(' &nbsp;|&nbsp; ');
+                html += `<div style="background:white;border:1px solid ${isStore?'#c8e6c9':'#e1bee7'};border-radius:6px;padding:7px 11px;margin-bottom:5px;font-size:12px;line-height:1.9;">
+                    <strong style="color:${isStore?'#1b5e20':'#6c3483'};">Row ${si + 1}</strong>
+                    &nbsp; Cut: <strong>${y1}"</strong> → <strong>${y2}"</strong>
+                    &nbsp; (height ${shelf.shelfH.toFixed(2)}", width used ${usedW}")
+                    &nbsp;&nbsp; ${piecesDesc}
+                </div>`;
+            });
+
+            // Diagram for this bin
+            html += `<div style="margin-top:10px;overflow:auto;max-height:480px;border:1px solid ${isStore?'#c8e6c9':'#e1bee7'};border-radius:6px;padding:8px;background:white;">
+                ${generateNetDiagramBin(bin, labelColorCache)}
+            </div>`;
+
+            html += `</div></div>`;  // close bin body & wrapper
+        });
+
+        // ── Leftover suggestion ──────────────────────────────────────────────
+        if (netLayout.leftover && netLayout.leftover.length > 0) {
+            html += `<div style="background:#fff8e1;border-left:4px solid #ffa000;border-radius:6px;padding:11px 14px;margin-top:12px;font-size:13px;line-height:1.9;">
+                <strong style="color:#e65100;">💡 Leftover After This Project</strong>
+                <span style="font-size:11px;color:#888;">— informational, update your store records manually</span>
+                <ul style="margin:6px 0 0 18px;padding:0;">`;
+            netLayout.leftover.forEach(lo => {
+                const kindIcon = lo.kind === 'new' ? '🆕' : (lo.kind === 'store' ? '📦' : '📦↩️');
+                const kindText = lo.kind === 'new' ? 'from newly purchased roll'
+                              : (lo.kind === 'store-unused' ? 'unused stock partial (untouched)' : 'stock partial after cuts');
+                html += `<li><strong>${kindIcon} ${lo.width}" wide × ${lo.remainingAfter.toFixed(1)}"</strong>
+                    <span style="font-size:11px;color:#777;">(${kindText})</span>
+                    ${lo.label ? `<span style="font-size:11px;color:#999;">— ${lo.label}</span>` : ''}
+                </li>`;
+            });
+            html += `</ul></div>`;
+        }
 
         html += '</div>';  // close net section
     }
