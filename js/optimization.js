@@ -172,11 +172,21 @@ function runOptimization() {
     }
     // ──────────────────────────────────────────────────────────────────────────
 
+    // ── Partition Sheet Optimization (ACP / Bakelite / Particle Board) ─────────
+    let sheetResults = null;
+    {
+        const sheetPartials = (window.sheetPartials || []).slice();
+        sheetResults = packAllSheets(projectWindows, sheetPartials);
+        if (sheetResults) console.log('%c📄 Sheet optimization complete:', 'background:#e67e22;color:white;padding:2px 6px;', sheetResults);
+    }
+    // ──────────────────────────────────────────────────────────────────────────
+
     optimizationResults = {
         project: selectedProject,
         results: results,
         componentSections: componentSections, // Include pre-selected thicknesses
         netResults: netResults,               // Mosquito net 2D cutting plans
+        sheetResults: sheetResults,           // Partition sheet 2D cutting plans
         stats: {
             totalSticks: totalSticks,
             totalUsed: totalUsed.toFixed(2),
@@ -928,9 +938,168 @@ function computeNetPieces(projectWindows) {
  * Returns { shelves, usedLength, placed[], remaining[] }
  *
  * @param {Array}  items     [{w, h, label}] in chosen sort order
- * @param {number} binWidth  bin's roll width
- * @param {number} binLength bin's available length (remaining for partials, full for new)
+ * @param {number} binWidth  bin's roll/sheet width
+ * @param {number} binLength bin's available length/height (remaining for partials, full for new)
  */
+
+// ============================================================================
+// SHEET CATALOG & PARTITION PANEL OPTIMIZER
+// ============================================================================
+
+/** Standard available sheet sizes per material (all in inches). */
+const SHEET_CATALOG = {
+    'ACP':           [{ name:"8'×4'", w:48, h:96 }, { name:"10'×4'", w:48, h:120 }, { name:"12'×4'", w:48, h:144 }],
+    'Bakelite':      [{ name:"8'×4'", w:48, h:96 }],
+    'ParticleBoard': [{ name:"8'×4'", w:48, h:96 }],
+};
+
+/**
+ * Derive the 2D sheet panel pieces for all door partitions in a project.
+ * Panel W = glazing-clip-horizontal analogue; Panel H = zone height (Top or Bottom).
+ * Kerf of 0.125" per cut is deducted on each edge.
+ */
+function collectPartitionPanels(windows) {
+    const SHEET_MATS = new Set(['ACP', 'Bakelite', 'ParticleBoard']);
+    const KERF = 0.125;
+    const panels = [];
+
+    windows.forEach(win => {
+        if (win.category !== 'Door') return;
+        const qty = win.qty || 1;
+        const L   = win.leaves || 1;
+        const H   = win.height,  W = win.width;
+        const F   = win.frame || 0;
+        const TW  = (win.topWidth    || 47.5)  / 25.4;
+        const MW  = (win.middleWidth || 47.5)  / 25.4;
+        const BW  = (win.bottomWidth || 114.3) / 25.4;
+        const HVW = win._handleVW || (win.handleWidth || win.verticalWidth || 47.5) / 25.4;
+        const GVW = win._hingeVW  || (win.bottomWidth || 114.3) / 25.4;
+
+        const totalPanelH = H - F*1.575 - TW - BW - MW;
+        const MRPI = (win.middleRailPositionMM != null)
+            ? win.middleRailPositionMM / 25.4
+            : F*0.7875 + BW + totalPanelH/2 + MW/2;
+
+        const upperH = Math.max(0.5, H - F*0.7875 - TW - MW/2 - MRPI - KERF);
+        const lowerH = Math.max(0.5, MRPI - F*0.7875 - BW - MW/2 - KERF);
+        const panelW = Math.max(0.5, (W - F*3.15) / L - HVW - GVW - KERF);
+
+        const addPanel = (zone, zoneH) => {
+            const part = zone === 'upper'
+                ? (win.upperPartition || (win.partitionMaterial ? { material: win.partitionMaterial, thickness: String(win.partitionThickness || '0') } : null))
+                : win.lowerPartition;
+            if (!part || !SHEET_MATS.has(part.material)) return;
+            panels.push({
+                label: `${win.configId} (${zone})`,
+                material: part.material,
+                thickness: String(part.thickness || '0'),
+                w: panelW, h: zoneH,
+                qty: qty * L,
+            });
+        };
+        addPanel('upper', upperH);
+        addPanel('lower', lowerH);
+    });
+    return panels;
+}
+
+/**
+ * Pack one material+thickness group of door panels into sheets using FFDH+rotation.
+ * Reuses _packBin/_packMultiBin with sheetH as the bounded bin length.
+ */
+function packSheetGroup(rawPanels, sheetSizes, partialSheets, ratePerSqft) {
+    if (!rawPanels.length || !sheetSizes.length) return null;
+
+    // Expand panels by qty into individual pieces
+    const allPieces = [];
+    rawPanels.forEach(p => {
+        for (let i = 0; i < p.qty; i++)
+            allPieces.push({ w: p.w, h: p.h, label: p.label, origW: p.w, origH: p.h });
+    });
+
+    const SORTS = [
+        arr => [...arr].sort((a,b) => (b.w*b.h) - (a.w*a.h)),
+        arr => [...arr].sort((a,b) => Math.max(b.w,b.h) - Math.max(a.w,a.h)),
+        arr => [...arr].sort((a,b) => b.h - a.h),
+        arr => [...arr].sort((a,b) => b.w - a.w),
+    ];
+
+    let best = null;
+
+    for (const sz of sheetSizes) {
+        const costPerSheet = ratePerSqft * sz.w * sz.h / 144;
+
+        const partials = (partialSheets || [])
+            .filter(ps => ps.w >= 1 && ps.h >= 1)
+            .flatMap((ps, i) => {
+                const qty = Math.max(1, ps.qty || 1);
+                return Array.from({ length: qty }, (_, q) => ({
+                    kind: 'store', width: ps.w, length: ps.h,
+                    label: ps.label ? `${ps.label} (${ps.w}"×${ps.h}")` : `Stock sheet #${i+1} (${ps.w}"×${ps.h}")`
+                }));
+            })
+            .sort((a, b) => a.length - b.length); // smallest-first for _packMultiBin
+
+        const newSpec = { name: sz.name, width: sz.w, length: sz.h };
+
+        for (const sort of SORTS) {
+            const sorted = sort(allPieces);
+            const bins = _packMultiBin(sorted, partials, newSpec);
+            if (!bins) continue;
+
+            const piecesArea    = allPieces.reduce((s,p) => s + p.w*p.h, 0);
+            const consumedArea  = bins.reduce((s,b) => s + b.width * b.usedLength, 0);
+            const wasteArea     = Math.max(0, consumedArea - piecesArea);
+            const eff           = consumedArea > 0 ? Math.round(piecesArea / consumedArea * 100) : 0;
+            const newSheetsUsed = bins.filter(b => b.kind === 'new').length;
+            const storeSheetsUsed = bins.filter(b => b.kind === 'store').length;
+            const cost          = newSheetsUsed * costPerSheet;
+
+            const cand = {
+                sheetW: sz.w, sheetH: sz.h, sheetName: sz.name,
+                bins, piecesArea, consumedArea, wasteArea, efficiency: eff,
+                newSheetsUsed, storeSheetsUsed, cost, costPerSheet,
+                leftover: bins.filter(b => b.kind === 'new' && (b.capacityLength - b.usedLength) > 1)
+                    .map(b => ({ kind:'new', width: b.width, remainingAfter: b.capacityLength - b.usedLength, label: b.label })),
+            };
+
+            const better = !best
+                || cand.cost < best.cost
+                || (cand.cost === best.cost && cand.newSheetsUsed < best.newSheetsUsed)
+                || (cand.cost === best.cost && cand.newSheetsUsed === best.newSheetsUsed && cand.consumedArea < best.consumedArea);
+            if (better) best = cand;
+        }
+    }
+    return best;
+}
+
+/** Entry point: collect door panels, group by material+thickness, pack each group. */
+function packAllSheets(windows, partialSheets) {
+    const panels = collectPartitionPanels(windows);
+    if (!panels.length) return null;
+
+    const groups = {};
+    panels.forEach(p => {
+        const key = `${p.material}_${p.thickness}mm`;
+        (groups[key] = groups[key] || []).push(p);
+    });
+
+    const byGroup = {};
+    for (const [key, gPanels] of Object.entries(groups)) {
+        const mat = gPanels[0].material;
+        const thk = gPanels[0].thickness;
+        const sizes = SHEET_CATALOG[mat];
+        if (!sizes || !sizes.length) continue;
+        const rate = (ratesConfig.partitionRates || {})[key] || 0;
+        // Partial sheets from UI have no thickness field — match by material only
+        // (user enters physical sheet dimensions; they won't mix thicknesses in same partial)
+        const gPartials = (partialSheets || []).filter(ps => ps.material === mat);
+        const result = packSheetGroup(gPanels, sizes, gPartials, rate);
+        if (result) byGroup[key] = { material: mat, thickness: thk + 'mm', ratePerSqft: rate, panels: gPanels, ...result };
+    }
+    return Object.keys(byGroup).length > 0 ? { byGroup } : null;
+}
+
 function _packBin(items, binWidth, binLength) {
     const shelves   = [];          // [{y, shelfH, nextX, pieces:[...]}]
     let usedLength  = 0;

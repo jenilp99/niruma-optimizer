@@ -10,8 +10,8 @@
     <title>Niruma Aluminum Profile Optimizer</title>
 
     <!-- CSS -->
-    <link rel="stylesheet" href="css/styles.css?v=1.15">
-    <link rel="stylesheet" href="css/modal.css?v=1.15">
+    <link rel="stylesheet" href="css/styles.css?v=1.16">
+    <link rel="stylesheet" href="css/modal.css?v=1.16">
 
     <!-- External Libraries -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -61,7 +61,7 @@
                 <span><strong>mm</strong></span>
             </div>
             <!-- APP VERSION — bump this number on every push/update -->
-            <div class="navbar-version">Ver: 1.15</div>
+            <div class="navbar-version">Ver: 1.16</div>
         </div>
     </nav>
 
@@ -1013,6 +1013,23 @@
                             </div>
                         </div>
                     </details>
+
+                    <details class="rate-group" id="sheetPartialsPanel" style="margin-bottom: 20px; border: 1px solid #e67e22; border-radius: 8px; background: white;">
+                        <summary style="padding: 12px 15px; cursor: pointer; font-weight: bold; background: #fff3e0; border-radius: 8px; list-style: none; color:#bf360c;">
+                            📦 Partial Sheets Available for This Project <span style="font-weight:normal;font-size:12px;color:#666;">(ACP / Bakelite / Particle Board — optional)</span></summary>
+                        <div style="padding: 15px; border-top: 1px solid #ffe0b2;">
+                            <p style="font-size:12px;color:#666;margin:0 0 10px 0;">
+                                Leftover sheet pieces from previous projects? Enter them here to use up partials first.
+                                If left empty, the optimizer will open fresh full sheets only.
+                                <strong>This list resets when the page is reloaded</strong> — enter fresh each project.
+                            </p>
+                            <div id="sheetPartialsList"></div>
+                            <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap;">
+                                <button class="btn btn-sm" style="background:#e67e22;color:white;" onclick="addSheetPartial()">➕ Add Partial Sheet</button>
+                                <button class="btn btn-sm" style="background:#e74c3c;color:white;" onclick="clearSheetPartials()">🗑️ Clear All</button>
+                            </div>
+                        </div>
+                    </details>
                 </div>
 
                 <h3>✨ Powder Coating Rates (₹ / Running Foot)</h3>
@@ -1672,18 +1689,18 @@
     </div>
 
     <!-- JavaScript Files - Load in Order -->
-    <script src="js/storage.js?v=1.15"></script>
-    <script src="js/supplier_master.js?v=1.15"></script>
+    <script src="js/storage.js?v=1.16"></script>
+    <script src="js/supplier_master.js?v=1.16"></script>
     <!-- Supplier Modules -->
-    <script src="js/suppliers/windalco.js?v=1.15"></script>
-    <script src="js/suppliers/jk_alu.js?v=1.15"></script>
-    <script src="js/suppliers/atlantis.js?v=1.15"></script>
-    <script src="js/suppliers/vitco.js?v=1.15"></script>
+    <script src="js/suppliers/windalco.js?v=1.16"></script>
+    <script src="js/suppliers/jk_alu.js?v=1.16"></script>
+    <script src="js/suppliers/atlantis.js?v=1.16"></script>
+    <script src="js/suppliers/vitco.js?v=1.16"></script>
 
-    <script src="js/app.js?v=1.15"></script>
-    <script src="js/optimization.js?v=1.15"></script>
-    <script src="js/exports.js?v=1.15"></script>
-    <script src="js/Quotation.js?v=1.15"></script>
+    <script src="js/app.js?v=1.16"></script>
+    <script src="js/optimization.js?v=1.16"></script>
+    <script src="js/exports.js?v=1.16"></script>
+    <script src="js/Quotation.js?v=1.16"></script>
 
 </body>
 

@@ -387,6 +387,7 @@ function refreshRatesDisplay() {
     renderPartitionRatesList();
     renderNetStockList();
     renderNetPartialRollsList();
+    renderSheetPartialsList();
 }
 
 function renderPartitionRatesList() {
@@ -584,6 +585,101 @@ function clearNetPartialRolls() {
     window.netPartialRolls = [];
     renderNetPartialRollsList();
 }
+
+// ── Partial Sheets (ACP / Bakelite / Particle Board) ────────────────────────
+window.sheetPartials = window.sheetPartials || [];
+
+function renderSheetPartialsList() {
+    const container = document.getElementById('sheetPartialsList');
+    if (!container) return;
+
+    const sheets = window.sheetPartials;
+    const rowStyle = 'display:grid;grid-template-columns:130px 100px 100px 80px 180px 50px;gap:8px;align-items:center;padding:6px 0;border-bottom:1px solid #f0f0f0;';
+    const hdrStyle = 'font-weight:600;font-size:11px;color:#bf360c;';
+
+    let html = `<div style="${rowStyle}">
+        <span style="${hdrStyle}">Material</span>
+        <span style="${hdrStyle}">Width (")</span>
+        <span style="${hdrStyle}">Height (")</span>
+        <span style="${hdrStyle}">Qty</span>
+        <span style="${hdrStyle}">Label (optional)</span>
+        <span style="${hdrStyle}"></span>
+    </div>`;
+
+    if (sheets.length === 0) {
+        html += `<div style="text-align:center;padding:20px 10px;color:#888;font-size:12px;font-style:italic;">
+            No partial sheets added. Click "➕ Add Partial Sheet" to enter leftover stock for this project.
+        </div>`;
+    } else {
+        sheets.forEach((s, idx) => {
+            html += `<div style="${rowStyle}">
+                <select id="sps_mat_${idx}" onchange="updateSheetPartial(${idx})" style="padding:5px 6px;border:1px solid #ffe0b2;border-radius:4px;font-size:12px;">
+                    <option value="ACP"          ${s.material==='ACP'          ?'selected':''}>ACP</option>
+                    <option value="Bakelite"      ${s.material==='Bakelite'     ?'selected':''}>Bakelite</option>
+                    <option value="ParticleBoard" ${s.material==='ParticleBoard'?'selected':''}>Particle Board</option>
+                </select>
+                <input type="number" id="sps_w_${idx}" value="${s.w}" min="1" step="0.5"
+                       onchange="updateSheetPartial(${idx})"
+                       style="padding:5px 6px;border:1px solid #ffe0b2;border-radius:4px;font-size:13px;width:100%;">
+                <input type="number" id="sps_h_${idx}" value="${s.h}" min="1" step="0.5"
+                       onchange="updateSheetPartial(${idx})"
+                       style="padding:5px 6px;border:1px solid #ffe0b2;border-radius:4px;font-size:13px;width:100%;">
+                <input type="number" id="sps_qty_${idx}" value="${s.qty}" min="1" step="1"
+                       onchange="updateSheetPartial(${idx})"
+                       style="padding:5px 6px;border:1px solid #ffe0b2;border-radius:4px;font-size:13px;width:60px;">
+                <input type="text" id="sps_label_${idx}" value="${s.label || ''}"
+                       onchange="updateSheetPartial(${idx})"
+                       style="padding:5px 6px;border:1px solid #ffe0b2;border-radius:4px;font-size:12px;width:100%;"
+                       placeholder="e.g. From Project X">
+                <button onclick="deleteSheetPartial(${idx})"
+                        style="background:#e74c3c;color:white;border:none;border-radius:4px;width:36px;height:30px;cursor:pointer;font-size:14px;">🗑️</button>
+            </div>`;
+        });
+
+        const totalSheets = sheets.reduce((s, r) => s + r.qty, 0);
+        const totalArea   = sheets.reduce((s, r) => s + r.qty * r.w * r.h / 144, 0);
+        html += `<div style="margin-top:10px;padding:8px 12px;background:#fff3e0;border-radius:6px;font-size:12px;color:#bf360c;">
+            <strong>Summary:</strong> ${totalSheets} partial sheet${totalSheets>1?'s':''}, total area ${totalArea.toFixed(1)} sqft available.
+        </div>`;
+    }
+
+    container.innerHTML = html;
+}
+
+function addSheetPartial() {
+    window.sheetPartials.push({ material: 'ACP', w: 48, h: 48, qty: 1, label: '' });
+    renderSheetPartialsList();
+}
+
+function updateSheetPartial(idx) {
+    const s = window.sheetPartials[idx];
+    if (!s) return;
+    const mEl   = document.getElementById(`sps_mat_${idx}`);
+    const wEl   = document.getElementById(`sps_w_${idx}`);
+    const hEl   = document.getElementById(`sps_h_${idx}`);
+    const qEl   = document.getElementById(`sps_qty_${idx}`);
+    const labEl = document.getElementById(`sps_label_${idx}`);
+    if (mEl)   s.material = mEl.value;
+    if (wEl)   s.w        = Math.max(1, parseFloat(wEl.value) || 1);
+    if (hEl)   s.h        = Math.max(1, parseFloat(hEl.value) || 1);
+    if (qEl)   s.qty      = Math.max(1, parseInt(qEl.value, 10) || 1);
+    if (labEl) s.label    = labEl.value.trim();
+    renderSheetPartialsList();
+}
+
+function deleteSheetPartial(idx) {
+    if (idx < 0 || idx >= window.sheetPartials.length) return;
+    window.sheetPartials.splice(idx, 1);
+    renderSheetPartialsList();
+}
+
+function clearSheetPartials() {
+    if (window.sheetPartials.length === 0) return;
+    if (!confirm('Clear all partial sheets? This cannot be undone.')) return;
+    window.sheetPartials = [];
+    renderSheetPartialsList();
+}
+// ─────────────────────────────────────────────────────────────────────────────
 
 function renderGlassOffsetsList() {
     const container = document.getElementById('glassOffsetsList');

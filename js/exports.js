@@ -576,6 +576,195 @@ function displayResults() {
     }
     // ──────────────────────────────────────────────────────────────────────────
 
+    // ── Partition Sheet Optimization Results ──────────────────────────────────
+    if (optimizationResults.sheetResults && optimizationResults.sheetResults.byGroup) {
+        const MAT_COLOR = { ACP: '#e67e22', Bakelite: '#795548', ParticleBoard: '#546e7a' };
+        const MAT_BG    = { ACP: '#fff3e0', Bakelite: '#efebe9', ParticleBoard: '#eceff1' };
+        const MAT_DARK  = { ACP: '#bf360c', Bakelite: '#4e342e', ParticleBoard: '#263238' };
+        const MAT_TITLE = { ACP: 'ACP Panel', Bakelite: 'Bakelite Board', ParticleBoard: 'Particle Board' };
+
+        for (const [key, gr] of Object.entries(optimizationResults.sheetResults.byGroup)) {
+            const mat    = gr.material;
+            const mCol   = MAT_COLOR[mat] || '#607d8b';
+            const mBg    = MAT_BG[mat]    || '#eceff1';
+            const mDark  = MAT_DARK[mat]  || '#263238';
+            const mTitle = MAT_TITLE[mat] || mat;
+
+            const piecesAreaSqft   = (gr.piecesArea  / 144).toFixed(2);
+            const consumedAreaSqft = (gr.consumedArea / 144).toFixed(2);
+            const wasteAreaSqft    = (gr.wasteArea   / 144).toFixed(2);
+            const eff      = gr.efficiency;
+            const effColor = eff >= 80 ? '#2e7d32' : eff >= 60 ? '#f57f17' : '#c62828';
+            const totalPieces = gr.panels.reduce((s, p) => s + p.qty, 0);
+            const CS_SH = `background:white;border-radius:8px;padding:10px 14px;font-size:12px;border:1.5px solid ${mCol}30;flex:1;min-width:100px;`;
+
+            html += `<details class="material-section collapsible-section" open style="border-left:4px solid ${mCol};margin-top:16px;">
+<summary class="collapsible-summary" style="background:${mBg};">
+  <span class="cs-title" style="color:${mDark};">📄 ${mTitle} — ${gr.thickness} Cutting Plan</span>
+  <span class="cs-meta" style="color:#555;">${gr.sheetName}&ensp;·&ensp;${gr.storeSheetsUsed > 0 ? gr.storeSheetsUsed + ' from stock, ' : ''}${gr.newSheetsUsed} new sheet${gr.newSheetsUsed !== 1 ? 's' : ''}&ensp;·&ensp;Eff:&nbsp;${eff}%</span>
+  <span class="cs-arrow"></span>
+</summary>
+<div class="cs-body">
+<p style="font-size:12px;color:#666;margin:0 0 10px;">2D optimized — partial sheets from store used first, new sheets opened only as needed. Kerf (⅛") deducted from each panel.</p>`;
+
+            // Stat cards
+            html += `<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px;">
+    <div style="${CS_SH}">
+        <div style="font-size:11px;color:${mCol};margin-bottom:3px;">Best Sheet Size</div>
+        <div style="font-size:16px;font-weight:700;color:${mDark};">${gr.sheetName}</div>
+    </div>
+    ${gr.storeSheetsUsed > 0 ? `<div style="${CS_SH}">
+        <div style="font-size:11px;color:#1b5e20;margin-bottom:3px;">From Stock</div>
+        <div style="font-size:16px;font-weight:700;color:#1b5e20;">${gr.storeSheetsUsed} sheet${gr.storeSheetsUsed > 1 ? 's' : ''}</div>
+    </div>` : ''}
+    <div style="${CS_SH}">
+        <div style="font-size:11px;color:${mCol};margin-bottom:3px;">Order New</div>
+        <div style="font-size:16px;font-weight:700;color:${gr.newSheetsUsed > 0 ? mDark : '#2e7d32'};">${gr.newSheetsUsed} sheet${gr.newSheetsUsed !== 1 ? 's' : ''}</div>
+    </div>
+    <div style="${CS_SH}">
+        <div style="font-size:11px;color:${mCol};margin-bottom:3px;">Panel Area</div>
+        <div style="font-size:16px;font-weight:700;color:${mDark};">${piecesAreaSqft} sqft</div>
+    </div>
+    <div style="${CS_SH}">
+        <div style="font-size:11px;color:${mCol};margin-bottom:3px;">Cut Efficiency</div>
+        <div style="font-size:16px;font-weight:700;color:${effColor};">${eff}%</div>
+        <div style="font-size:10px;color:#888;margin-top:2px;">of consumed area</div>
+    </div>
+    ${gr.cost > 0 ? `<div style="${CS_SH}">
+        <div style="font-size:11px;color:${mCol};margin-bottom:3px;">New Sheet Cost</div>
+        <div style="font-size:16px;font-weight:700;color:${mDark};">₹${gr.cost.toFixed(0)}</div>
+        ${gr.ratePerSqft > 0 ? `<div style="font-size:10px;color:#888;margin-top:2px;">₹${gr.ratePerSqft}/sqft × ${gr.sheetName}</div>` : ''}
+    </div>` : ''}
+</div>`;
+
+            // Order summary block
+            html += `<div style="background:${mBg};border-radius:8px;padding:7px 12px;margin-bottom:10px;font-size:13px;line-height:1.8;">
+    <strong style="color:${mDark};">📦 Order Summary:</strong>
+    ${gr.storeSheetsUsed > 0 ? `<strong style="color:#1b5e20;">Use ${gr.storeSheetsUsed} from stock</strong>` : ''}
+    ${gr.storeSheetsUsed > 0 && gr.newSheetsUsed > 0 ? ' &nbsp;+&nbsp; ' : ''}
+    ${gr.newSheetsUsed > 0 ? `<strong style="color:${mDark};">Order ${gr.newSheetsUsed} × ${gr.sheetName} ${mTitle}</strong>` : ''}
+    <br>
+    <span style="font-size:12px;color:#555;">
+        Panels: <strong>${totalPieces}</strong>
+        &nbsp;|&nbsp; Panel area: <strong>${piecesAreaSqft} sqft</strong>
+        &nbsp;|&nbsp; Consumed: <strong>${consumedAreaSqft} sqft</strong>
+        &nbsp;|&nbsp; Waste: <strong>${wasteAreaSqft} sqft</strong>
+        ${gr.cost > 0 ? `&nbsp;|&nbsp; New sheet cost: <strong>₹${gr.cost.toFixed(0)}</strong>` : ''}
+    </span>
+</div>`;
+
+            // Piece summary table (grouped by panel label)
+            const pieceSumS = {};
+            gr.bins.forEach(bin => {
+                bin.shelves.forEach(shelf => {
+                    shelf.pieces.forEach(p => {
+                        const k = `${p.label}|${p.origW}|${p.origH}`;
+                        if (!pieceSumS[k]) pieceSumS[k] = { label: p.label, origW: p.origW, origH: p.origH, qty: 0, rotatedCount: 0, binSet: new Set() };
+                        pieceSumS[k].qty++;
+                        if (p.rotated) pieceSumS[k].rotatedCount++;
+                        pieceSumS[k].binSet.add(bin.label.replace(/New roll/, 'New sheet'));
+                    });
+                });
+            });
+
+            html += `<strong style="font-size:13px;color:${mDark};">🧩 Panels Required</strong>
+<table style="width:100%;border-collapse:collapse;font-size:12px;margin:5px 0 10px 0;">
+    <thead><tr style="background:${mCol};color:white;">
+        <th style="padding:6px 10px;text-align:left;">Door / Panel</th>
+        <th style="padding:6px 10px;text-align:center;">Panel Size (W×H)</th>
+        <th style="padding:6px 10px;text-align:center;">Qty</th>
+        <th style="padding:6px 10px;text-align:center;">Placed As</th>
+        <th style="padding:6px 10px;text-align:left;">Cut From</th>
+    </tr></thead><tbody>`;
+            let psiS = 0;
+            for (const [, ps] of Object.entries(pieceSumS)) {
+                const rowBg = psiS++ % 2 === 0 ? mBg : 'white';
+                const placedDesc = ps.rotatedCount === ps.qty
+                    ? `${ps.origH.toFixed(2)}"×${ps.origW.toFixed(2)}" ↺`
+                    : ps.rotatedCount === 0
+                    ? `${ps.origW.toFixed(2)}"×${ps.origH.toFixed(2)}"`
+                    : `Mixed (some rotated ↺)`;
+                html += `<tr style="background:${rowBg};border-bottom:1px solid #e0e0e0;">
+        <td style="padding:6px 10px;font-weight:600;color:${mDark};">${ps.label}</td>
+        <td style="padding:6px 10px;text-align:center;">${ps.origW.toFixed(2)}" × ${ps.origH.toFixed(2)}"</td>
+        <td style="padding:6px 10px;text-align:center;font-weight:700;">${ps.qty}</td>
+        <td style="padding:6px 10px;text-align:center;color:${ps.rotatedCount > 0 ? '#e65100' : '#2e7d32'};">${placedDesc}</td>
+        <td style="padding:6px 10px;color:#555;">${[...ps.binSet].join(', ')}</td>
+    </tr>`;
+            }
+            html += '</tbody></table>';
+
+            // Per-bin cutting instructions + diagram
+            html += `<strong style="font-size:13px;color:${mDark};">📐 Sheet-by-Sheet Cutting Layout</strong>
+<div style="font-size:11px;color:#777;margin:3px 0 6px 0;">
+    <span style="display:inline-block;width:18px;height:10px;background:#f1f8f4;border:1.5px solid #27ae60;vertical-align:middle;border-radius:2px;"></span> From your stock
+    &nbsp;
+    <span style="display:inline-block;width:18px;height:10px;background:${mBg};border:1.5px solid ${mCol};vertical-align:middle;border-radius:2px;"></span> New sheet
+    &nbsp;
+    <span style="display:inline-block;width:18px;height:3px;background:#2980b9;vertical-align:middle;"></span> H-cut
+    &nbsp;
+    <span style="display:inline-block;width:18px;height:3px;background:#e74c3c;vertical-align:middle;"></span> V-cut
+    &nbsp; ↺ Rotated piece
+</div>`;
+
+            const sheetColorCache = {};
+            gr.bins.forEach((bin) => {
+                const isStore = bin.kind === 'store';
+                const bColor  = isStore ? '#27ae60' : mCol;
+                const bBg     = isStore ? '#f1f8f4' : mBg;
+                const bIcon   = isStore ? '📦' : '🆕';
+                const bKindText = isStore ? 'FROM STOCK' : 'NEW SHEET';
+                const bLabel  = bin.label.replace(/New roll/, 'New sheet');
+
+                html += `<details style="border:2px solid ${bColor};border-radius:8px;margin-bottom:8px;overflow:hidden;" open>
+<summary style="background:${bColor};color:white;padding:6px 12px;font-size:13px;font-weight:700;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:4px;cursor:pointer;list-style:none;user-select:none;">
+    <span>${bIcon} ${bKindText}: ${bLabel} (${bin.width}"×${bin.capacityLength}")</span>
+    <span style="font-weight:400;font-size:11px;opacity:0.9;">Used&nbsp;${bin.usedLength.toFixed(1)}" / ${bin.capacityLength.toFixed(1)}" &nbsp;|&nbsp; Left:&nbsp;${(bin.capacityLength - bin.usedLength).toFixed(1)}" &nbsp;▼</span>
+</summary>
+<div style="padding:8px 12px;background:${bBg};">`;
+
+                bin.shelves.forEach((shelf, si) => {
+                    const y1 = shelf.y.toFixed(2);
+                    const y2 = (shelf.y + shelf.shelfH).toFixed(2);
+                    const usedW = shelf.pieces.reduce((s, p) => s + p.w, 0).toFixed(2);
+                    const piecesDesc = shelf.pieces.map(p => {
+                        const short = p.label.split(/[\s(]/)[0];
+                        return `<strong>${short}</strong>: ${p.w.toFixed(2)}"×${p.h.toFixed(2)}"${p.rotated ? ' <span style="color:#e65100">↺</span>' : ''}`;
+                    }).join(' &nbsp;|&nbsp; ');
+                    html += `<div style="background:white;border:1px solid ${isStore ? '#c8e6c9' : mCol + '55'};border-radius:5px;padding:4px 9px;margin-bottom:3px;font-size:12px;line-height:1.7;">
+        <strong style="color:${isStore ? '#1b5e20' : mDark};">Row ${si + 1}</strong>
+        &nbsp; Cut: <strong>${y1}"</strong> → <strong>${y2}"</strong>
+        &nbsp; (height ${shelf.shelfH.toFixed(2)}", width used ${usedW}")
+        &nbsp;&nbsp; ${piecesDesc}
+    </div>`;
+                });
+
+                html += `<div style="margin-top:6px;overflow:auto;max-height:420px;border:1px solid ${isStore ? '#c8e6c9' : mCol + '55'};border-radius:6px;padding:6px;background:white;">
+    ${generateNetDiagramBin(bin, sheetColorCache)}
+</div>`;
+                html += `</div></details>`; // close bin body + wrapper
+            });
+
+            // Leftover suggestion
+            if (gr.leftover && gr.leftover.length > 0) {
+                html += `<div style="background:#fff8e1;border-left:4px solid #ffa000;border-radius:6px;padding:11px 14px;margin-top:12px;font-size:13px;line-height:1.9;">
+    <strong style="color:#e65100;">💡 Leftover After This Project</strong>
+    <span style="font-size:11px;color:#888;">— informational, update your store records manually</span>
+    <ul style="margin:6px 0 0 18px;padding:0;">`;
+                gr.leftover.forEach(lo => {
+                    html += `<li><strong>🆕 ${lo.width}"×${lo.remainingAfter.toFixed(1)}"</strong>
+        <span style="font-size:11px;color:#777;">(from newly purchased ${mTitle})</span>
+        ${lo.label ? `<span style="font-size:11px;color:#999;">— ${lo.label.replace(/New roll/, 'New sheet')}</span>` : ''}
+    </li>`;
+                });
+                html += `</ul></div>`;
+            }
+
+            html += '</div></details>'; // close cs-body + details for this material group
+        }
+    }
+    // ──────────────────────────────────────────────────────────────────────────
+
     container.innerHTML = html;
 }
 
