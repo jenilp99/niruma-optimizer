@@ -298,8 +298,10 @@ function displayResults() {
             'Frame Top':             'background:#4e342e;color:#fff',
             'Frame Left':            'background:#4e342e;color:#fff',
             'Frame Right':           'background:#4e342e;color:#fff',
-            'Glazing Clip Vertical': 'background:#37474f;color:#fff',
-            'Glazing Clip Horizontal':'background:#37474f;color:#fff',
+            'Glazing Clip Vertical':        'background:#37474f;color:#fff',  // legacy label (kept for safety)
+            'Glazing Clip Vertical Top':    'background:#37474f;color:#fff',
+            'Glazing Clip Vertical Bottom': 'background:#546e7a;color:#fff',
+            'Glazing Clip Horizontal':      'background:#37474f;color:#fff',
         };
         let doorFuncBadges = '';
         if (key.startsWith('Door |')) {

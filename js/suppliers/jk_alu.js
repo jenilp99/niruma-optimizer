@@ -351,8 +351,10 @@ window.registerSupplier("JK ALU EXTRUSION", {
             { component: 'Door Leg Partition', qty: '1*F', length: 'H', desc: 'Frame Left' },
             { component: 'Door Leg Partition', qty: '1*F', length: 'H', desc: 'Frame Right' },
 
-            // Door Glazing Clip - Vertical (4 per pane × 2 panes per leaf)
-            { component: 'Door Glazing Clip', qty: '8*L', length: '(H - (F*1.575) - TW - BW - MW) / 2', desc: 'Glazing Clip Vertical' },
+            // Door Glazing Clip - Vertical: split Top/Bottom so off-centre middle rail
+            // gives correct independent lengths. MRPI injected by calculatePieces.
+            { component: 'Door Glazing Clip', qty: '4*L', length: 'H - F*0.7875 - TW - MW/2 - MRPI',         desc: 'Glazing Clip Vertical Top' },
+            { component: 'Door Glazing Clip', qty: '4*L', length: 'MRPI - F*0.7875 - BW - MW/2',             desc: 'Glazing Clip Vertical Bottom' },
 
             // Door Glazing Clip - Horizontal (4 per pane × 2 panes per leaf)
             { component: 'Door Glazing Clip', qty: '8*L', length: '(W - (F*3.15)) / L - HandleVW - HingeVW', desc: 'Glazing Clip Horizontal' }

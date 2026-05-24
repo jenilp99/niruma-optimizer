@@ -353,7 +353,12 @@ function generateDoorProfileFormulas(win, supplierData) {
         { component: 'Door Leg Partition', qty: '1*F', length: 'W',                                        desc: 'Frame Top' },
         { component: 'Door Leg Partition', qty: '1*F', length: 'H',                                        desc: 'Frame Left' },
         { component: 'Door Leg Partition', qty: '1*F', length: 'H',                                        desc: 'Frame Right' },
-        { component: 'Door Glazing Clip',  qty: '8*L', length: '(H - (F*1.575) - TW - BW - MW) / 2',      desc: 'Glazing Clip Vertical' },
+        // Glazing Clip Vertical: split into Top panel + Bottom panel so off-centre middle rail
+        // produces the correct independent lengths for each zone. MRPI (middle-rail position
+        // in inches from floor) is injected into context by calculatePieces; for a centred
+        // rail it equals exactly half, so both lengths remain equal.
+        { component: 'Door Glazing Clip',  qty: '4*L', length: 'H - F*0.7875 - TW - MW/2 - MRPI',        desc: 'Glazing Clip Vertical Top' },
+        { component: 'Door Glazing Clip',  qty: '4*L', length: 'MRPI - F*0.7875 - BW - MW/2',            desc: 'Glazing Clip Vertical Bottom' },
         { component: 'Door Glazing Clip',  qty: '8*L', length: '(W - (F*3.15)) / L - HandleVW - HingeVW', desc: 'Glazing Clip Horizontal' }
     ];
 }
@@ -365,11 +370,11 @@ function generateDoorProfileFormulas(win, supplierData) {
 // Safe evaluation helper to prevent crashes from bad formulas
 function safeEval(formula, context, defaultValue = 0) {
     try {
-        // Create variables from context
-        const { W, H, S, MS, T, P, CJ, IT, GT, MT, MIT, F, VW, TW, MW, BW, L, HandleVW, HingeVW } = context;
+        // Create variables from context (MRPI = Middle Rail Position in Inches)
+        const { W, H, S, MS, T, P, CJ, IT, GT, MT, MIT, F, VW, TW, MW, BW, L, HandleVW, HingeVW, MRPI } = context;
         // Use a function constructor for slightly better safety than eval()
-        const fn = new Function('W', 'H', 'S', 'MS', 'T', 'P', 'CJ', 'IT', 'GT', 'MT', 'MIT', 'F', 'VW', 'TW', 'MW', 'BW', 'L', 'HandleVW', 'HingeVW', `return ${formula}`);
-        return fn(W, H, S, MS, T, P, CJ, IT, GT, MT, MIT, F, VW, TW, MW, BW, L, HandleVW, HingeVW);
+        const fn = new Function('W', 'H', 'S', 'MS', 'T', 'P', 'CJ', 'IT', 'GT', 'MT', 'MIT', 'F', 'VW', 'TW', 'MW', 'BW', 'L', 'HandleVW', 'HingeVW', 'MRPI', `return ${formula}`);
+        return fn(W, H, S, MS, T, P, CJ, IT, GT, MT, MIT, F, VW, TW, MW, BW, L, HandleVW, HingeVW, MRPI);
     } catch (e) {
         console.error('SafeEval Error:', e, 'Formula:', formula);
         return defaultValue;
@@ -456,6 +461,19 @@ function calculatePieces(selectedProject, preferredSupplier) {
 
         console.log(`%c📐 Window ${id} | Vendor: ${win.vendor} | Series: ${seriesName} | MS: ${MS} | Formulas: ${formulas.length}`, 'background: #343a40; color: white; padding: 2px 6px; border-radius: 3px;');
 
+        // ── Middle-rail position in inches (for door glazing clip vertical formulas) ──
+        // middleRailPositionMM = mm from floor to centre of middle rail; null = centred.
+        // When centred we synthesise the equivalent MRPI so both clip zones are equal.
+        const _TW = (win.topWidth    || 47.5)  / 25.4;
+        const _MW = (win.middleWidth || 47.5)  / 25.4;
+        const _BW = (win.bottomWidth || 114.3) / 25.4;
+        const _F  = win.frame || 0;
+        const _totalPanelH = win.height - _F * 1.575 - _TW - _BW - _MW;
+        const MRPI = (win.middleRailPositionMM != null)
+            ? win.middleRailPositionMM / 25.4
+            : _F * 0.7875 + _BW + _totalPanelH / 2 + _MW / 2; // centred fallback
+        // ───────────────────────────────────────────────────────────────────────
+
         const context = {
             W: win.width,
             H: win.height,
@@ -465,9 +483,9 @@ function calculatePieces(selectedProject, preferredSupplier) {
             F: win.frame || 0, // Frame for doors (1=YES, 0=NO)
             // Profile widths for doors (stored in mm, convert to inches)
             VW: (win.verticalWidth || 47.5) / 25.4,  // Legacy fallback (shared vertical width)
-            TW: (win.topWidth || 47.5) / 25.4,       // Top Width
-            MW: (win.middleWidth || 47.5) / 25.4,    // Middle Width
-            BW: (win.bottomWidth || 114.3) / 25.4,   // Bottom Width
+            TW: _TW,   // Top Width
+            MW: _MW,   // Middle Width
+            BW: _BW,   // Bottom Width
             // Door-specific: individual stile widths (set by generateDoorProfileFormulas)
             HandleVW: win._handleVW || (win.handleWidth || win.verticalWidth || 47.5) / 25.4,
             HingeVW:  win._hingeVW  || (win.bottomWidth || 114.3) / 25.4,
@@ -477,7 +495,8 @@ function calculatePieces(selectedProject, preferredSupplier) {
             GT: win.glassUnit || 'SGU',
             MT: win.mosquitoType || 'V-2513',
             MIT: win.mosquitoInterlock || 'V-2516',
-            L: win.leaves || 1
+            L: win.leaves || 1,
+            MRPI,  // Middle Rail Position in Inches (from floor to rail centre)
         };
 
         formulas.forEach(formula => {
