@@ -1044,6 +1044,7 @@ function packNetFFDH(allPieces, availableRolls, partialRolls) {
         arr => [...arr].sort((a, b) => b.w                         - a.w),                 // width ↓
         arr => [...arr].sort((a, b) => b.h                         - a.h),                 // height ↓
     ];
+    const sortNames = ['area↓', 'maxDim↓', 'width↓', 'height↓'];
 
     // Expand partial rolls (qty) into individual bins, indexed by width
     const partialBinsByWidth = {};
@@ -1062,49 +1063,156 @@ function packNetFFDH(allPieces, availableRolls, partialRolls) {
         }
     });
 
+    const widthsAvailable = availableRolls.map(r => r.width).sort((a, b) => a - b);
+    const piecesArea = items.reduce((s, p) => s + p.w * p.h, 0);
+
+    // ── Debug log: list every piece and which widths it fits on ──────────────
+    const piecesAnalysis = items.map(it => {
+        const fitsOn = widthsAvailable.filter(W => it.w <= W || it.h <= W);
+        return { label: it.label, w: it.w, h: it.h, fitsOn: fitsOn.join(',') };
+    });
+    console.log('%c🔍 Net optimizer — pieces analysis:', 'background: #4a148c; color: white; padding: 2px 6px;');
+    console.table(piecesAnalysis);
+    console.log(`Available widths: ${widthsAvailable.join('", ')}"`);
+
     let best = null;
+    const debugCandidates = [];
 
+    // Helper to compute candidate metrics
+    function makeCandidate(bins, newRollSpec, label) {
+        const totalLength = bins.reduce((s, b) => s + b.usedLength, 0);
+        const linearArea  = bins.reduce((s, b) => s + b.width * b.usedLength, 0);
+        const newRollsUsed = bins.filter(b => b.kind === 'new').length;
+        const storeRollsUsed = bins.filter(b => b.kind === 'store').length;
+        const wasteArea = linearArea - piecesArea;
+        const efficiency = linearArea > 0 ? Math.round(piecesArea / linearArea * 1000) / 10 : 0;
+        // Cost: sum of (rolls used × that width's costPerRoll). Group by width.
+        let cost = 0;
+        bins.filter(b => b.kind === 'new').forEach(b => {
+            const spec = availableRolls.find(r => r.width === b.width);
+            cost += (spec ? spec.costPerRoll || 0 : 0);
+        });
+        return {
+            roll: newRollSpec, bins,
+            piecesArea, totalLength, linearArea, wasteArea, efficiency,
+            newRollsUsed, storeRollsUsed, cost, strategyLabel: label
+        };
+    }
+
+    function isBetter(c, b) {
+        // Priority: less linear area > fewer new rolls > lower cost
+        // (linear area is the actual material consumed — directly impacts waste & quotation)
+        if (c.linearArea !== b.linearArea) return c.linearArea < b.linearArea;
+        if (c.newRollsUsed !== b.newRollsUsed) return c.newRollsUsed < b.newRollsUsed;
+        return c.cost < b.cost;
+    }
+
+    // ── Strategy A: single-width (all pieces on ONE roll width) ──────────────
     availableRolls.forEach(newRoll => {
-        // Bins of this width — sorted smallest remaining first (use up small partials)
         const partialsForWidth = (partialBinsByWidth[newRoll.width] || [])
-            .slice()
-            .sort((a, b) => a.length - b.length);
+            .slice().sort((a, b) => a.length - b.length);
 
-        sorts.forEach(sortFn => {
+        sorts.forEach((sortFn, si) => {
             const sortedItems = sortFn(items);
             const bins = _packMultiBin(sortedItems, partialsForWidth, newRoll);
-            if (!bins) return;
-
-            const piecesArea  = items.reduce((s, p) => s + p.w * p.h, 0);
-            const totalLength = bins.reduce((s, b) => s + b.usedLength, 0);
-            const linearArea  = newRoll.width * totalLength;
-            const newRollsUsed = bins.filter(b => b.kind === 'new').length;
-            const storeRollsUsed = bins.filter(b => b.kind === 'store').length;
-            const wasteArea   = linearArea - piecesArea;
-            const efficiency  = linearArea > 0 ? Math.round(piecesArea / linearArea * 1000) / 10 : 0;
-            const cost        = newRollsUsed * (newRoll.costPerRoll || 0);
-
-            const candidate = {
-                roll: newRoll,        // the new-roll spec (for cost / ordering)
-                bins,
-                piecesArea, totalLength, linearArea, wasteArea, efficiency,
-                newRollsUsed, storeRollsUsed, cost
-            };
-
-            // Priority: fewer new rolls > less linear area > lower cost
-            if (!best
-                || candidate.newRollsUsed < best.newRollsUsed
-                || (candidate.newRollsUsed === best.newRollsUsed
-                    && candidate.linearArea < best.linearArea)
-                || (candidate.newRollsUsed === best.newRollsUsed
-                    && candidate.linearArea === best.linearArea
-                    && candidate.cost < best.cost)) {
-                best = candidate;
+            if (!bins) {
+                debugCandidates.push({
+                    strategy: `single-${newRoll.width}"-${sortNames[si]}`,
+                    status: '✗ pieces too wide for this roll'
+                });
+                return;
             }
+            const candidate = makeCandidate(bins, newRoll, `single-${newRoll.width}"-${sortNames[si]}`);
+            const wasBetter = !best || isBetter(candidate, best);
+            if (wasBetter) best = candidate;
+            debugCandidates.push({
+                strategy: candidate.strategyLabel,
+                status: '✓',
+                newRolls: candidate.newRollsUsed,
+                storeRolls: candidate.storeRollsUsed,
+                linearArea: candidate.linearArea.toFixed(0),
+                linearSqft: (candidate.linearArea/144).toFixed(2),
+                efficiency: candidate.efficiency + '%',
+                cost: '₹' + candidate.cost.toFixed(0),
+                _best: wasBetter ? '★ NEW BEST' : ''
+            });
         });
     });
 
-    // Compute leftover suggestion (informational only — for user's manual record)
+    // ── Strategy B: MIXED-WIDTH (split pieces by best-fit width) ──────────────
+    // For each "narrow" width N and "wider" width W (where W > N):
+    //   pieces fitting on N → packed on N
+    //   pieces NOT fitting on N (but fitting on W) → packed on W
+    // This handles cases where one piece forces a wide roll for everything.
+    for (let ni = 0; ni < widthsAvailable.length; ni++) {
+        const N = widthsAvailable[ni];
+        const narrowRoll = availableRolls.find(r => r.width === N);
+        if (!narrowRoll) continue;
+
+        const fitsOnN = items.filter(it => it.w <= N || it.h <= N);
+        const tooBigForN = items.filter(it => !(it.w <= N || it.h <= N));
+        if (fitsOnN.length === 0 || tooBigForN.length === 0) continue;  // not a real split
+
+        for (let wi = ni + 1; wi < widthsAvailable.length; wi++) {
+            const W = widthsAvailable[wi];
+            const wideRoll = availableRolls.find(r => r.width === W);
+            if (!wideRoll) continue;
+
+            // Wide group must fit on W
+            const allFitOnW = tooBigForN.every(it => it.w <= W || it.h <= W);
+            if (!allFitOnW) continue;
+
+            sorts.forEach((sortFn1, s1) => {
+                sorts.forEach((sortFn2, s2) => {
+                    const narrowSorted = sortFn1(fitsOnN);
+                    const wideSorted   = sortFn2(tooBigForN);
+                    const narrowPartials = (partialBinsByWidth[N] || []).slice().sort((a, b) => a.length - b.length);
+                    const widePartials   = (partialBinsByWidth[W] || []).slice().sort((a, b) => a.length - b.length);
+
+                    const narrowBins = _packMultiBin(narrowSorted, narrowPartials, narrowRoll);
+                    if (!narrowBins) return;
+                    const wideBins = _packMultiBin(wideSorted, widePartials, wideRoll);
+                    if (!wideBins) return;
+
+                    const allBins = [...narrowBins, ...wideBins];
+                    const label = `mixed-${N}"+${W}"-${sortNames[s1]}/${sortNames[s2]}`;
+                    const candidate = makeCandidate(allBins, wideRoll, label);
+                    candidate.mixed = true;
+                    candidate.narrowWidth = N;
+                    candidate.wideWidth = W;
+
+                    const wasBetter = !best || isBetter(candidate, best);
+                    if (wasBetter) best = candidate;
+                    debugCandidates.push({
+                        strategy: label,
+                        status: '✓ MIXED',
+                        newRolls: candidate.newRollsUsed,
+                        storeRolls: candidate.storeRollsUsed,
+                        linearArea: candidate.linearArea.toFixed(0),
+                        linearSqft: (candidate.linearArea/144).toFixed(2),
+                        efficiency: candidate.efficiency + '%',
+                        cost: '₹' + candidate.cost.toFixed(0),
+                        _best: wasBetter ? '★ NEW BEST' : ''
+                    });
+                });
+            });
+        }
+    }
+
+    // ── Print debug log (helps diagnose unexpected choices) ──────────────────
+    console.log('%c🕸️ Net optimizer — all candidates evaluated:', 'background: #8e44ad; color: white; padding: 2px 6px;');
+    console.table(debugCandidates);
+    if (best) {
+        console.log('%c✅ Winning strategy: ' + best.strategyLabel,
+            'background: #27ae60; color: white; padding: 2px 6px; font-weight: bold;');
+        if (best.mixed) {
+            console.log(`   Mixed widths: narrow=${best.narrowWidth}", wide=${best.wideWidth}"`);
+        }
+    } else {
+        console.warn('⚠️ No valid layout found — some pieces are too wide for any available roll');
+    }
+
+    // ── Compute leftover suggestion (informational only) ─────────────────────
     if (best) {
         best.leftover = best.bins
             .filter(b => b.capacityLength - b.usedLength > 0)
@@ -1114,10 +1222,8 @@ function packNetFFDH(allPieces, availableRolls, partialRolls) {
                 remainingAfter: b.capacityLength - b.usedLength,
                 label: b.label
             }));
-        // Add fully-unused partial bins (those that weren't used at all)
         Object.entries(partialBinsByWidth).forEach(([w, bins]) => {
             bins.forEach(pb => {
-                // Check if this partial was used (matched by length & label heuristic)
                 const wasUsed = best.bins.some(used =>
                     used.kind === 'store' && used.width === pb.width
                     && used.capacityLength === pb.length && used.label === pb.label);

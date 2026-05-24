@@ -396,10 +396,17 @@ function displayResults() {
         const CS = 'background:#f3e5f5;border:1px solid #ce93d8;border-radius:8px;padding:10px 16px;flex:1;min-width:110px;text-align:center;';
         const CS_GREEN = 'background:#e8f5e9;border:1px solid #a5d6a7;border-radius:8px;padding:10px 16px;flex:1;min-width:110px;text-align:center;';
         const effColor = eff >= 80 ? '#2e7d32' : eff >= 55 ? '#e65100' : '#c62828';
+        // Build "Best Roll Width" label — handle mixed-width case
+        const widthsUsedSet = new Set(netLayout.bins.map(b => b.width));
+        const widthsUsedArr = [...widthsUsedSet].sort((a, b) => a - b);
+        const widthLabel = netLayout.mixed
+            ? widthsUsedArr.map(w => `${w}"`).join(' + ') + ' (mixed)'
+            : roll.name;
+
         html += `<div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px;">
             <div style="${CS}">
-                <div style="font-size:11px;color:#6c3483;margin-bottom:3px;">Best Roll Width</div>
-                <div style="font-size:16px;font-weight:700;color:#4a0072;">${roll.name}</div>
+                <div style="font-size:11px;color:#6c3483;margin-bottom:3px;">${netLayout.mixed ? 'Roll Widths (mixed)' : 'Best Roll Width'}</div>
+                <div style="font-size:16px;font-weight:700;color:#4a0072;">${widthLabel}</div>
             </div>
             ${storeRollsUsed > 0 ? `<div style="${CS_GREEN}">
                 <div style="font-size:11px;color:#1b5e20;margin-bottom:3px;">From Stock</div>
@@ -425,12 +432,22 @@ function displayResults() {
         </div>`;
 
         // ── Order summary block ──────────────────────────────────────────────
+        // Group new rolls by width (for mixed-width orders)
+        const newRollsByWidth = {};
+        netLayout.bins.filter(b => b.kind === 'new').forEach(b => {
+            newRollsByWidth[b.width] = (newRollsByWidth[b.width] || 0) + 1;
+        });
         const orderActions = [];
         if (storeRollsUsed > 0) orderActions.push(`<strong style="color:#1b5e20;">Use ${storeRollsUsed} from stock</strong>`);
-        if (newRollsUsed > 0)   orderActions.push(`<strong style="color:#6c3483;">Order ${newRollsUsed} new roll${newRollsUsed>1?'s':''} of ${roll.name}</strong>`);
+        if (newRollsUsed > 0) {
+            const parts = Object.entries(newRollsByWidth).map(([w, cnt]) =>
+                `${cnt} new roll${cnt>1?'s':''} of ${w}"`).join(' + ');
+            orderActions.push(`<strong style="color:#6c3483;">Order ${parts}</strong>`);
+        }
         html += `<div style="background:#ede7f6;border-radius:8px;padding:11px 14px;margin-bottom:16px;font-size:13px;line-height:2;">
             <strong style="color:#4a0072;">📦 Order Summary:</strong>
             ${orderActions.join(' &nbsp;+&nbsp; ') || `<em>${newRollsUsed} rolls needed</em>`}
+            ${netLayout.mixed ? `<span style="background:#ffa000;color:white;padding:2px 8px;border-radius:10px;font-size:11px;margin-left:6px;">MIXED WIDTHS</span>` : ''}
             <br>
             <span style="font-size:12px;color:#555;">
                 Total linear cut: <strong>${totalLen.toFixed(1)}"</strong> (${(totalLen/12).toFixed(2)} ft)
