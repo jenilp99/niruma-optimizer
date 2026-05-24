@@ -254,8 +254,11 @@ function displayResults() {
             .map(([size, count]) => size + '" - ' + count + ' nos')
             .join(', ');
         
-        html += '<div class="material-section">';
-        
+        const matCost = plans.reduce((s, p) => s + p.cost, 0);
+        html += `<details class="material-section collapsible-section" open>
+<summary class="collapsible-summary"><span class="cs-title">📏 ${materialTitle}</span><span class="cs-meta">${requirementStr}&ensp;·&ensp;Eff:&nbsp;${materialEfficiency}%&ensp;·&ensp;₹${matCost.toFixed(0)}</span><span class="cs-arrow"></span></summary>
+<div class="cs-body">`;
+
         // Find if already configured in results or stockMaster
         let selectedSection = r.componentSections ? r.componentSections[key] : null;
         if (!selectedSection) {
@@ -317,25 +320,19 @@ function displayResults() {
         }
         // ────────────────────────────────────────────────────────────────────
 
-        html += `<div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 10px;">
-            <div>
-                <h3 style="margin: 0;">📏 ${materialTitle}</h3>
-                ${doorFuncBadges}
-            </div>
-            <div style="display:flex;align-items:center;gap:8px;flex-shrink:0;padding-top:2px;">
+        html += `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;flex-wrap:wrap;gap:6px;">
+            <div>${doorFuncBadges}</div>
+            <div style="display:flex;align-items:center;gap:8px;flex-shrink:0;">
                 ${sectionInfo}
                 <button class="btn btn-warning btn-sm" onclick="openSectionSelectModal('${safeKey}')">🔗 Select Thickness</button>
             </div>
         </div>`;
 
-        html += `<div style="background: #e8f5e9; padding: 15px; border-radius: 8px; margin-bottom: 15px; border-left: 4px solid #4caf50">
-            <strong style="font-size: 15px; color: #2e7d32">Material Summary</strong><br>
-            <div style="margin-top: 8px; font-size: 14px; line-height: 1.8">
-                <strong>Requirements:</strong> ${requirementStr}<br>
-                <strong>Total Used Length:</strong> ${materialUsed.toFixed(2)}"
-                <strong>Total Waste:</strong> ${materialWaste.toFixed(2)}"
-                <strong>Efficiency:</strong> ${materialEfficiency}%
-            </div>
+        html += `<div style="background:#e8f5e9;padding:8px 12px;border-radius:6px;margin-bottom:8px;border-left:4px solid #4caf50;font-size:13px;line-height:1.7;">
+            <strong style="color:#2e7d32;">Req:</strong> ${requirementStr} &nbsp;|&nbsp;
+            <strong>Used:</strong> ${materialUsed.toFixed(2)}" &nbsp;|&nbsp;
+            <strong>Waste:</strong> ${materialWaste.toFixed(2)}" &nbsp;|&nbsp;
+            <strong>Eff:</strong> ${materialEfficiency}%
         </div>`;
         
         html += '<table><thead><tr><th>Stick #</th><th>Stock</th><th>Cut Sequence</th><th>Pieces</th><th>Used</th><th>Waste</th><th>Efficiency</th><th>Cost</th></tr></thead><tbody>';
@@ -369,7 +366,7 @@ function displayResults() {
             html += '<tr><td colspan="8"><div class="cutting-diagram">' + diagram + '</div></td></tr>';
         });
         
-        html += '</tbody></table></div>';
+        html += '</tbody></table></div></details>';
     }
 
     // ── Mosquito Net Section (2D FFDH with rotation + multi-bin partial rolls) ─
@@ -385,16 +382,9 @@ function displayResults() {
         const wasteAreaSqft   = (netLayout.wasteArea   / 144).toFixed(2);
         const newCost         = netLayout.cost;
 
-        html += `<div class="material-section" style="border-left:4px solid #8e44ad;margin-top:24px;">
-            <h3 style="margin:0 0 4px 0;color:#6c3483;">🕸️ Mosquito Net Cutting Plan</h3>
-            <p style="font-size:13px;color:#555;margin:0 0 14px 0;">
-                2D optimized layout — partial rolls from store used first (smallest leftover first), new rolls only as needed.
-                Piece sizes are after deducting 2" from each shutter frame dimension.
-            </p>`;
-
-        // ── Stat cards ───────────────────────────────────────────────────────
-        const CS = 'background:#f3e5f5;border:1px solid #ce93d8;border-radius:8px;padding:10px 16px;flex:1;min-width:110px;text-align:center;';
-        const CS_GREEN = 'background:#e8f5e9;border:1px solid #a5d6a7;border-radius:8px;padding:10px 16px;flex:1;min-width:110px;text-align:center;';
+        // ── Precompute labels needed for summary ─────────────────────────────
+        const CS = 'background:#f3e5f5;border:1px solid #ce93d8;border-radius:8px;padding:7px 10px;flex:1;min-width:90px;text-align:center;';
+        const CS_GREEN = 'background:#e8f5e9;border:1px solid #a5d6a7;border-radius:8px;padding:7px 10px;flex:1;min-width:90px;text-align:center;';
         const effColor = eff >= 80 ? '#2e7d32' : eff >= 55 ? '#e65100' : '#c62828';
         // Build "Best Roll Width" label — handle mixed-width case
         const widthsUsedSet = new Set(netLayout.bins.map(b => b.width));
@@ -403,7 +393,13 @@ function displayResults() {
             ? widthsUsedArr.map(w => `${w}"`).join(' + ') + ' (mixed)'
             : roll.name;
 
-        html += `<div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px;">
+        // ── Stat cards ───────────────────────────────────────────────────────
+        html += `<details class="material-section collapsible-section net-collapsible" open style="border-left:4px solid #8e44ad;margin-top:16px;">
+<summary class="collapsible-summary net-summary"><span class="cs-title" style="color:#6c3483;">🕸️ Mosquito Net Cutting Plan</span><span class="cs-meta" style="color:#555;">${widthLabel}&ensp;·&ensp;${storeRollsUsed>0?storeRollsUsed+' from stock, ':''}${newRollsUsed} new roll${newRollsUsed!==1?'s':''}&ensp;·&ensp;Eff:&nbsp;${eff}%</span><span class="cs-arrow"></span></summary>
+<div class="cs-body">
+<p style="font-size:12px;color:#666;margin:0 0 10px;">2D optimized — partial rolls from store used first, new rolls only as needed. Sizes after deducting 2" from shutter frame dimensions.</p>`;
+
+        html += `<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px;">
             <div style="${CS}">
                 <div style="font-size:11px;color:#6c3483;margin-bottom:3px;">${netLayout.mixed ? 'Roll Widths (mixed)' : 'Best Roll Width'}</div>
                 <div style="font-size:16px;font-weight:700;color:#4a0072;">${widthLabel}</div>
@@ -444,7 +440,7 @@ function displayResults() {
                 `${cnt} new roll${cnt>1?'s':''} of ${w}"`).join(' + ');
             orderActions.push(`<strong style="color:#6c3483;">Order ${parts}</strong>`);
         }
-        html += `<div style="background:#ede7f6;border-radius:8px;padding:11px 14px;margin-bottom:16px;font-size:13px;line-height:2;">
+        html += `<div style="background:#ede7f6;border-radius:8px;padding:7px 12px;margin-bottom:10px;font-size:13px;line-height:1.8;">
             <strong style="color:#4a0072;">📦 Order Summary:</strong>
             ${orderActions.join(' &nbsp;+&nbsp; ') || `<em>${newRollsUsed} rolls needed</em>`}
             ${netLayout.mixed ? `<span style="background:#ffa000;color:white;padding:2px 8px;border-radius:10px;font-size:11px;margin-left:6px;">MIXED WIDTHS</span>` : ''}
@@ -475,7 +471,7 @@ function displayResults() {
         });
 
         html += `<strong style="font-size:13px;color:#6c3483;">🧩 Pieces Required</strong>
-        <table style="width:100%;border-collapse:collapse;font-size:12px;margin:8px 0 16px 0;">
+        <table style="width:100%;border-collapse:collapse;font-size:12px;margin:5px 0 10px 0;">
             <thead><tr style="background:#8e44ad;color:white;">
                 <th style="padding:6px 10px;text-align:left;">Window / Label</th>
                 <th style="padding:6px 10px;text-align:center;">Net Size (W×H)</th>
@@ -505,7 +501,7 @@ function displayResults() {
 
         // ── Per-bin cutting instructions + diagram ───────────────────────────
         html += `<strong style="font-size:13px;color:#6c3483;">📐 Roll-by-Roll Cutting Layout</strong>
-        <div style="font-size:11px;color:#777;margin:4px 0 10px 0;">
+        <div style="font-size:11px;color:#777;margin:3px 0 6px 0;">
             <span style="display:inline-block;width:18px;height:10px;background:#f1f8f4;border:1.5px solid #27ae60;vertical-align:middle;border-radius:2px;"></span> From your stock
             &nbsp;
             <span style="display:inline-block;width:18px;height:10px;background:#f5f0ff;border:1.5px solid #8e44ad;vertical-align:middle;border-radius:2px;"></span> New roll
@@ -524,16 +520,12 @@ function displayResults() {
             const bIcon   = isStore ? '📦' : '🆕';
             const bKindText = isStore ? 'FROM STOCK' : 'NEW ROLL';
 
-            html += `<div style="border:2px solid ${bColor};border-radius:8px;margin-bottom:18px;background:white;overflow:hidden;">
-                <div style="background:${bColor};color:white;padding:8px 14px;font-size:13px;font-weight:700;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px;">
-                    <span>${bIcon} ${bKindText}: ${bin.label}</span>
-                    <span style="font-weight:500;font-size:12px;opacity:0.95;">
-                        Capacity: ${bin.width}"×${bin.capacityLength.toFixed(1)}"
-                        &nbsp;|&nbsp; Used: ${bin.usedLength.toFixed(1)}"
-                        &nbsp;|&nbsp; Leftover: ${(bin.capacityLength - bin.usedLength).toFixed(1)}"
-                    </span>
-                </div>
-                <div style="padding:12px 14px;background:${bBg};">`;
+            html += `<details style="border:2px solid ${bColor};border-radius:8px;margin-bottom:8px;overflow:hidden;" open>
+<summary style="background:${bColor};color:white;padding:6px 12px;font-size:13px;font-weight:700;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:4px;cursor:pointer;list-style:none;user-select:none;">
+    <span>${bIcon} ${bKindText}: ${bin.label}</span>
+    <span style="font-weight:400;font-size:11px;opacity:0.9;">Used&nbsp;${bin.usedLength.toFixed(1)}" / ${bin.capacityLength.toFixed(1)}" &nbsp;|&nbsp; Left:&nbsp;${(bin.capacityLength-bin.usedLength).toFixed(1)}" &nbsp;▼</span>
+</summary>
+<div style="padding:8px 12px;background:${bBg};">`;
 
             // Row-by-row cutting instructions for THIS bin
             bin.shelves.forEach((shelf, si) => {
@@ -544,7 +536,7 @@ function displayResults() {
                     const short = p.label.split(/[\s(]/)[0];
                     return `<strong>${short}</strong>: ${p.w.toFixed(2)}"×${p.h.toFixed(2)}"${p.rotated ? ' <span style="color:#e65100">↺</span>' : ''}`;
                 }).join(' &nbsp;|&nbsp; ');
-                html += `<div style="background:white;border:1px solid ${isStore?'#c8e6c9':'#e1bee7'};border-radius:6px;padding:7px 11px;margin-bottom:5px;font-size:12px;line-height:1.9;">
+                html += `<div style="background:white;border:1px solid ${isStore?'#c8e6c9':'#e1bee7'};border-radius:5px;padding:4px 9px;margin-bottom:3px;font-size:12px;line-height:1.7;">
                     <strong style="color:${isStore?'#1b5e20':'#6c3483'};">Row ${si + 1}</strong>
                     &nbsp; Cut: <strong>${y1}"</strong> → <strong>${y2}"</strong>
                     &nbsp; (height ${shelf.shelfH.toFixed(2)}", width used ${usedW}")
@@ -553,11 +545,11 @@ function displayResults() {
             });
 
             // Diagram for this bin
-            html += `<div style="margin-top:10px;overflow:auto;max-height:480px;border:1px solid ${isStore?'#c8e6c9':'#e1bee7'};border-radius:6px;padding:8px;background:white;">
+            html += `<div style="margin-top:6px;overflow:auto;max-height:420px;border:1px solid ${isStore?'#c8e6c9':'#e1bee7'};border-radius:6px;padding:6px;background:white;">
                 ${generateNetDiagramBin(bin, labelColorCache)}
             </div>`;
 
-            html += `</div></div>`;  // close bin body & wrapper
+            html += `</div></details>`;  // close bin body & wrapper
         });
 
         // ── Leftover suggestion ──────────────────────────────────────────────
@@ -578,7 +570,7 @@ function displayResults() {
             html += `</ul></div>`;
         }
 
-        html += '</div>';  // close net section
+        html += '</div></details>';  // close net section cs-body + details
     }
     // ──────────────────────────────────────────────────────────────────────────
 

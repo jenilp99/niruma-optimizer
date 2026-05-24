@@ -677,35 +677,103 @@ input:checked+.slider:before {
 
 .material-section {
     background: white;
-    padding: 20px;
+    padding: 0;
     border-radius: 8px;
-    margin-bottom: 20px;
-    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+    margin-bottom: 12px;
+    box-shadow: 0 1px 6px rgba(0, 0, 0, 0.09);
 }
 
 .material-section h3 {
     color: #27ae60;
-    margin-bottom: 15px;
+    margin-bottom: 8px;
 }
+
+/* ── Collapsible result sections ─────────────────────────────────────────── */
+details.collapsible-section {
+    border-radius: 8px;
+    overflow: hidden;
+}
+
+details.collapsible-section > summary.collapsible-summary {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    cursor: pointer;
+    padding: 9px 14px;
+    background: #f0f4f8;
+    list-style: none;
+    user-select: none;
+    border-radius: 8px;
+    transition: background 0.15s;
+}
+details.collapsible-section > summary.collapsible-summary::-webkit-details-marker { display: none; }
+details.collapsible-section[open] > summary.collapsible-summary {
+    border-radius: 8px 8px 0 0;
+    background: #e8eef5;
+}
+details.collapsible-section > summary.collapsible-summary:hover { background: #dde5ef; }
+
+.cs-title {
+    font-size: 14px;
+    font-weight: 700;
+    color: #2e7d32;
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.cs-meta {
+    font-size: 11px;
+    color: #555;
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+.cs-arrow {
+    font-size: 11px;
+    color: #888;
+    flex-shrink: 0;
+    transition: transform 0.2s;
+}
+.cs-arrow::after { content: '▼'; display: inline-block; transition: transform 0.2s; }
+details.collapsible-section:not([open]) .cs-arrow::after { transform: rotate(-90deg); }
+
+.cs-body {
+    padding: 10px 14px 14px;
+    background: white;
+    border: 1px solid #e0e0e0;
+    border-top: none;
+    border-radius: 0 0 8px 8px;
+}
+
+/* Net section summary styling */
+details.net-collapsible > summary.net-summary { background: #f3e5f5; }
+details.net-collapsible > summary.net-summary:hover { background: #e8d5f0; }
+details.net-collapsible[open] > summary.net-summary { background: #ede0f7; border-radius: 8px 8px 0 0; }
+details.net-collapsible > summary.net-summary .cs-title { color: #6c3483; }
+details.net-collapsible > summary.net-summary .cs-meta { color: #555; }
+details.net-collapsible > summary.net-summary .cs-arrow { color: #8e44ad; }
 
 /* Tables */
 table {
     width: 100%;
     border-collapse: collapse;
-    margin-top: 15px;
+    margin-top: 8px;
 }
 
 table th {
     background: #34495e;
     color: white;
-    padding: 12px;
+    padding: 8px 10px;
     text-align: left;
     font-weight: 600;
+    font-size: 13px;
 }
 
 table td {
-    padding: 12px;
+    padding: 7px 10px;
     border-bottom: 1px solid #dfe6e9;
+    font-size: 13px;
 }
 
 table tr:hover {
@@ -715,27 +783,27 @@ table tr:hover {
 /* Stats Grid */
 .stats-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-    gap: 20px;
-    margin-top: 20px;
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    gap: 10px;
+    margin-top: 12px;
 }
 
 .stat-card {
     background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
     color: white;
-    padding: 20px;
+    padding: 12px 14px;
     border-radius: 8px;
     text-align: center;
 }
 
 .stat-card h4 {
-    font-size: 14px;
+    font-size: 13px;
     opacity: 0.9;
-    margin-bottom: 10px;
+    margin-bottom: 4px;
 }
 
 .stat-card p {
-    font-size: 28px;
+    font-size: 22px;
     font-weight: 700;
 }
 
@@ -784,19 +852,19 @@ table tr:hover {
 }
 
 .cutting-diagram {
-    margin: 20px 0;
-    padding: 15px;
+    margin: 6px 0;
+    padding: 8px;
     background: #f8f9fa;
-    border-radius: 8px;
+    border-radius: 6px;
     border-left: 4px solid #3498db;
 }
 
 .cost-breakdown-card {
     background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
     color: white;
-    padding: 20px;
+    padding: 12px 16px;
     border-radius: 8px;
-    margin: 15px 0;
+    margin: 10px 0;
 }
 
 .cost-breakdown-row {
