@@ -30,8 +30,14 @@ function generateNetDiagramBin(bin, labelColorCache) {
     }
 
     const rollW    = bin.width;
-    const totalLen = bin.capacityLength;   // draw full bin so leftover is visible
+    const fullLen  = bin.capacityLength;   // true capacity
     const usedLen  = bin.usedLength;
+    const leftover = fullLen - usedLen;
+
+    // Show only used area + a compact symbolic stub (max 3") instead of the full
+    // (often huge) empty tail — a cut-end marker communicates the same info.
+    const STUB_IN  = 3.0;
+    const drawLen  = leftover > STUB_IN ? usedLen + STUB_IN : fullLen;
 
     const isStore = bin.kind === 'store';
     const borderColor   = isStore ? '#27ae60' : '#8e44ad';
@@ -46,8 +52,8 @@ function generateNetDiagramBin(bin, labelColorCache) {
     const PR = 46;
     const PB = 22;
 
-    const canvasW = rollW    * scale;
-    const canvasH = totalLen * scale;
+    const canvasW = rollW   * scale;
+    const canvasH = drawLen * scale;       // capped to used + stub
     const svgW    = Math.ceil(canvasW + PL + PR);
     const svgH    = Math.ceil(canvasH + PT + PB);
 
@@ -64,7 +70,7 @@ function generateNetDiagramBin(bin, labelColorCache) {
         </pattern>
     </defs>`;
 
-    // Bin background (full capacity length shown; unused tail visible as leftover)
+    // Bin background (drawn to drawLen, not full capacity)
     svg += `<rect x="${PL}" y="${PT}" `
          + `width="${canvasW.toFixed(1)}" height="${canvasH.toFixed(1)}" `
          + `fill="${bgFill}" stroke="${borderColor}" stroke-width="1.5"/>`;
@@ -129,41 +135,153 @@ function generateNetDiagramBin(bin, labelColorCache) {
         });
     });
 
-    // Unused leftover region at bottom (between usedLength and capacityLength)
-    if (totalLen - usedLen > 0.5) {
-        const ly = (PT + usedLen * scale).toFixed(1);
-        const lh = ((totalLen - usedLen) * scale).toFixed(1);
-        // Cross-hatch pattern for "available for next project"
-        svg += `<rect x="${PL}" y="${ly}" `
-             + `width="${canvasW.toFixed(1)}" height="${lh}" `
-             + `fill="rgba(255,255,255,0.5)" stroke="${borderColor}" stroke-width="0.8" stroke-dasharray="4,3"/>`;
-        // "leftover" label centred in the region (if room)
-        const lTextY = (parseFloat(ly) + parseFloat(lh) / 2).toFixed(1);
-        if (parseFloat(lh) > 24) {
-            svg += `<text x="${(PL + canvasW / 2).toFixed(1)}" y="${lTextY}" `
-                 + `text-anchor="middle" font-size="11" fill="${labelTextCol}" font-style="italic">`
-                 + `↓ Leftover ${(totalLen - usedLen).toFixed(1)}" — keep for next project ↓</text>`;
+    // ── Cut-end marker + compact leftover stub ──────────────────────────────
+    if (leftover > 0.1) {
+        const cutY   = (PT + usedLen * scale);
+        const stubH  = (drawLen - usedLen) * scale;  // stub zone height in px
+        const cutYs  = cutY.toFixed(1);
+
+        // Bold scissors cut-line at usedLen
+        svg += `<line x1="${PL}" y1="${cutYs}" x2="${(PL + canvasW).toFixed(1)}" y2="${cutYs}" `
+             + `stroke="#e74c3c" stroke-width="2.5" stroke-dasharray="8,4"/>`;
+
+        // Scissors icon + "STORE" text at cut line
+        svg += `<text x="${(PL + 4).toFixed(1)}" y="${(cutY - 3).toFixed(1)}" `
+             + `font-size="10" fill="#e74c3c" font-weight="bold">✂</text>`;
+
+        // Stub zone: light cross-hatch + "→ store: X" label
+        if (stubH > 2) {
+            const storeHatchId = isStore ? 'storeStubHatch' : 'newStubHatch';
+            svg += `<defs><pattern id="${storeHatchId}" patternUnits="userSpaceOnUse" width="8" height="8" patternTransform="rotate(45)">
+                <line x1="0" y1="0" x2="0" y2="8" stroke="#bbb" stroke-width="1"/>
+            </pattern></defs>`;
+            svg += `<rect x="${PL}" y="${cutYs}" `
+                 + `width="${canvasW.toFixed(1)}" height="${stubH.toFixed(1)}" `
+                 + `fill="url(#${storeHatchId})" opacity="0.4" `
+                 + `stroke="#ccc" stroke-width="0.8"/>`;
+            const storeLabel = leftover > STUB_IN
+                ? `→ store: ${leftover.toFixed(1)}" (${(leftover/12).toFixed(2)} ft)`
+                : `→ store: ${leftover.toFixed(1)}"`;
+            svg += `<text x="${(PL + canvasW / 2).toFixed(1)}" y="${(cutY + stubH / 2 + 4).toFixed(1)}" `
+                 + `text-anchor="middle" font-size="9" fill="#888" font-style="italic">${storeLabel}</text>`;
         }
-        // Cut line at usedLength
-        svg += `<line x1="${PL}" y1="${ly}" x2="${(PL + canvasW).toFixed(1)}" y2="${ly}" `
-             + `stroke="${borderColor}" stroke-width="2" stroke-dasharray="6,3"/>`;
+
+        // If we cut the display short, show a "⋯" / fade indicator at very bottom
+        if (leftover > STUB_IN) {
+            const botY = (PT + canvasH).toFixed(1);
+            svg += `<text x="${(PL + canvasW / 2).toFixed(1)}" y="${(PT + canvasH - 2).toFixed(1)}" `
+                 + `text-anchor="middle" font-size="10" fill="#aaa">▼ ▼ ▼</text>`;
+        }
     }
 
-    // Roll width label at top
+    // Roll width label at top (show true capacity, not capped drawLen)
     svg += `<text x="${(PL + canvasW / 2).toFixed(1)}" y="${(PT - 4).toFixed(1)}" `
          + `text-anchor="middle" font-size="10" fill="${labelTextCol}" font-weight="bold">`
-         + `${rollW}" wide × ${totalLen.toFixed(1)}" long (${(totalLen/12).toFixed(2)} ft)</text>`;
+         + `${rollW}" wide × ${fullLen.toFixed(1)}" long (${(fullLen/12).toFixed(2)} ft)</text>`;
 
     // Bottom annotation
     svg += `<text x="${PL}" y="${(PT + canvasH + 16).toFixed(1)}" `
          + `font-size="9" fill="${labelTextCol}">`
-         + `Scale: ${scale.toFixed(1)} px/in (proportional) `
-         + `| Used: ${usedLen.toFixed(1)}" of ${totalLen.toFixed(1)}" `
-         + `| Leftover: ${(totalLen - usedLen).toFixed(1)}"`
+         + `Scale: ${scale.toFixed(1)} px/in `
+         + `| Used: ${usedLen.toFixed(1)}" `
+         + (leftover > 0.1 ? `| ✂ Store: ${leftover.toFixed(1)}" ` : '')
          + `</text>`;
 
     svg += '</svg>';
     return svg;
+}
+
+// ============================================================================
+// CNC MACHINE CUT BRIEF
+// ============================================================================
+
+/**
+ * Build a compact, operator-friendly cut brief grouped by identical cut patterns.
+ * Format matches how fabrication shops typically hand-write cut lists.
+ */
+function buildCNCBrief() {
+    if (!optimizationResults || !optimizationResults.results) return '(No results yet — run optimization first)';
+    const r = optimizationResults;
+    const today = new Date().toLocaleDateString('en-IN', { day:'2-digit', month:'2-digit', year:'numeric' });
+    const lines = [];
+
+    lines.push(`CNC CUT BRIEF`);
+    lines.push(`Project : ${r.project}`);
+    lines.push(`Date    : ${today}`);
+    lines.push(`Kerf    : ${(r.config && r.config.kerf) ? r.config.kerf + '"' : '—'}`);
+    lines.push('═'.repeat(54));
+
+    let grandTotal = 0;
+
+    for (const [key, plans] of Object.entries(r.results)) {
+        if (!plans || plans.length === 0) continue;
+        const stockLen = parseFloat((plans[0].stock || '0').replace('"', ''));
+
+        lines.push('');
+        lines.push(`▶  ${key}   [${plans[0].stock} stick]`);
+        lines.push('─'.repeat(46));
+
+        // Group sticks by ordered cut-length signature
+        const groups = new Map();
+        plans.forEach((plan, idx) => {
+            const sig = plan.pieces.map(p => p.length.toFixed(2)).join('|');
+            if (!groups.has(sig)) groups.set(sig, { pieces: plan.pieces, stickNums: [] });
+            groups.get(sig).stickNums.push(idx + 1);
+        });
+
+        let lineNum = 1;
+        let groupTotal = 0;
+        for (const [, grp] of groups) {
+            const cnt = grp.stickNums.length;
+            groupTotal += cnt;
+            const mmArr    = grp.pieces.map(p => Math.round((typeof p === 'number' ? p : p.length) * 25.4));
+            const totalMM  = Math.round(stockLen * 25.4);
+            const stickRef = cnt > 4
+                ? `Stick #${grp.stickNums[0]}–#${grp.stickNums[cnt - 1]}`
+                : `Stick #${grp.stickNums.join(', #')}`;
+            lines.push(`  ${lineNum++}. ${mmArr.join(' + ')}  = ${totalMM}mm   ×${cnt} nos   (${stickRef})`);
+        }
+        lines.push(`  ──── Total: ${groupTotal} sticks ────`);
+        grandTotal += groupTotal;
+    }
+
+    lines.push('');
+    lines.push('═'.repeat(54));
+    lines.push(`Grand Total : ${grandTotal} sticks`);
+    lines.push(`Used        : ${r.stats.totalUsed}"`);
+    lines.push(`Waste       : ${r.stats.totalWaste}"`);
+    lines.push(`Efficiency  : ${r.stats.efficiency}%`);
+    lines.push(`Cost        : ₹${r.stats.totalCost}`);
+    return lines.join('\n');
+}
+
+function showCNCBrief() {
+    const text = buildCNCBrief();
+    document.getElementById('cncBriefText').value = text;
+    document.getElementById('cncBriefModal').style.display = 'flex';
+}
+
+function closeCNCBriefModal() {
+    document.getElementById('cncBriefModal').style.display = 'none';
+}
+
+function shareViaWhatsApp_CNC() {
+    const text = document.getElementById('cncBriefText').value;
+    window.open('https://wa.me/?text=' + encodeURIComponent(text), '_blank');
+}
+
+function copyCNCBrief() {
+    const ta = document.getElementById('cncBriefText');
+    ta.select();
+    ta.setSelectionRange(0, 99999);
+    try {
+        document.execCommand('copy');
+        const btn = document.getElementById('copyCNCBtn');
+        const orig = btn.textContent;
+        btn.textContent = '✅ Copied!';
+        btn.style.background = '#2e7d32';
+        setTimeout(() => { btn.textContent = orig; btn.style.background = ''; }, 2000);
+    } catch (e) { alert('Copy failed — please select all text and copy manually.'); }
 }
 
 // ============================================================================
@@ -190,6 +308,7 @@ function displayResults() {
             <button class="btn btn-success" onclick="showReportPreview('purchase_material')">🏢 Material Purchase</button>
             <button class="btn btn-info" onclick="showReportPreview('purchase_hardware')">🔩 Hardware Vendor List</button>
             <button class="btn btn-warning" onclick="showReportPreview('cutlist')">🪚 Optimized Cut List</button>
+            <button class="btn" style="background:#e67e22;color:white;" onclick="showCNCBrief()">🔧 CNC Cut Brief</button>
         </div>
         <div style="display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; margin-top: 10px; opacity: 0.8;">
             <button class="btn btn-primary btn-sm" onclick="exportFullResultsExcel()">📊 Full Excel</button>
