@@ -1984,9 +1984,9 @@ function calculateDoorGlassCost(win) {
     const L  = win.leaves || 1;
 
     // For double doors each leaf is narrower; glass width = per-leaf interior width
-    const leafW   = (win.width - (F * 3.15)) / L - 2 * VW;
-    const innerW  = Math.max(0, leafW);                    // per-leaf glass width
-    const innerH  = win.height - (F * 1.575);             // door interior height
+    const leafW   = (win.width - (F * (80/25.4))) / L - 2 * VW;  // exact 80mm = 2 × 40mm frame
+    const innerW  = Math.max(0, leafW);                          // per-leaf glass width
+    const innerH  = win.height - (F * (40/25.4));                // exact 40mm frame
     const midMM   = win.middleRailPositionMM;
 
     // Heights of lower and upper zones (excluding top/bottom/middle rail profiles)

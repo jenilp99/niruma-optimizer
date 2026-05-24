@@ -153,7 +153,7 @@ let ratesConfig = {
     }
 };
 
-const MM_TO_INCH = 0.0393701;
+const MM_TO_INCH = 1 / 25.4;   // exact (0.039370078740157...) — was 0.0393701, lost precision at 7th digit
 const INCH_TO_MM = 25.4;
 
 // ============================================================================

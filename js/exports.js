@@ -211,43 +211,48 @@ function buildCNCBrief() {
     lines.push(`Kerf    : ${(r.config && r.config.kerf) ? r.config.kerf + '"' : '—'}`);
     lines.push('═'.repeat(54));
 
-    let grandTotal = 0;
+    let grandTotalSticks = 0;
+    let grandTotalPieces = 0;
 
     for (const [key, plans] of Object.entries(r.results)) {
         if (!plans || plans.length === 0) continue;
-        const stockLen = parseFloat((plans[0].stock || '0').replace('"', ''));
+        const stockLen   = parseFloat((plans[0].stock || '0').replace('"', ''));
+        const stockMM    = (stockLen * 25.4).toFixed(1);
 
         lines.push('');
-        lines.push(`▶  ${key}   [${plans[0].stock} stick]`);
+        lines.push(`▶  ${key}   [${plans[0].stock} stick = ${stockMM}mm]`);
         lines.push('─'.repeat(46));
 
-        // Group sticks by ordered cut-length signature
+        // Group sticks by ordered cut-length signature (1-decimal mm precision)
         const groups = new Map();
         plans.forEach((plan, idx) => {
-            const sig = plan.pieces.map(p => p.length.toFixed(2)).join('|');
+            const sig = plan.pieces.map(p => (p.length * 25.4).toFixed(1)).join('|');
             if (!groups.has(sig)) groups.set(sig, { pieces: plan.pieces, stickNums: [] });
             groups.get(sig).stickNums.push(idx + 1);
         });
 
         let lineNum = 1;
-        let groupTotal = 0;
+        let groupSticks = 0;
+        let groupPieces = 0;
         for (const [, grp] of groups) {
             const cnt = grp.stickNums.length;
-            groupTotal += cnt;
-            const mmArr    = grp.pieces.map(p => Math.round((typeof p === 'number' ? p : p.length) * 25.4));
-            const totalMM  = Math.round(stockLen * 25.4);
+            groupSticks += cnt;
+            groupPieces += cnt * grp.pieces.length;
+            const mmArr    = grp.pieces.map(p => (p.length * 25.4).toFixed(1));
+            const sumMM    = grp.pieces.reduce((s, p) => s + p.length * 25.4, 0).toFixed(1);
             const stickRef = cnt > 4
                 ? `Stick #${grp.stickNums[0]}–#${grp.stickNums[cnt - 1]}`
                 : `Stick #${grp.stickNums.join(', #')}`;
-            lines.push(`  ${lineNum++}. ${mmArr.join(' + ')}  = ${totalMM}mm   ×${cnt} nos   (${stickRef})`);
+            lines.push(`  ${lineNum++}. ${mmArr.join(' + ')}  = ${sumMM}mm   ×${cnt} nos   (${stickRef})`);
         }
-        lines.push(`  ──── Total: ${groupTotal} sticks ────`);
-        grandTotal += groupTotal;
+        lines.push(`  ──── ${groupSticks} sticks, ${groupPieces} pieces ────`);
+        grandTotalSticks += groupSticks;
+        grandTotalPieces += groupPieces;
     }
 
     lines.push('');
     lines.push('═'.repeat(54));
-    lines.push(`Grand Total : ${grandTotal} sticks`);
+    lines.push(`Grand Total : ${grandTotalSticks} sticks, ${grandTotalPieces} pieces`);
     lines.push(`Used        : ${r.stats.totalUsed}"`);
     lines.push(`Waste       : ${r.stats.totalWaste}"`);
     lines.push(`Efficiency  : ${r.stats.efficiency}%`);

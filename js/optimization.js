@@ -209,7 +209,7 @@ function runOptimization() {
 // Auto-select hinge side vertical profile (Door Bottom vs Door Top) by comparing
 // cut wastage against available stock lengths. Defaults to Door Bottom.
 function selectHingeSideProfile(win, supplierData) {
-    const pieceLen = win.height - ((win.frame || 0) * 1.575);
+    const pieceLen = win.height - ((win.frame || 0) * (40/25.4));
     const doorStock = (supplierData && supplierData.stock && supplierData.stock['Door']) || [];
 
     const calcMinWaste = (materialName) => {
@@ -272,8 +272,8 @@ function selectTopRailProfile(win, supplierData, handleVW, hingeVW) {
 
     const L        = win.leaves || 1;
     const F        = win.frame  || 0;
-    const stileLen = win.height - (F * 1.575);
-    const railLen  = (win.width  - (F * 3.15)) / L - handleVW - hingeVW;
+    const stileLen = win.height - (F * (40/25.4));
+    const railLen  = (win.width  - (F * (80/25.4))) / L - handleVW - hingeVW;
 
     if (railLen <= 0 || stileLen <= 0) return 'Door Top';
 
@@ -355,11 +355,11 @@ function generateDoorProfileFormulas(win, supplierData) {
     // ─────────────────────────────────────────────────────────────────────────
 
     return [
-        { component: handleComp,           qty: 'L',   length: 'H - (F*1.575)',                            desc: 'Vertical Handle' },
-        { component: hingeComp,            qty: 'L',   length: 'H - (F*1.575)',                            desc: 'Vertical Hing' },
-        { component: topRailComp,          qty: 'L',   length: '(W - (F*3.15)) / L - HandleVW - HingeVW', desc: 'Top Rail' },
-        { component: 'Door Bottom',        qty: 'L',   length: '(W - (F*3.15)) / L - HandleVW - HingeVW', desc: 'Bottom Rail' },
-        { component: 'Door Middle Double', qty: 'L',   length: '(W - (F*3.15)) / L - HandleVW - HingeVW', desc: 'Middle Rail' },
+        { component: handleComp,           qty: 'L',   length: 'H - (F*(40/25.4))',                            desc: 'Vertical Handle' },
+        { component: hingeComp,            qty: 'L',   length: 'H - (F*(40/25.4))',                            desc: 'Vertical Hing' },
+        { component: topRailComp,          qty: 'L',   length: '(W - (F*(80/25.4))) / L - HandleVW - HingeVW', desc: 'Top Rail' },
+        { component: 'Door Bottom',        qty: 'L',   length: '(W - (F*(80/25.4))) / L - HandleVW - HingeVW', desc: 'Bottom Rail' },
+        { component: 'Door Middle Double', qty: 'L',   length: '(W - (F*(80/25.4))) / L - HandleVW - HingeVW', desc: 'Middle Rail' },
         { component: 'Door Leg Partition', qty: '1*F', length: 'W',                                        desc: 'Frame Top' },
         { component: 'Door Leg Partition', qty: '1*F', length: 'H',                                        desc: 'Frame Left' },
         { component: 'Door Leg Partition', qty: '1*F', length: 'H',                                        desc: 'Frame Right' },
@@ -367,9 +367,9 @@ function generateDoorProfileFormulas(win, supplierData) {
         // produces the correct independent lengths for each zone. MRPI (middle-rail position
         // in inches from floor) is injected into context by calculatePieces; for a centred
         // rail it equals exactly half, so both lengths remain equal.
-        { component: 'Door Glazing Clip',  qty: '4*L', length: 'H - F*0.7875 - TW - MW/2 - MRPI',        desc: 'Glazing Clip Vertical Top' },
-        { component: 'Door Glazing Clip',  qty: '4*L', length: 'MRPI - F*0.7875 - BW - MW/2',            desc: 'Glazing Clip Vertical Bottom' },
-        { component: 'Door Glazing Clip',  qty: '8*L', length: '(W - (F*3.15)) / L - HandleVW - HingeVW', desc: 'Glazing Clip Horizontal' }
+        { component: 'Door Glazing Clip',  qty: '4*L', length: 'H - F*(20/25.4) - TW - MW/2 - MRPI',        desc: 'Glazing Clip Vertical Top' },
+        { component: 'Door Glazing Clip',  qty: '4*L', length: 'MRPI - F*(20/25.4) - BW - MW/2',            desc: 'Glazing Clip Vertical Bottom' },
+        { component: 'Door Glazing Clip',  qty: '8*L', length: '(W - (F*(80/25.4))) / L - HandleVW - HingeVW', desc: 'Glazing Clip Horizontal' }
     ];
 }
 
@@ -478,10 +478,10 @@ function calculatePieces(selectedProject, preferredSupplier) {
         const _MW = (win.middleWidth || 47.5)  / 25.4;
         const _BW = (win.bottomWidth || 114.3) / 25.4;
         const _F  = win.frame || 0;
-        const _totalPanelH = win.height - _F * 1.575 - _TW - _BW - _MW;
+        const _totalPanelH = win.height - _F * (40/25.4) - _TW - _BW - _MW;
         const MRPI = (win.middleRailPositionMM != null)
             ? win.middleRailPositionMM / 25.4
-            : _F * 0.7875 + _BW + _totalPanelH / 2 + _MW / 2; // centred fallback
+            : _F * (20/25.4) + _BW + _totalPanelH / 2 + _MW / 2; // centred fallback
         // ───────────────────────────────────────────────────────────────────────
 
         const context = {
@@ -975,14 +975,14 @@ function collectPartitionPanels(windows) {
         const HVW = win._handleVW || (win.handleWidth || win.verticalWidth || 47.5) / 25.4;
         const GVW = win._hingeVW  || (win.bottomWidth || 114.3) / 25.4;
 
-        const totalPanelH = H - F*1.575 - TW - BW - MW;
+        const totalPanelH = H - F*(40/25.4) - TW - BW - MW;
         const MRPI = (win.middleRailPositionMM != null)
             ? win.middleRailPositionMM / 25.4
-            : F*0.7875 + BW + totalPanelH/2 + MW/2;
+            : F*(20/25.4) + BW + totalPanelH/2 + MW/2;
 
-        const upperH = Math.max(0.5, H - F*0.7875 - TW - MW/2 - MRPI - KERF);
-        const lowerH = Math.max(0.5, MRPI - F*0.7875 - BW - MW/2 - KERF);
-        const panelW = Math.max(0.5, (W - F*3.15) / L - HVW - GVW - KERF);
+        const upperH = Math.max(0.5, H - F*(20/25.4) - TW - MW/2 - MRPI - KERF);
+        const lowerH = Math.max(0.5, MRPI - F*(20/25.4) - BW - MW/2 - KERF);
+        const panelW = Math.max(0.5, (W - F*(80/25.4)) / L - HVW - GVW - KERF);
 
         const addPanel = (zone, zoneH) => {
             const part = zone === 'upper'

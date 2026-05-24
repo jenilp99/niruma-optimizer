@@ -224,25 +224,25 @@ window.registerSupplier("Windalco Aluminium", {
         // Door Formulas (same as JK ALU for universal compatibility)
         'Door': [
             // Door Vertical Handle - 1 per leaf (L)
-            { component: 'Door Vertical', qty: 'L', length: 'H - (F*1.575)', desc: 'Vertical Handle' },
+            { component: 'Door Vertical', qty: 'L', length: 'H - (F*(40/25.4))', desc: 'Vertical Handle' },
             // Door Vertical Hing - 1 per leaf (L)
-            { component: 'Door Vertical', qty: 'L', length: 'H - (F*1.575)', desc: 'Vertical Hing' },
+            { component: 'Door Vertical', qty: 'L', length: 'H - (F*(40/25.4))', desc: 'Vertical Hing' },
             // Door Top - 1 per leaf, width minus handle + hinge stile widths
-            { component: 'Door Top', qty: 'L', length: '(W - (F*3.15)) / L - HandleVW - HingeVW', desc: 'Top Rail' },
+            { component: 'Door Top', qty: 'L', length: '(W - (F*(80/25.4))) / L - HandleVW - HingeVW', desc: 'Top Rail' },
             // Door Bottom - 1 per leaf
-            { component: 'Door Bottom', qty: 'L', length: '(W - (F*3.15)) / L - HandleVW - HingeVW', desc: 'Bottom Rail' },
+            { component: 'Door Bottom', qty: 'L', length: '(W - (F*(80/25.4))) / L - HandleVW - HingeVW', desc: 'Bottom Rail' },
             // Door Middle Double - 1 per leaf (always DMD, never DMS)
-            { component: 'Door Middle Double', qty: 'L', length: '(W - (F*3.15)) / L - HandleVW - HingeVW', desc: 'Middle Rail' },
+            { component: 'Door Middle Double', qty: 'L', length: '(W - (F*(80/25.4))) / L - HandleVW - HingeVW', desc: 'Middle Rail' },
             // Frame - Leg Partition (Only if F=1), 3 sides: top, left, right (no bottom)
             { component: 'Door Leg Partition', qty: '1*F', length: 'W', desc: 'Frame Top' },
             { component: 'Door Leg Partition', qty: '1*F', length: 'H', desc: 'Frame Left' },
             { component: 'Door Leg Partition', qty: '1*F', length: 'H', desc: 'Frame Right' },
             // Door Glazing Clip - Vertical: split Top/Bottom so off-centre middle rail
             // gives correct independent lengths. MRPI injected by calculatePieces.
-            { component: 'Door Glazing Clip', qty: '4*L', length: 'H - F*0.7875 - TW - MW/2 - MRPI',         desc: 'Glazing Clip Vertical Top' },
-            { component: 'Door Glazing Clip', qty: '4*L', length: 'MRPI - F*0.7875 - BW - MW/2',             desc: 'Glazing Clip Vertical Bottom' },
+            { component: 'Door Glazing Clip', qty: '4*L', length: 'H - F*(20/25.4) - TW - MW/2 - MRPI',         desc: 'Glazing Clip Vertical Top' },
+            { component: 'Door Glazing Clip', qty: '4*L', length: 'MRPI - F*(20/25.4) - BW - MW/2',             desc: 'Glazing Clip Vertical Bottom' },
             // Door Glazing Clip - Horizontal (4 per pane × 2 panes per leaf)
-            { component: 'Door Glazing Clip', qty: '8*L', length: '(W - (F*3.15)) / L - HandleVW - HingeVW', desc: 'Glazing Clip Horizontal' }
+            { component: 'Door Glazing Clip', qty: '8*L', length: '(W - (F*(80/25.4))) / L - HandleVW - HingeVW', desc: 'Glazing Clip Horizontal' }
         ]
     },
 
