@@ -15,3 +15,6 @@ supplier_docs/Windalco-Aluminium/
 
 # Node / npm (if ever used)
 node_modules/
+
+# Claude Code local dev settings (should not be committed)
+.claude/

@@ -192,71 +192,209 @@ function generateNetDiagramBin(bin, labelColorCache) {
 }
 
 // ============================================================================
-// CNC MACHINE CUT BRIEF
+// WORKSHOP CUTTING BRIEF (profiles + nets + sheets)
 // ============================================================================
 
 /**
- * Build a compact, operator-friendly cut brief grouped by identical cut patterns.
- * Format matches how fabrication shops typically hand-write cut lists.
+ * Build a compact, operator-friendly cut brief for the WHOLE project:
+ *   • PROFILES  — sticks grouped by identical cut patterns
+ *   • NET       — roll-by-roll cuts, grouped by roll width (3' first, then 4', …)
+ *   • SHEETS    — sheet-by-sheet cuts for ACP / Bakelite / Particle Board
+ * Format matches how fabrication shops hand-write cut lists.
+ * All sizes shown in mm (1-decimal precision).
  */
 function buildCNCBrief() {
-    if (!optimizationResults || !optimizationResults.results) return '(No results yet — run optimization first)';
+    if (!optimizationResults) return '(No results yet — run optimization first)';
     const r = optimizationResults;
     const today = new Date().toLocaleDateString('en-IN', { day:'2-digit', month:'2-digit', year:'numeric' });
     const lines = [];
+    const SEP = '═'.repeat(60);
+    const SUB = '─'.repeat(52);
 
-    lines.push(`CNC CUT BRIEF`);
+    lines.push(`WORKSHOP CUTTING BRIEF`);
     lines.push(`Project : ${r.project}`);
     lines.push(`Date    : ${today}`);
-    lines.push(`Kerf    : ${(r.config && r.config.kerf) ? r.config.kerf + '"' : '—'}`);
-    lines.push('═'.repeat(54));
+    lines.push(`Kerf    : ${(r.config && r.config.kerf) ? r.config.kerf + '"' : '—'}  (all sizes in mm)`);
+    lines.push(SEP);
 
-    let grandTotalSticks = 0;
-    let grandTotalPieces = 0;
+    // ── Summary collector (for grand-total block at the end) ────────────────
+    const grand = {
+        profileSticks: 0, profilePieces: 0,
+        netRolls:     0,  netPieces:    0,
+        sheetRolls:   {},  // { 'ACP 4mm': { sheets:X, pieces:Y }, ... }
+    };
 
-    for (const [key, plans] of Object.entries(r.results)) {
-        if (!plans || plans.length === 0) continue;
-        const stockLen   = parseFloat((plans[0].stock || '0').replace('"', ''));
-        const stockMM    = (stockLen * 25.4).toFixed(1);
-
+    // ════════════════════════════════════════════════════════════════════════
+    // SECTION 1: PROFILES (aluminium sticks)
+    // ════════════════════════════════════════════════════════════════════════
+    if (r.results && Object.keys(r.results).length > 0) {
         lines.push('');
-        lines.push(`▶  ${key}   [${plans[0].stock} stick = ${stockMM}mm]`);
-        lines.push('─'.repeat(46));
+        lines.push('████  PROFILES  ████');
 
-        // Group sticks by ordered cut-length signature (1-decimal mm precision)
-        const groups = new Map();
-        plans.forEach((plan, idx) => {
-            const sig = plan.pieces.map(p => (p.length * 25.4).toFixed(1)).join('|');
-            if (!groups.has(sig)) groups.set(sig, { pieces: plan.pieces, stickNums: [] });
-            groups.get(sig).stickNums.push(idx + 1);
-        });
+        for (const [key, plans] of Object.entries(r.results)) {
+            if (!plans || plans.length === 0) continue;
+            const stockLen = parseFloat((plans[0].stock || '0').replace('"', ''));
+            const stockMM  = (stockLen * 25.4).toFixed(1);
 
-        let lineNum = 1;
-        let groupSticks = 0;
-        let groupPieces = 0;
-        for (const [, grp] of groups) {
-            const cnt = grp.stickNums.length;
-            groupSticks += cnt;
-            groupPieces += cnt * grp.pieces.length;
-            const mmArr    = grp.pieces.map(p => (p.length * 25.4).toFixed(1));
-            const sumMM    = grp.pieces.reduce((s, p) => s + p.length * 25.4, 0).toFixed(1);
-            const stickRef = cnt > 4
-                ? `Stick #${grp.stickNums[0]}–#${grp.stickNums[cnt - 1]}`
-                : `Stick #${grp.stickNums.join(', #')}`;
-            lines.push(`  ${lineNum++}. ${mmArr.join(' + ')}  = ${sumMM}mm   ×${cnt} nos   (${stickRef})`);
+            lines.push('');
+            lines.push(`▶  ${key}   [${plans[0].stock} stick = ${stockMM}mm]`);
+            lines.push(SUB);
+
+            // Group sticks by ordered cut-length signature (1-decimal mm precision)
+            const groups = new Map();
+            plans.forEach((plan, idx) => {
+                const sig = plan.pieces.map(p => (p.length * 25.4).toFixed(1)).join('|');
+                if (!groups.has(sig)) groups.set(sig, { pieces: plan.pieces, stickNums: [] });
+                groups.get(sig).stickNums.push(idx + 1);
+            });
+
+            let lineNum = 1, groupSticks = 0, groupPieces = 0;
+            for (const [, grp] of groups) {
+                const cnt = grp.stickNums.length;
+                groupSticks += cnt;
+                groupPieces += cnt * grp.pieces.length;
+                const mmArr    = grp.pieces.map(p => (p.length * 25.4).toFixed(1));
+                const sumMM    = grp.pieces.reduce((s, p) => s + p.length * 25.4, 0).toFixed(1);
+                const stickRef = cnt > 4
+                    ? `Stick #${grp.stickNums[0]}–#${grp.stickNums[cnt - 1]}`
+                    : `Stick #${grp.stickNums.join(', #')}`;
+                lines.push(`  ${lineNum++}. ${mmArr.join(' + ')}  = ${sumMM}mm   ×${cnt} nos   (${stickRef})`);
+            }
+            lines.push(`  ──── ${groupSticks} sticks, ${groupPieces} pieces ────`);
+            grand.profileSticks += groupSticks;
+            grand.profilePieces += groupPieces;
         }
-        lines.push(`  ──── ${groupSticks} sticks, ${groupPieces} pieces ────`);
-        grandTotalSticks += groupSticks;
-        grandTotalPieces += groupPieces;
     }
 
+    // ════════════════════════════════════════════════════════════════════════
+    // SECTION 2: MOSQUITO NET (rolls — grouped by width, smallest first)
+    // ════════════════════════════════════════════════════════════════════════
+    if (r.netResults && r.netResults.bins && r.netResults.bins.length > 0) {
+        lines.push('');
+        lines.push('████  MOSQUITO NET  ████');
+
+        // Group bins by roll width
+        const binsByWidth = {};
+        r.netResults.bins.forEach((bin, idx) => {
+            const w = bin.width;
+            if (!binsByWidth[w]) binsByWidth[w] = [];
+            binsByWidth[w].push({ bin, globalIdx: idx + 1 });
+        });
+
+        // Iterate widths in ascending order ("3' first, then 4'")
+        const widths = Object.keys(binsByWidth).map(Number).sort((a, b) => a - b);
+        for (const w of widths) {
+            const rollsHere = binsByWidth[w];
+            const wMM = (w * 25.4).toFixed(1);
+            const ftLabel = (w % 12 === 0) ? `${w/12}'` : `${w}"`;
+
+            lines.push('');
+            lines.push(`▣  ${ftLabel} Roll  (${wMM}mm wide)  —  ${rollsHere.length} roll${rollsHere.length>1?'s':''}`);
+
+            rollsHere.forEach((entry, localIdx) => {
+                const bin = entry.bin;
+                const isStore = bin.kind === 'store';
+                const srcTag  = isStore ? `[FROM STOCK: ${bin.label}]` : `[NEW]`;
+                const lenMM   = (bin.capacityLength * 25.4).toFixed(1);
+                const usedMM  = (bin.usedLength * 25.4).toFixed(1);
+                const leftMM  = ((bin.capacityLength - bin.usedLength) * 25.4).toFixed(1);
+
+                lines.push('');
+                lines.push(`▶  Roll #${entry.globalIdx} ${srcTag}   (${wMM}mm × ${lenMM}mm)`);
+                lines.push(SUB);
+
+                bin.shelves.forEach((shelf, si) => {
+                    const y1 = (shelf.y * 25.4).toFixed(1);
+                    const y2 = ((shelf.y + shelf.shelfH) * 25.4).toFixed(1);
+                    const shH = (shelf.shelfH * 25.4).toFixed(1);
+                    lines.push(`  Row ${si + 1} — cut at ${y1} → ${y2}mm  (height ${shH}mm):`);
+                    shelf.pieces.forEach(p => {
+                        const pW = (p.w * 25.4).toFixed(1);
+                        const pH = (p.h * 25.4).toFixed(1);
+                        const rot = p.rotated ? '  ↺ rotated' : '';
+                        const short = (p.label || '').split(/[\s(]/)[0];
+                        lines.push(`     • ${pW} × ${pH} mm     ${short}${rot}`);
+                    });
+                    grand.netPieces += shelf.pieces.length;
+                });
+
+                lines.push(`  Used: ${usedMM}mm  |  Leftover: ${leftMM}mm → store`);
+                grand.netRolls++;
+            });
+        }
+    }
+
+    // ════════════════════════════════════════════════════════════════════════
+    // SECTION 3: PARTITION SHEETS (ACP / Bakelite / Particle Board)
+    // ════════════════════════════════════════════════════════════════════════
+    if (r.sheetResults && r.sheetResults.byGroup && Object.keys(r.sheetResults.byGroup).length > 0) {
+        lines.push('');
+        lines.push('████  PARTITION SHEETS  ████');
+
+        const MAT_TITLE = { ACP: 'ACP', Bakelite: 'Bakelite', ParticleBoard: 'Particle Board' };
+        for (const [groupKey, gr] of Object.entries(r.sheetResults.byGroup)) {
+            const matTitle = MAT_TITLE[gr.material] || gr.material;
+            const sWmm = (gr.sheetW * 25.4).toFixed(1);
+            const sHmm = (gr.sheetH * 25.4).toFixed(1);
+
+            lines.push('');
+            lines.push(`▣  ${matTitle} ${gr.thickness}  —  Sheet ${gr.sheetName} (${sWmm} × ${sHmm} mm)  —  ${gr.bins.length} sheet${gr.bins.length>1?'s':''}`);
+
+            let sumPieces = 0;
+            gr.bins.forEach((bin, idx) => {
+                const isStore = bin.kind === 'store';
+                const srcTag  = isStore ? `[FROM STOCK: ${bin.label}]` : `[NEW]`;
+                const wMM   = (bin.width * 25.4).toFixed(1);
+                const lMM   = (bin.capacityLength * 25.4).toFixed(1);
+                const uMM   = (bin.usedLength * 25.4).toFixed(1);
+                const leftMM= ((bin.capacityLength - bin.usedLength) * 25.4).toFixed(1);
+
+                lines.push('');
+                lines.push(`▶  Sheet #${idx + 1} ${srcTag}   (${wMM} × ${lMM} mm)`);
+                lines.push(SUB);
+
+                bin.shelves.forEach((shelf, si) => {
+                    const y1 = (shelf.y * 25.4).toFixed(1);
+                    const y2 = ((shelf.y + shelf.shelfH) * 25.4).toFixed(1);
+                    const shH = (shelf.shelfH * 25.4).toFixed(1);
+                    lines.push(`  Row ${si + 1} — cut at ${y1} → ${y2}mm  (height ${shH}mm):`);
+                    shelf.pieces.forEach(p => {
+                        const pW = (p.w * 25.4).toFixed(1);
+                        const pH = (p.h * 25.4).toFixed(1);
+                        const rot = p.rotated ? '  ↺ rotated' : '';
+                        lines.push(`     • ${pW} × ${pH} mm     ${p.label}${rot}`);
+                    });
+                    sumPieces += shelf.pieces.length;
+                });
+
+                lines.push(`  Used: ${uMM}mm  |  Leftover: ${leftMM}mm → store`);
+            });
+
+            const labelKey = `${matTitle} ${gr.thickness}`;
+            grand.sheetRolls[labelKey] = { sheets: gr.bins.length, pieces: sumPieces, sheetName: gr.sheetName };
+        }
+    }
+
+    // ════════════════════════════════════════════════════════════════════════
+    // GRAND TOTALS
+    // ════════════════════════════════════════════════════════════════════════
     lines.push('');
-    lines.push('═'.repeat(54));
-    lines.push(`Grand Total : ${grandTotalSticks} sticks, ${grandTotalPieces} pieces`);
-    lines.push(`Used        : ${r.stats.totalUsed}"`);
-    lines.push(`Waste       : ${r.stats.totalWaste}"`);
-    lines.push(`Efficiency  : ${r.stats.efficiency}%`);
-    lines.push(`Cost        : ₹${r.stats.totalCost}`);
+    lines.push(SEP);
+    lines.push(`GRAND TOTALS`);
+    if (grand.profileSticks > 0)
+        lines.push(`  Profiles      : ${grand.profileSticks} sticks, ${grand.profilePieces} pieces`);
+    if (grand.netRolls > 0)
+        lines.push(`  Mosquito Net  : ${grand.netRolls} rolls, ${grand.netPieces} pieces`);
+    for (const [matLabel, info] of Object.entries(grand.sheetRolls)) {
+        lines.push(`  ${matLabel.padEnd(14)}: ${info.sheets} sheets (${info.sheetName}), ${info.pieces} pieces`);
+    }
+    if (r.stats) {
+        lines.push(SEP);
+        lines.push(`Profile Used    : ${r.stats.totalUsed}"`);
+        lines.push(`Profile Waste   : ${r.stats.totalWaste}"`);
+        lines.push(`Profile Eff     : ${r.stats.efficiency}%`);
+        lines.push(`Profile Cost    : ₹${r.stats.totalCost}`);
+    }
     return lines.join('\n');
 }
 
@@ -289,6 +427,198 @@ function copyCNCBrief() {
     } catch (e) { alert('Copy failed — please select all text and copy manually.'); }
 }
 
+// ── PDF export — monospace, paginated, A4 portrait ─────────────────────────
+function exportCuttingBriefPDF() {
+    if (!optimizationResults) { showAlert('⚠️ No results to export!'); return; }
+    const text = buildCNCBrief();
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF({ unit: 'pt', format: 'a4' });
+
+    const pageW = doc.internal.pageSize.getWidth();
+    const pageH = doc.internal.pageSize.getHeight();
+    const marginX = 28;
+    const marginTop = 28;
+    const marginBottom = 30;
+    const lineH = 10.5;
+
+    // Title bar
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(14);
+    doc.setTextColor(40, 40, 40);
+    doc.text(`Workshop Cutting Brief — ${optimizationResults.project || ''}`, marginX, marginTop + 2);
+
+    // Body in courier (monospace) so the alignment from buildCNCBrief is preserved
+    doc.setFont('courier', 'normal');
+    doc.setFontSize(8);
+    doc.setTextColor(20, 20, 20);
+
+    let y = marginTop + 20;
+    const lines = text.split('\n');
+    for (const line of lines) {
+        // Section banners get extra visual weight
+        if (line.startsWith('████')) {
+            doc.setFont('helvetica', 'bold');
+            doc.setFontSize(10.5);
+            if (y + 16 > pageH - marginBottom) { doc.addPage(); y = marginTop; }
+            doc.setFillColor(245, 245, 245);
+            doc.rect(marginX - 4, y - 9, pageW - 2*(marginX - 4), 13, 'F');
+            doc.text(line.replace(/█/g, '').trim(), marginX, y);
+            y += 16;
+            doc.setFont('courier', 'normal');
+            doc.setFontSize(8);
+            continue;
+        }
+        // ▶ rows get bold for scannability
+        const isHead = /^▶/.test(line) || /^▣/.test(line);
+        if (isHead) doc.setFont('courier', 'bold');
+
+        if (y + lineH > pageH - marginBottom) {
+            doc.addPage();
+            y = marginTop;
+        }
+        doc.text(line, marginX, y);
+        y += lineH;
+
+        if (isHead) doc.setFont('courier', 'normal');
+    }
+
+    // Footer page numbers
+    const totalPages = doc.internal.getNumberOfPages();
+    for (let p = 1; p <= totalPages; p++) {
+        doc.setPage(p);
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(7);
+        doc.setTextColor(140, 140, 140);
+        doc.text(`Page ${p} / ${totalPages}`, pageW - marginX, pageH - 12, { align: 'right' });
+    }
+
+    doc.save(`${optimizationResults.project || 'Project'}_Cutting_Brief.pdf`);
+}
+
+// ── Excel export — sheet per category, structured rows ─────────────────────
+function exportCuttingBriefExcel() {
+    if (!optimizationResults) { showAlert('⚠️ No results to export!'); return; }
+    const r = optimizationResults;
+    const wb = XLSX.utils.book_new();
+
+    // Helper: a fat title row
+    const hdrRow = label => [label];
+
+    // ── Sheet 1: Profiles ──────────────────────────────────────────────────
+    if (r.results && Object.keys(r.results).length > 0) {
+        const rows = [];
+        rows.push(['WORKSHOP CUT BRIEF — PROFILES']);
+        rows.push(['Project', r.project]);
+        rows.push(['Date', new Date().toLocaleDateString('en-IN')]);
+        rows.push([]);
+        rows.push(['Material', 'Stock (mm)', 'Cut Pattern (mm)', 'Sum (mm)', 'Qty', 'Stick Refs']);
+
+        for (const [key, plans] of Object.entries(r.results)) {
+            if (!plans || plans.length === 0) continue;
+            const stockMM = parseFloat((plans[0].stock || '0').replace('"', '')) * 25.4;
+
+            const groups = new Map();
+            plans.forEach((plan, idx) => {
+                const sig = plan.pieces.map(p => (p.length * 25.4).toFixed(1)).join('|');
+                if (!groups.has(sig)) groups.set(sig, { pieces: plan.pieces, stickNums: [] });
+                groups.get(sig).stickNums.push(idx + 1);
+            });
+
+            for (const [, grp] of groups) {
+                const cnt    = grp.stickNums.length;
+                const mmArr  = grp.pieces.map(p => (p.length * 25.4).toFixed(1));
+                const sumMM  = grp.pieces.reduce((s, p) => s + p.length * 25.4, 0).toFixed(1);
+                const ref    = cnt > 4 ? `#${grp.stickNums[0]}–#${grp.stickNums[cnt - 1]}` : grp.stickNums.map(n => '#' + n).join(', ');
+                rows.push([key, stockMM.toFixed(1), mmArr.join(' + '), sumMM, cnt, ref]);
+            }
+        }
+        const ws = XLSX.utils.aoa_to_sheet(rows);
+        ws['!cols'] = [{wch:32},{wch:11},{wch:50},{wch:11},{wch:6},{wch:22}];
+        XLSX.utils.book_append_sheet(wb, ws, 'Profiles');
+    }
+
+    // ── Sheet 2: Mosquito Net ──────────────────────────────────────────────
+    if (r.netResults && r.netResults.bins && r.netResults.bins.length > 0) {
+        const rows = [];
+        rows.push(['WORKSHOP CUT BRIEF — MOSQUITO NET']);
+        rows.push([]);
+        rows.push(['Roll #', 'Source', 'Roll Size (mm)', 'Row', 'Cut From (mm)', 'Cut To (mm)', 'Piece W (mm)', 'Piece H (mm)', 'Label', 'Rotated']);
+
+        // Group by width, ascending
+        const binsByWidth = {};
+        r.netResults.bins.forEach((bin, idx) => {
+            const w = bin.width;
+            if (!binsByWidth[w]) binsByWidth[w] = [];
+            binsByWidth[w].push({ bin, globalIdx: idx + 1 });
+        });
+        const widths = Object.keys(binsByWidth).map(Number).sort((a, b) => a - b);
+        for (const w of widths) {
+            for (const e of binsByWidth[w]) {
+                const bin = e.bin;
+                const src = bin.kind === 'store' ? `STOCK: ${bin.label}` : 'NEW';
+                const sz  = `${(bin.width*25.4).toFixed(1)} × ${(bin.capacityLength*25.4).toFixed(1)}`;
+                bin.shelves.forEach((shelf, si) => {
+                    const y1 = (shelf.y * 25.4).toFixed(1);
+                    const y2 = ((shelf.y + shelf.shelfH) * 25.4).toFixed(1);
+                    shelf.pieces.forEach(p => {
+                        rows.push([
+                            e.globalIdx, src, sz, si + 1, y1, y2,
+                            (p.w * 25.4).toFixed(1), (p.h * 25.4).toFixed(1),
+                            (p.label || '').split(/[\s(]/)[0],
+                            p.rotated ? 'Yes' : ''
+                        ]);
+                    });
+                });
+            }
+        }
+        const ws = XLSX.utils.aoa_to_sheet(rows);
+        ws['!cols'] = [{wch:7},{wch:18},{wch:18},{wch:5},{wch:13},{wch:12},{wch:12},{wch:12},{wch:20},{wch:8}];
+        XLSX.utils.book_append_sheet(wb, ws, 'Mosquito Net');
+    }
+
+    // ── Sheet 3: Partition Sheets ──────────────────────────────────────────
+    if (r.sheetResults && r.sheetResults.byGroup && Object.keys(r.sheetResults.byGroup).length > 0) {
+        const rows = [];
+        rows.push(['WORKSHOP CUT BRIEF — PARTITION SHEETS']);
+        rows.push([]);
+        rows.push(['Material', 'Sheet #', 'Source', 'Sheet Size (mm)', 'Row', 'Cut From (mm)', 'Cut To (mm)', 'Piece W (mm)', 'Piece H (mm)', 'Label', 'Rotated']);
+
+        const MAT_TITLE = { ACP: 'ACP', Bakelite: 'Bakelite', ParticleBoard: 'Particle Board' };
+        for (const [, gr] of Object.entries(r.sheetResults.byGroup)) {
+            const matLabel = `${MAT_TITLE[gr.material] || gr.material} ${gr.thickness}`;
+            gr.bins.forEach((bin, idx) => {
+                const src = bin.kind === 'store' ? `STOCK: ${bin.label}` : 'NEW';
+                const sz  = `${(bin.width*25.4).toFixed(1)} × ${(bin.capacityLength*25.4).toFixed(1)}`;
+                bin.shelves.forEach((shelf, si) => {
+                    const y1 = (shelf.y * 25.4).toFixed(1);
+                    const y2 = ((shelf.y + shelf.shelfH) * 25.4).toFixed(1);
+                    shelf.pieces.forEach(p => {
+                        rows.push([
+                            matLabel, idx + 1, src, sz, si + 1, y1, y2,
+                            (p.w * 25.4).toFixed(1), (p.h * 25.4).toFixed(1),
+                            p.label, p.rotated ? 'Yes' : ''
+                        ]);
+                    });
+                });
+            });
+        }
+        const ws = XLSX.utils.aoa_to_sheet(rows);
+        ws['!cols'] = [{wch:18},{wch:7},{wch:22},{wch:18},{wch:5},{wch:13},{wch:12},{wch:12},{wch:12},{wch:22},{wch:8}];
+        XLSX.utils.book_append_sheet(wb, ws, 'Sheets');
+    }
+
+    // ── Sheet 4: Raw Text (for ops who want the formatted brief) ──────────
+    {
+        const text = buildCNCBrief();
+        const rows = text.split('\n').map(l => [l]);
+        const ws = XLSX.utils.aoa_to_sheet(rows);
+        ws['!cols'] = [{ wch: 100 }];
+        XLSX.utils.book_append_sheet(wb, ws, 'Brief Text');
+    }
+
+    XLSX.writeFile(wb, `${r.project || 'Project'}_Cutting_Brief.xlsx`);
+}
+
 // ============================================================================
 // RESULTS DISPLAY
 // ============================================================================
@@ -313,7 +643,7 @@ function displayResults() {
             <button class="btn btn-success" onclick="showReportPreview('purchase_material')">🏢 Material Purchase</button>
             <button class="btn btn-info" onclick="showReportPreview('purchase_hardware')">🔩 Hardware Vendor List</button>
             <button class="btn btn-warning" onclick="showReportPreview('cutlist')">🪚 Optimized Cut List</button>
-            <button class="btn" style="background:#e67e22;color:white;" onclick="showCNCBrief()">🔧 CNC Cut Brief</button>
+            <button class="btn" style="background:#e67e22;color:white;" onclick="showCNCBrief()">🔧 Workshop Cut Brief</button>
         </div>
         <div style="display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; margin-top: 10px; opacity: 0.8;">
             <button class="btn btn-primary btn-sm" onclick="exportFullResultsExcel()">📊 Full Excel</button>

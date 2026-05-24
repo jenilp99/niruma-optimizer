@@ -10,8 +10,8 @@
     <title>Niruma Aluminum Profile Optimizer</title>
 
     <!-- CSS -->
-    <link rel="stylesheet" href="css/styles.css?v=1.18">
-    <link rel="stylesheet" href="css/modal.css?v=1.18">
+    <link rel="stylesheet" href="css/styles.css?v=1.19">
+    <link rel="stylesheet" href="css/modal.css?v=1.19">
 
     <!-- External Libraries -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -61,7 +61,7 @@
                 <span><strong>mm</strong></span>
             </div>
             <!-- APP VERSION — bump this number on every push/update -->
-            <div class="navbar-version">Ver: 1.18</div>
+            <div class="navbar-version">Ver: 1.19</div>
         </div>
     </nav>
 
@@ -1688,47 +1688,48 @@
         </div>
     </div>
 
-    <!-- CNC Cut Brief Modal -->
+    <!-- Workshop Cutting Brief Modal -->
     <div id="cncBriefModal" class="modal" style="display:none;align-items:center;justify-content:center;">
-        <div class="modal-content" style="max-width:680px;width:94%;max-height:90vh;display:flex;flex-direction:column;">
+        <div class="modal-content" style="max-width:780px;width:96%;max-height:92vh;display:flex;flex-direction:column;">
             <div class="modal-header" style="background:linear-gradient(135deg,#e67e22,#d35400);">
-                <h3 style="color:white;">🔧 CNC Machine Cut Brief</h3>
+                <h3 style="color:white;">🔧 Workshop Cutting Brief</h3>
                 <button class="close-btn" onclick="closeCNCBriefModal()" style="color:white;">&times;</button>
             </div>
-            <div style="padding:12px 16px;background:#fff8f0;border-bottom:1px solid #ffe0b2;font-size:12px;color:#7f4e00;">
-                Grouped by identical cut patterns — ready to send to your CNC / machine operator.
-                Lengths in <strong>mm</strong>.
+            <div style="padding:10px 16px;background:#fff8f0;border-bottom:1px solid #ffe0b2;font-size:12px;color:#7f4e00;">
+                Covers <strong>profiles + net rolls + partition sheets</strong> — ready to hand to your CNC / cutting operator. All sizes in <strong>mm</strong>.
             </div>
             <div style="flex:1;overflow:auto;padding:14px 16px;">
                 <textarea id="cncBriefText" readonly
-                    style="width:100%;height:100%;min-height:360px;font-family:'Courier New',monospace;font-size:13px;
-                           line-height:1.7;border:1px solid #ddd;border-radius:6px;padding:12px;
+                    style="width:100%;height:100%;min-height:420px;font-family:'Courier New',monospace;font-size:12.5px;
+                           line-height:1.65;border:1px solid #ddd;border-radius:6px;padding:12px;
                            background:#fafafa;color:#1a1a1a;resize:vertical;box-sizing:border-box;"
                     onclick="this.select()"></textarea>
             </div>
             <div class="modal-footer" style="display:flex;justify-content:space-between;padding:12px 16px;border-top:1px solid #eee;gap:8px;flex-wrap:wrap;">
                 <button class="btn btn-secondary" onclick="closeCNCBriefModal()">Close</button>
-                <div style="display:flex;gap:8px;">
-                    <button id="copyCNCBtn" class="btn" style="background:#e67e22;color:white;" onclick="copyCNCBrief()">📋 Copy All</button>
+                <div style="display:flex;gap:8px;flex-wrap:wrap;">
+                    <button id="copyCNCBtn" class="btn" style="background:#e67e22;color:white;" onclick="copyCNCBrief()">📋 Copy</button>
                     <button class="btn btn-success" onclick="shareViaWhatsApp_CNC()">📱 WhatsApp</button>
+                    <button class="btn btn-danger" onclick="exportCuttingBriefPDF()">📄 PDF</button>
+                    <button class="btn btn-primary" onclick="exportCuttingBriefExcel()">📊 Excel</button>
                 </div>
             </div>
         </div>
     </div>
 
     <!-- JavaScript Files - Load in Order -->
-    <script src="js/storage.js?v=1.18"></script>
-    <script src="js/supplier_master.js?v=1.18"></script>
+    <script src="js/storage.js?v=1.19"></script>
+    <script src="js/supplier_master.js?v=1.19"></script>
     <!-- Supplier Modules -->
-    <script src="js/suppliers/windalco.js?v=1.18"></script>
-    <script src="js/suppliers/jk_alu.js?v=1.18"></script>
-    <script src="js/suppliers/atlantis.js?v=1.18"></script>
-    <script src="js/suppliers/vitco.js?v=1.18"></script>
+    <script src="js/suppliers/windalco.js?v=1.19"></script>
+    <script src="js/suppliers/jk_alu.js?v=1.19"></script>
+    <script src="js/suppliers/atlantis.js?v=1.19"></script>
+    <script src="js/suppliers/vitco.js?v=1.19"></script>
 
-    <script src="js/app.js?v=1.18"></script>
-    <script src="js/optimization.js?v=1.18"></script>
-    <script src="js/exports.js?v=1.18"></script>
-    <script src="js/Quotation.js?v=1.18"></script>
+    <script src="js/app.js?v=1.19"></script>
+    <script src="js/optimization.js?v=1.19"></script>
+    <script src="js/exports.js?v=1.19"></script>
+    <script src="js/Quotation.js?v=1.19"></script>
 
 </body>
 
