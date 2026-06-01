@@ -1192,23 +1192,131 @@ function switchAddMode(mode) {
 // (seeded once on first load; user manages via Hardware Master Configuration)
 // ============================================================================
 
+// v1.22: each item can carry a `variants` array. When non-empty, the per-door
+// form shows a variant dropdown next to the item; the chosen variant's `rate`
+// overrides the base rate on that door's saved accessories entry.
+// `defaultVariant` (label) controls which one is preselected on the form.
+// Placeholder rate ₹100 — user updates rates via Hardware Master UI.
 const DOOR_HARDWARE_DEFAULTS = [
-    { hardware: 'Door Hinge',      unit: 'Nos',  formula: '4 * L',      rate: 52,   mechanism: 'Hinge'       },
-    { hardware: 'Floor Spring',    unit: 'Nos',  formula: '1 * L',      rate: 3500, mechanism: 'FloorSpring' },
-    { hardware: 'Door Handle',     unit: 'Nos',  formula: '2 * L',      rate: 450,  mechanism: 'both'        },
-    { hardware: 'Door Closer',     unit: 'Nos',  formula: '1 * L',      rate: 1800, mechanism: 'Hinge'       },
-    { hardware: 'Lock Body',       unit: 'Nos',  formula: '1 * L',      rate: 850,  mechanism: 'both'        },
-    { hardware: 'Cylinder',        unit: 'Nos',  formula: '1 * L',      rate: 450,  mechanism: 'both'        },
-    { hardware: 'Silicon Sealant', unit: 'R.Ft', formula: '(W+H)*2/12', rate: 10,   mechanism: 'both'        },
-    { hardware: 'Door Rod 12mm',   unit: 'Nos',  formula: '2 * L',      rate: 60,   mechanism: 'both'        },
+    {
+        hardware: 'Door Hinge',      mechanism: 'Hinge',       unit: 'Nos',  formula: '4 * L',      rate: 100,
+        variants: [
+            { label: '5"×1.25"', rate: 100 },
+            { label: '4"×1.25"', rate: 100 }
+        ],
+        defaultVariant: '4"×1.25"'
+    },
+    {
+        hardware: 'Floor Spring',    mechanism: 'FloorSpring', unit: 'Nos',  formula: '1 * L',      rate: 100,
+        variants: [
+            { label: '90 kg',  rate: 100 },
+            { label: '100 kg', rate: 100 },
+            { label: '120 kg', rate: 100 }
+        ],
+        defaultVariant: '90 kg'
+    },
+    {
+        hardware: 'Door Handle',     mechanism: 'both',        unit: 'Nos',  formula: '2 * L',      rate: 100,
+        variants: [
+            { label: 'None',             rate: 0   },
+            { label: 'American Handle',  rate: 100 },
+            { label: 'H-Handle',         rate: 100 },
+            { label: 'D-Handle',         rate: 100 }
+        ],
+        defaultVariant: 'American Handle'
+    },
+    {
+        hardware: 'Door Closer',     mechanism: 'Hinge',       unit: 'Nos',  formula: '1 * L',      rate: 100,
+        variants: [],   defaultVariant: null
+    },
+    {
+        hardware: 'Lock Body',       mechanism: 'both',        unit: 'Nos',  formula: '1 * L',      rate: 100,
+        variants: [
+            { label: 'Dead Lock (both side key)',     rate: 100 },
+            { label: 'Dead Lock (key + knob)',        rate: 100 },
+            { label: 'Dead Lock (both side knob)',    rate: 100 },
+            { label: 'Mortise Lock',                  rate: 100 },
+            { label: 'Pad Lock',                      rate: 100 },
+            { label: 'Kaptan Lock',                   rate: 100 }
+        ],
+        defaultVariant: 'Dead Lock (both side key)'
+    },
+    {
+        hardware: 'Cylinder',        mechanism: 'both',        unit: 'Nos',  formula: '1 * L',      rate: 100,
+        variants: [],   defaultVariant: null
+    },
+    {
+        hardware: 'Mortise Handle',  mechanism: 'both',        unit: 'Nos',  formula: '1 * L',      rate: 100,
+        variants: [],   defaultVariant: null
+    },
+    {
+        hardware: 'Silicon Sealant', mechanism: 'both',        unit: 'R.Ft', formula: '(W+H)*2/12', rate: 10,
+        variants: [],   defaultVariant: null
+    },
+    {
+        hardware: 'Door Rod 12mm',   mechanism: 'both',        unit: 'Nos',  formula: '2 * L',      rate: 60,
+        variants: [],   defaultVariant: null
+    },
+    {
+        hardware: 'Door Stopper',    mechanism: 'both',        unit: 'Nos',  formula: '1',          rate: 100,
+        variants: [
+            { label: '4"',  rate: 100 },
+            { label: '6"',  rate: 100 },
+            { label: '8"',  rate: 100 },
+            { label: '10"', rate: 100 },
+            { label: '12"', rate: 100 },
+            { label: '18"', rate: 100 },
+            { label: '24"', rate: 100 }
+        ],
+        defaultVariant: '6"'
+    },
+    {
+        hardware: 'Door Leg Stopper', mechanism: 'both',       unit: 'Nos',  formula: '1 * L',      rate: 100,
+        variants: [],   defaultVariant: null
+    },
+    {
+        hardware: 'Magnet',          mechanism: 'both',        unit: 'Nos',  formula: '1 * L',      rate: 100,
+        variants: [
+            { label: 'No. 2 Magnet', rate: 100 },
+            { label: 'Ball Magnet',  rate: 100 }
+        ],
+        defaultVariant: 'No. 2 Magnet'
+    }
 ];
 
-// Convenience accessor — always returns array (seeds if missing)
+// Convenience accessor — always returns array (seeds if missing) + auto-migrates
+// to ensure new schema fields (variants, defaultVariant) and any newly-added
+// seed items are present without wiping user customizations.
 function getDoorHardwareList() {
     if (!hardwareMaster.Door || hardwareMaster.Door.length === 0) {
         hardwareMaster.Door = JSON.parse(JSON.stringify(DOOR_HARDWARE_DEFAULTS));
         if (typeof autoSaveHardwareMaster === 'function') autoSaveHardwareMaster();
+        return hardwareMaster.Door;
     }
+    // Migration: ensure each existing item has variants[] + defaultVariant fields,
+    // and add any new seed items the user doesn't have yet (e.g. Door Stopper,
+    // Door Leg Stopper, Magnet, Mortise Handle introduced in v1.22).
+    let changed = false;
+    const byName = {};
+    hardwareMaster.Door.forEach(it => { if (it && it.hardware) byName[it.hardware] = it; });
+
+    DOOR_HARDWARE_DEFAULTS.forEach(seed => {
+        const existing = byName[seed.hardware];
+        if (!existing) {
+            hardwareMaster.Door.push(JSON.parse(JSON.stringify(seed)));
+            changed = true;
+        } else {
+            if (!Array.isArray(existing.variants)) {
+                existing.variants = JSON.parse(JSON.stringify(seed.variants || []));
+                changed = true;
+            }
+            if (existing.defaultVariant === undefined) {
+                existing.defaultVariant = seed.defaultVariant || null;
+                changed = true;
+            }
+        }
+    });
+    if (changed && typeof autoSaveHardwareMaster === 'function') autoSaveHardwareMaster();
     return hardwareMaster.Door;
 }
 
@@ -1221,23 +1329,54 @@ function renderDoorAccessoriesChecklist(mechanism) {
     items.forEach((item, i) => {
         const mech = item.mechanism || 'both';
         const checked = mech === 'both' || mech === mechanism;
+        const hasVariants = Array.isArray(item.variants) && item.variants.length > 0;
+
+        // Build variant cell content
+        let variantCell = '<span style="color:#bbb;font-size:11px;">—</span>';
+        let initialRate = item.rate;
+        if (hasVariants) {
+            const preselect = item.defaultVariant || item.variants[0].label;
+            const preselectVariant = item.variants.find(v => v.label === preselect) || item.variants[0];
+            initialRate = preselectVariant.rate != null ? preselectVariant.rate : item.rate;
+            const opts = item.variants.map(v =>
+                `<option value="${escapeHtml(v.label)}" data-rate="${v.rate}" ${v.label === preselect ? 'selected' : ''}>${escapeHtml(v.label)}</option>`
+            ).join('');
+            variantCell = `<select id="accVariant_${i}" onchange="onAccessoryVariantChange(${i})"
+                style="width:100%;max-width:170px;padding:3px 6px;border:1px solid #d8a878;border-radius:3px;font-size:12px;background:#fffceb;">
+                ${opts}
+            </select>`;
+        }
+
         tbody.insertAdjacentHTML('beforeend', `
             <tr id="accRow_${i}" style="border-bottom:1px solid #f5e0c8;">
                 <td style="text-align:center;padding:5px;width:36px;">
                     <input type="checkbox" id="accCheck_${i}" ${checked ? 'checked' : ''}>
                 </td>
-                <td style="padding:5px 8px;font-size:13px;">${item.hardware}</td>
+                <td style="padding:5px 8px;font-size:13px;">${escapeHtml(item.hardware)}</td>
+                <td style="padding:5px 6px;">${variantCell}</td>
                 <td style="padding:5px 6px;">
-                    <input type="text" id="accFormula_${i}" value="${item.formula}"
-                        style="width:95px;padding:3px 6px;border:1px solid #ddd;border-radius:3px;font-size:12px;font-family:monospace;">
+                    <input type="text" id="accFormula_${i}" value="${escapeHtml(item.formula)}"
+                        style="width:80px;padding:3px 6px;border:1px solid #ddd;border-radius:3px;font-size:12px;font-family:monospace;">
                 </td>
-                <td style="padding:5px 8px;font-size:12px;color:#777;">${item.unit}</td>
+                <td style="padding:5px 8px;font-size:12px;color:#777;">${escapeHtml(item.unit)}</td>
                 <td style="padding:5px 6px;">
-                    <input type="number" id="accRate_${i}" value="${item.rate}" min="0"
+                    <input type="number" id="accRate_${i}" value="${initialRate}" min="0"
                         style="width:72px;padding:3px 6px;border:1px solid #ddd;border-radius:3px;font-size:12px;">
                 </td>
             </tr>`);
     });
+}
+
+// When user changes variant dropdown on a door accessory row, auto-fill the rate
+// input from the variant's rate. User can still manually edit the rate after.
+function onAccessoryVariantChange(idx) {
+    const sel = document.getElementById(`accVariant_${idx}`);
+    const rateEl = document.getElementById(`accRate_${idx}`);
+    if (!sel || !rateEl) return;
+    const opt = sel.options[sel.selectedIndex];
+    if (!opt) return;
+    const r = parseFloat(opt.getAttribute('data-rate'));
+    if (!isNaN(r)) rateEl.value = r;
 }
 
 // When closing mechanism changes — only flip mechanism-specific rows, leave user edits alone
@@ -1251,7 +1390,7 @@ function updateAccessoriesForMechanism(mechanism) {
     });
 }
 
-// Read checked accessories from the table
+// Read checked accessories from the table — includes selected variant (if any)
 function readDoorAccessories() {
     const tbody = document.getElementById('doorAccessoriesBody');
     if (!tbody) return [];
@@ -1268,8 +1407,12 @@ function readDoorAccessories() {
         if (!master) return;
         const formula = document.getElementById(`accFormula_${idx}`)?.value?.trim() || master.formula;
         const rate    = parseFloat(document.getElementById(`accRate_${idx}`)?.value);
+        const variantEl = document.getElementById(`accVariant_${idx}`);
+        const variant   = variantEl ? variantEl.value : null;
+
         result.push({
             hardware: master.hardware,
+            variant:  variant || null,
             unit:     master.unit,
             formula,
             rate:     isNaN(rate) ? master.rate : rate
@@ -1563,9 +1706,11 @@ function applyAccessorySelectionsToForm(savedAccessories) {
         const cb    = document.getElementById(`accCheck_${i}`);
         const fEl   = document.getElementById(`accFormula_${i}`);
         const rEl   = document.getElementById(`accRate_${i}`);
+        const vEl   = document.getElementById(`accVariant_${i}`);
         if (cb) cb.checked = !!saved;
         if (saved) {
             if (fEl && saved.formula != null) fEl.value = saved.formula;
+            if (vEl && saved.variant)         vEl.value = saved.variant;
             if (rEl && saved.rate    != null) rEl.value = saved.rate;
         }
     });
@@ -2806,6 +2951,12 @@ function refreshHardwareMaster() {
                     </select>
                 </td>`;
                 html += `<tr>${nameCell}${mechCell}${unitCell}${formulaCell}${rateCell}${actionCell}</tr>`;
+                // Variant editor row (collapsible, full-width sub-table)
+                html += `<tr class="hardware-variant-row" style="background:#fffaf3;">
+                    <td colspan="6" style="padding:0;">
+                        ${renderDoorVariantEditor(idx, item)}
+                    </td>
+                </tr>`;
             } else {
                 html += `<tr>${nameCell}${unitCell}${formulaCell}${rateCell}${actionCell}</tr>`;
             }
@@ -2824,6 +2975,118 @@ function updateHardwareField(series, idx, field, value) {
         hardwareMaster[series][idx][field] = value;
     }
     autoSaveHardwareMaster();
+}
+
+// ── Door variant editor (Hardware Master Configuration) ────────────────────
+function renderDoorVariantEditor(idx, item) {
+    const variants = Array.isArray(item.variants) ? item.variants : [];
+    const defaultLabel = item.defaultVariant || '';
+    const countLabel = variants.length === 0
+        ? 'No variants — uses base rate only'
+        : `${variants.length} variant${variants.length > 1 ? 's' : ''}`;
+
+    let rowsHtml = '';
+    variants.forEach((v, vi) => {
+        const isDefault = v.label === defaultLabel;
+        rowsHtml += `<tr style="border-bottom:1px solid #f0e0c8;">
+            <td style="padding:4px 8px;">
+                <input type="text" value="${escapeHtml(v.label || '')}"
+                    onchange="updateDoorVariantField(${idx}, ${vi}, 'label', this.value)"
+                    style="width:100%;padding:4px 6px;border:1px solid #ddd;border-radius:3px;font-size:12px;">
+            </td>
+            <td style="padding:4px 8px;width:90px;">
+                <input type="number" value="${v.rate != null ? v.rate : 0}" min="0"
+                    onchange="updateDoorVariantField(${idx}, ${vi}, 'rate', this.value)"
+                    style="width:100%;padding:4px 6px;border:1px solid #ddd;border-radius:3px;font-size:12px;">
+            </td>
+            <td style="padding:4px 8px;width:90px;text-align:center;">
+                <button type="button" onclick="setDoorVariantDefault(${idx}, ${vi})"
+                    style="padding:2px 8px;font-size:11px;background:${isDefault ? '#27ae60' : '#ecf0f1'};color:${isDefault ? 'white' : '#555'};border:none;border-radius:3px;cursor:pointer;">
+                    ${isDefault ? '★ Default' : 'Make Default'}
+                </button>
+            </td>
+            <td style="padding:4px 8px;width:50px;text-align:center;">
+                <button type="button" onclick="deleteDoorVariant(${idx}, ${vi})"
+                    style="padding:2px 8px;font-size:12px;background:#e74c3c;color:white;border:none;border-radius:3px;cursor:pointer;">🗑</button>
+            </td>
+        </tr>`;
+    });
+
+    return `<details ${variants.length > 0 ? '' : ''} style="padding:6px 14px 8px;">
+        <summary style="cursor:pointer;font-size:12px;color:#bf360c;font-weight:600;user-select:none;list-style:none;">
+            ▸ Variants — <span style="font-weight:400;color:#888;">${countLabel}</span>
+        </summary>
+        <div style="margin:8px 0 4px;">
+            ${variants.length === 0 ? '' : `
+            <table style="width:100%;border-collapse:collapse;background:white;border:1px solid #f0e0c8;border-radius:4px;font-size:12px;">
+                <thead><tr style="background:#fff3e0;">
+                    <th style="padding:4px 8px;text-align:left;font-size:11px;color:#7f4e00;">Variant Label</th>
+                    <th style="padding:4px 8px;text-align:left;font-size:11px;color:#7f4e00;">Rate (₹)</th>
+                    <th style="padding:4px 8px;text-align:center;font-size:11px;color:#7f4e00;">Default</th>
+                    <th style="padding:4px 8px;text-align:center;font-size:11px;color:#7f4e00;"></th>
+                </tr></thead>
+                <tbody>${rowsHtml}</tbody>
+            </table>`}
+            <button type="button" onclick="addDoorVariant(${idx})"
+                style="margin-top:8px;padding:4px 12px;font-size:12px;background:#e67e22;color:white;border:none;border-radius:4px;cursor:pointer;">
+                ➕ Add Variant
+            </button>
+            <p style="font-size:11px;color:#888;margin:6px 0 0;">
+                When a door is added/edited, this item's row shows a dropdown of these variants.
+                The chosen variant's rate overrides the base rate for that door.
+            </p>
+        </div>
+    </details>`;
+}
+
+function addDoorVariant(itemIdx) {
+    const list = hardwareMaster.Door || [];
+    const item = list[itemIdx];
+    if (!item) return;
+    if (!Array.isArray(item.variants)) item.variants = [];
+    item.variants.push({ label: 'New Variant', rate: item.rate || 100 });
+    if (!item.defaultVariant && item.variants.length === 1) item.defaultVariant = 'New Variant';
+    autoSaveHardwareMaster();
+    refreshHardwareMaster();
+}
+
+function updateDoorVariantField(itemIdx, variantIdx, field, value) {
+    const list = hardwareMaster.Door || [];
+    const item = list[itemIdx];
+    if (!item || !Array.isArray(item.variants) || !item.variants[variantIdx]) return;
+    const v = item.variants[variantIdx];
+    const oldLabel = v.label;
+    if (field === 'rate') {
+        v.rate = parseFloat(value) || 0;
+    } else if (field === 'label') {
+        v.label = value;
+        // If this variant was the default, keep it as default under the new label
+        if (item.defaultVariant === oldLabel) item.defaultVariant = value;
+    }
+    autoSaveHardwareMaster();
+    // No full refresh — let the edited input keep focus
+}
+
+function setDoorVariantDefault(itemIdx, variantIdx) {
+    const list = hardwareMaster.Door || [];
+    const item = list[itemIdx];
+    if (!item || !Array.isArray(item.variants) || !item.variants[variantIdx]) return;
+    item.defaultVariant = item.variants[variantIdx].label;
+    autoSaveHardwareMaster();
+    refreshHardwareMaster();
+}
+
+function deleteDoorVariant(itemIdx, variantIdx) {
+    const list = hardwareMaster.Door || [];
+    const item = list[itemIdx];
+    if (!item || !Array.isArray(item.variants) || !item.variants[variantIdx]) return;
+    const removed = item.variants.splice(variantIdx, 1)[0];
+    // If we removed the default, pick the next one (or null if empty)
+    if (item.defaultVariant === removed.label) {
+        item.defaultVariant = item.variants[0]?.label || null;
+    }
+    autoSaveHardwareMaster();
+    refreshHardwareMaster();
 }
 
 function showAddHardwareModal(series) {

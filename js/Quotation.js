@@ -1884,8 +1884,13 @@ function calculateWindowHardware(window, optimizationResults = null) {
         quantity = Math.round(quantity * 100) / 100;
 
         if (quantity > 0) {
+            // v1.22: append chosen variant to the hardware name so vendor sees
+            // exactly which size/type was selected. e.g. "Door Hinge — 5"×1.25"".
+            const displayName = item.variant
+                ? `${item.hardware} — ${item.variant}`
+                : item.hardware;
             results.push({
-                hardware: item.hardware,
+                hardware: displayName,
                 qty: quantity,
                 unit: item.unit,
                 rate: item.rate,
