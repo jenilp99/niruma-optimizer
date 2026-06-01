@@ -1369,22 +1369,206 @@ function addDoor(event) {
         mosquitoShutters: 0
     };
 
-    windows.push(doorData);
-    autoSaveWindows();
+    if (editingDoorIndex !== null && windows[editingDoorIndex]) {
+        // EDIT MODE — merge into existing door, preserve any fields not in the form
+        // (e.g. componentThicknesses set via the Thickness modal)
+        const original = windows[editingDoorIndex];
+        windows[editingDoorIndex] = { ...original, ...doorData };
+        autoSaveWindows();
+        const editedId = doorData.configId;
+        exitDoorEditMode(/*resetForm=*/true);
+        showAlert(`✅ Door ${editedId} updated successfully!`);
+    } else {
+        // ADD MODE — push new door
+        windows.push(doorData);
+        autoSaveWindows();
+        incrementConfigCounter('Door');
+        document.getElementById('doorConfigId').value = getNextConfigId('Door');
+        showAlert(`✅ Door ${doorData.configId} added successfully!`);
+    }
 
-    incrementConfigCounter('Door');
-    document.getElementById('doorConfigId').value = getNextConfigId('Door');
-
-    showAlert(`✅ Door ${doorData.configId} added successfully!`);
     refreshProjectSelector();
     displayWindows();
 }
 
-// Clear Door form
+// Clear Door form (user-triggered "Clear" button)
 function clearDoorForm() {
+    // Also abort any in-progress edit
+    if (editingDoorIndex !== null) {
+        exitDoorEditMode(/*resetForm=*/false);
+    }
     document.getElementById('doorForm').reset();
     document.getElementById('doorConfigId').value = getNextConfigId('Door');
     renderDoorAccessoriesChecklist('Hinge');
+    // Re-run conditional UI handlers after reset so ACP/Glass rows reflect reset state
+    if (typeof updateDoorPartitionThickness === 'function') {
+        updateDoorPartitionThickness('upper');
+        updateDoorPartitionThickness('lower');
+    }
+    if (typeof toggleClosingMechanism === 'function') toggleClosingMechanism();
+    if (typeof updateHandleWidthOptions === 'function') updateHandleWidthOptions();
+    if (typeof toggleDoubleDoorOptions === 'function') toggleDoubleDoorOptions();
+}
+
+// ============================================================================
+// DOOR — IN-PLACE EDIT MODE (Phase 2)
+// ============================================================================
+
+let editingDoorIndex = null;
+
+function editDoorInPlace(idx) {
+    const w = windows[idx];
+    if (!w || w.series !== 'Door') {
+        showAlert('Not a door — use the standard editor.', 'error');
+        return;
+    }
+
+    editingDoorIndex = idx;
+
+    // 1. Switch to Door tab + scroll to add section
+    if (typeof switchAddMode === 'function') switchAddMode('Door');
+    scrollToSection('section-add');
+
+    // 2. Populate every form field from the saved door
+    populateDoorFormFromObject(w);
+
+    // 3. Flip submit button + show cancel button + show editing badge
+    setDoorFormEditingUI(true, w.configId);
+}
+
+function cancelDoorEdit() {
+    if (editingDoorIndex === null) return;
+    exitDoorEditMode(/*resetForm=*/true);
+    showAlert('✕ Edit cancelled');
+}
+
+function exitDoorEditMode(resetForm) {
+    editingDoorIndex = null;
+    setDoorFormEditingUI(false, null);
+    if (resetForm) {
+        document.getElementById('doorForm').reset();
+        document.getElementById('doorConfigId').value = getNextConfigId('Door');
+        renderDoorAccessoriesChecklist('Hinge');
+        if (typeof updateDoorPartitionThickness === 'function') {
+            updateDoorPartitionThickness('upper');
+            updateDoorPartitionThickness('lower');
+        }
+        if (typeof toggleClosingMechanism === 'function') toggleClosingMechanism();
+        if (typeof updateHandleWidthOptions === 'function') updateHandleWidthOptions();
+        if (typeof toggleDoubleDoorOptions === 'function') toggleDoubleDoorOptions();
+    }
+}
+
+function setDoorFormEditingUI(isEditing, configId) {
+    const submitBtn = document.getElementById('doorSubmitBtn');
+    const cancelBtn = document.getElementById('doorCancelEditBtn');
+    const badge     = document.getElementById('doorEditModeBadge');
+    const idInput   = document.getElementById('doorConfigId');
+
+    if (submitBtn) submitBtn.innerHTML = isEditing ? '💾 Update Door' : '✅ Add Door';
+    if (cancelBtn) cancelBtn.style.display = isEditing ? '' : 'none';
+    if (badge)     {
+        badge.style.display = isEditing ? '' : 'none';
+        badge.textContent   = isEditing ? `✏️ Editing ${configId}` : '';
+    }
+    // Lock Config ID during edit (changing it would break references)
+    if (idInput)   idInput.readOnly = !!isEditing;
+}
+
+function populateDoorFormFromObject(w) {
+    const setVal = (id, val) => { const el = document.getElementById(id); if (el != null && val != null) el.value = val; };
+    const setChk = (id, val) => { const el = document.getElementById(id); if (el != null) el.checked = !!val; };
+
+    // Identity / location
+    setVal('doorConfigId',    w.configId);
+    setVal('doorProjectName', w.projectName);
+    setVal('doorLocation',    w.location || '');
+    setVal('doorVendor',      w.vendor || '');
+    setVal('doorDescription', w.description || '');
+
+    // Dimensions — respect current unit mode for display
+    const displayW = unitMode === 'mm' ? Math.round((w.width  || 0) * 25.4) : w.width;
+    const displayH = unitMode === 'mm' ? Math.round((w.height || 0) * 25.4) : w.height;
+    setVal('doorWidth',  displayW);
+    setVal('doorHeight', displayH);
+
+    setVal('doorQty', w.qty || 1);
+
+    // Door type / leaves
+    setVal('doorType', w.doorType || ((w.leaves || 1) > 1 ? 'double' : 'single'));
+    if (typeof toggleDoubleDoorOptions === 'function') toggleDoubleDoorOptions();
+
+    // Frame
+    setVal('doorFrameSelect', String(w.frame != null ? w.frame : 1));
+
+    // Closing mechanism + floor spring profile + handle profile / width
+    setVal('doorClosingMechanism',        w.closingMechanism || 'Hinge');
+    setVal('doorHingeSideProfileFS',      w.floorSpringHingeProfile || '');
+    setVal('doorHandleProfileNew',        w.handleProfile || 'Door Vertical');
+    setVal('doorHandleWidthNew',          String(w.handleWidth || 47.5));
+    setVal('doorBottomProfileNew',        w.bottomProfile || 'Door Bottom');
+    setVal('doorMiddleWidthNew',          String(w.middleWidth || 47.5));
+    setVal('doorTopWidthNew',             String(w.topWidth || 47.5));
+
+    // Middle rail position: checkbox + value pair
+    const mrCustom = document.getElementById('doorMiddleCustomPos');
+    const mrPos    = document.getElementById('doorMiddlePosition');
+    const hasCustom = w.middleRailPositionMM != null;
+    if (mrCustom) {
+        mrCustom.checked = hasCustom;
+        // Fire change handler if there is one so the position input enables/disables
+        try { mrCustom.dispatchEvent(new Event('change', { bubbles: true })); } catch (e) {}
+    }
+    if (mrPos && hasCustom) mrPos.value = w.middleRailPositionMM;
+
+    // Partitions
+    const up = w.upperPartition || {};
+    const lo = w.lowerPartition || {};
+    setVal('doorUpperMaterial', up.material || 'Glass');
+    setVal('doorLowerMaterial', lo.material || 'Bakelite');
+    // Rebuild thickness option lists for current materials, THEN set thickness
+    if (typeof updateDoorPartitionThickness === 'function') {
+        updateDoorPartitionThickness('upper');
+        updateDoorPartitionThickness('lower');
+    }
+    setVal('doorUpperThickness',      up.thickness   != null ? String(up.thickness) : '');
+    setVal('doorLowerThickness',      lo.thickness   != null ? String(lo.thickness) : '');
+    setVal('doorUpperGlassType',      up.glassType   || 'SGU');
+    setVal('doorLowerGlassType',      lo.glassType   || 'SGU');
+    setVal('doorUpperGlassToughened', up.glassToughened ? '1' : '0');
+    setVal('doorLowerGlassToughened', lo.glassToughened ? '1' : '0');
+    setVal('doorUpperAcpFacing',      up.acpFacing || 'single');
+    setVal('doorLowerAcpFacing',      lo.acpFacing || 'single');
+
+    // Re-fire conditional UI handlers
+    if (typeof toggleClosingMechanism === 'function') toggleClosingMechanism();
+    if (typeof updateHandleWidthOptions === 'function') updateHandleWidthOptions();
+
+    // Accessories — render fresh checklist, then apply this door's selections
+    const cm = w.closingMechanism || 'Hinge';
+    renderDoorAccessoriesChecklist(cm);
+    applyAccessorySelectionsToForm(w.accessories);
+}
+
+// Take the saved accessories array (the items checked at door-creation time)
+// and apply to the rendered checklist: tick matching items, untick others,
+// and write the saved formula / rate overrides back into the inputs.
+function applyAccessorySelectionsToForm(savedAccessories) {
+    const items = getDoorHardwareList();
+    const savedByName = {};
+    (savedAccessories || []).forEach(a => { if (a && a.hardware) savedByName[a.hardware] = a; });
+
+    items.forEach((master, i) => {
+        const saved = savedByName[master.hardware];
+        const cb    = document.getElementById(`accCheck_${i}`);
+        const fEl   = document.getElementById(`accFormula_${i}`);
+        const rEl   = document.getElementById(`accRate_${i}`);
+        if (cb) cb.checked = !!saved;
+        if (saved) {
+            if (fEl && saved.formula != null) fEl.value = saved.formula;
+            if (rEl && saved.rate    != null) rEl.value = saved.rate;
+        }
+    });
 }
 
 // Thickness options per material
@@ -1887,7 +2071,7 @@ function renderWindowCard(w, idx) {
                 <div><strong>Thickness:</strong> <span style="color: ${hasThickness ? '#2e7d32' : '#e67e22'};">${thicknessStatus} ${thicknessLabel}</span></div>
             </div>
             <div class="window-actions">
-                <button class="btn btn-warning btn-sm" onclick="editWindow(${idx})">✏️ Edit</button>
+                <button class="btn btn-warning btn-sm" onclick="${isDoor ? `editDoorInPlace(${idx})` : `editWindow(${idx})`}">✏️ Edit</button>
                 <button class="btn btn-danger btn-sm" onclick="deleteWindow(${idx})">🗑️ Delete</button>
                 <button class="btn btn-info btn-sm" onclick="openComponentThicknessModal(${idx})">🔗 Thickness</button>
             </div>
