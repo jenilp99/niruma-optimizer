@@ -209,9 +209,48 @@ function initializeDefaults() {
     const defaultStock = (typeof getAggregatedStockDefaults === 'function') ? getAggregatedStockDefaults() : {};
     const defaultHardware = (typeof getAggregatedHardware === 'function') ? getAggregatedHardware() : {};
 
-    // 3. Populate Hardware Master (Always overwrite from registry as it's not persisted yet)
-    // If we implement hardware persistence later, this logic will need to change.
+    // 3. Populate Hardware Master
+    // Start with registry defaults, then overlay any persisted user edits from localStorage.
+    // (Door series is seeded by getDoorHardwareList() if still missing after this merge.)
     hardwareMaster = defaultHardware;
+    try {
+        const savedHardware = JSON.parse(localStorage.getItem('hardwareMaster') || 'null');
+        if (savedHardware && typeof savedHardware === 'object') {
+            for (const [series, items] of Object.entries(savedHardware)) {
+                if (Array.isArray(items)) hardwareMaster[series] = items;
+            }
+        }
+    } catch (e) { console.warn('Could not restore saved hardware master:', e); }
+    // Seed Door series if missing (first-ever load, or older save predates this feature)
+    if (typeof getDoorHardwareList === 'function') getDoorHardwareList();
+
+    // ── Migrate existing saved doors (one-shot, silent) ────────────────────────
+    // (a) Doors saved before v1.20 lack an explicit accessories array → seed defaults.
+    // (b) Doors with ACP partitions before v1.20 lack acpFacing → default to 'single'.
+    let doorMigrated = false;
+    (windows || []).forEach(w => {
+        if (w && w.series === 'Door') {
+            if (w.accessories === undefined) {
+                const cm = w.closingMechanism || 'Hinge';
+                w.accessories = getDoorHardwareList()
+                    .filter(it => (it.mechanism || 'both') === 'both' || (it.mechanism || 'both') === cm)
+                    .map(it => ({ hardware: it.hardware, unit: it.unit, formula: it.formula, rate: it.rate }));
+                doorMigrated = true;
+            }
+            if (w.upperPartition && w.upperPartition.material === 'ACP' && w.upperPartition.acpFacing === undefined) {
+                w.upperPartition.acpFacing = 'single';
+                doorMigrated = true;
+            }
+            if (w.lowerPartition && w.lowerPartition.material === 'ACP' && w.lowerPartition.acpFacing === undefined) {
+                w.lowerPartition.acpFacing = 'single';
+                doorMigrated = true;
+            }
+        }
+    });
+    if (doorMigrated) {
+        autoSaveWindows();
+        console.log('🚪 Migrated existing door(s): seeded accessories / acpFacing where missing.');
+    }
 
     // 4. Initialize Series Formulas
     // Only initialize if no data loaded from storage, OR check if we need to add missing keys
@@ -1149,10 +1188,11 @@ function switchAddMode(mode) {
 }
 
 // ============================================================================
-// DOOR ACCESSORIES — Master list, UI helpers, read/write
+// DOOR ACCESSORIES — Now sourced from hardwareMaster['Door']
+// (seeded once on first load; user manages via Hardware Master Configuration)
 // ============================================================================
 
-const DOOR_ACCESSORIES_MASTER = [
+const DOOR_HARDWARE_DEFAULTS = [
     { hardware: 'Door Hinge',      unit: 'Nos',  formula: '4 * L',      rate: 52,   mechanism: 'Hinge'       },
     { hardware: 'Floor Spring',    unit: 'Nos',  formula: '1 * L',      rate: 3500, mechanism: 'FloorSpring' },
     { hardware: 'Door Handle',     unit: 'Nos',  formula: '2 * L',      rate: 450,  mechanism: 'both'        },
@@ -1163,13 +1203,24 @@ const DOOR_ACCESSORIES_MASTER = [
     { hardware: 'Door Rod 12mm',   unit: 'Nos',  formula: '2 * L',      rate: 60,   mechanism: 'both'        },
 ];
 
+// Convenience accessor — always returns array (seeds if missing)
+function getDoorHardwareList() {
+    if (!hardwareMaster.Door || hardwareMaster.Door.length === 0) {
+        hardwareMaster.Door = JSON.parse(JSON.stringify(DOOR_HARDWARE_DEFAULTS));
+        if (typeof autoSaveHardwareMaster === 'function') autoSaveHardwareMaster();
+    }
+    return hardwareMaster.Door;
+}
+
 // Initial render — called when door tab opens or form is cleared
 function renderDoorAccessoriesChecklist(mechanism) {
     const tbody = document.getElementById('doorAccessoriesBody');
     if (!tbody) return;
     tbody.innerHTML = '';
-    DOOR_ACCESSORIES_MASTER.forEach((item, i) => {
-        const checked = item.mechanism === 'both' || item.mechanism === mechanism;
+    const items = getDoorHardwareList();
+    items.forEach((item, i) => {
+        const mech = item.mechanism || 'both';
+        const checked = mech === 'both' || mech === mechanism;
         tbody.insertAdjacentHTML('beforeend', `
             <tr id="accRow_${i}" style="border-bottom:1px solid #f5e0c8;">
                 <td style="text-align:center;padding:5px;width:36px;">
@@ -1191,46 +1242,13 @@ function renderDoorAccessoriesChecklist(mechanism) {
 
 // When closing mechanism changes — only flip mechanism-specific rows, leave user edits alone
 function updateAccessoriesForMechanism(mechanism) {
-    DOOR_ACCESSORIES_MASTER.forEach((item, i) => {
-        if (item.mechanism === 'both') return;
+    const items = getDoorHardwareList();
+    items.forEach((item, i) => {
+        const mech = item.mechanism || 'both';
+        if (mech === 'both') return;
         const cb = document.getElementById(`accCheck_${i}`);
-        if (cb) cb.checked = (item.mechanism === mechanism);
+        if (cb) cb.checked = (mech === mechanism);
     });
-}
-
-// Add a blank custom row
-function addCustomDoorAccessory() {
-    const tbody = document.getElementById('doorAccessoriesBody');
-    if (!tbody) return;
-    const uid = 'accCustom_' + Date.now();
-    tbody.insertAdjacentHTML('beforeend', `
-        <tr id="${uid}" style="border-bottom:1px solid #f5e0c8;background:#fffbf5;">
-            <td style="text-align:center;padding:5px;width:36px;">
-                <input type="checkbox" checked>
-            </td>
-            <td style="padding:5px 6px;">
-                <input type="text" placeholder="Item name"
-                    style="width:115px;padding:3px 6px;border:1px solid #ddd;border-radius:3px;font-size:12px;">
-            </td>
-            <td style="padding:5px 6px;">
-                <input type="text" value="1 * L"
-                    style="width:95px;padding:3px 6px;border:1px solid #ddd;border-radius:3px;font-size:12px;font-family:monospace;">
-            </td>
-            <td style="padding:5px 6px;">
-                <select style="padding:3px 4px;border:1px solid #ddd;border-radius:3px;font-size:12px;">
-                    <option value="Nos" selected>Nos</option>
-                    <option value="R.Ft">R.Ft</option>
-                    <option value="Sqft">Sqft</option>
-                    <option value="Set">Set</option>
-                </select>
-            </td>
-            <td style="padding:5px 6px;display:flex;gap:4px;align-items:center;">
-                <input type="number" value="0" min="0"
-                    style="width:72px;padding:3px 6px;border:1px solid #ddd;border-radius:3px;font-size:12px;">
-                <button type="button" onclick="this.closest('tr').remove()"
-                    style="padding:2px 7px;background:#dc3545;color:white;border:none;border-radius:3px;cursor:pointer;font-size:12px;line-height:1.4;">✕</button>
-            </td>
-        </tr>`);
 }
 
 // Read checked accessories from the table
@@ -1238,29 +1256,24 @@ function readDoorAccessories() {
     const tbody = document.getElementById('doorAccessoriesBody');
     if (!tbody) return [];
     const result = [];
+    const items = getDoorHardwareList();
 
     tbody.querySelectorAll('tr').forEach(row => {
         const cb = row.querySelector('input[type="checkbox"]');
         if (!cb || !cb.checked) return;
+        if (!row.id || !row.id.startsWith('accRow_')) return;
 
-        if (row.id && row.id.startsWith('accRow_')) {
-            // Master row
-            const idx = parseInt(row.id.replace('accRow_', ''));
-            const master = DOOR_ACCESSORIES_MASTER[idx];
-            const formula = document.getElementById(`accFormula_${idx}`)?.value?.trim() || master.formula;
-            const rate    = parseFloat(document.getElementById(`accRate_${idx}`)?.value)  || master.rate;
-            result.push({ hardware: master.hardware, unit: master.unit, formula, rate });
-        } else {
-            // Custom row
-            const allText = row.querySelectorAll('input[type="text"]');
-            const allNum  = row.querySelectorAll('input[type="number"]');
-            const sel     = row.querySelector('select');
-            const name    = allText[0]?.value?.trim();
-            const formula = allText[1]?.value?.trim() || '1 * L';
-            const unit    = sel?.value || 'Nos';
-            const rate    = parseFloat(allNum[0]?.value) || 0;
-            if (name) result.push({ hardware: name, unit, formula, rate });
-        }
+        const idx = parseInt(row.id.replace('accRow_', ''));
+        const master = items[idx];
+        if (!master) return;
+        const formula = document.getElementById(`accFormula_${idx}`)?.value?.trim() || master.formula;
+        const rate    = parseFloat(document.getElementById(`accRate_${idx}`)?.value);
+        result.push({
+            hardware: master.hardware,
+            unit:     master.unit,
+            formula,
+            rate:     isNaN(rate) ? master.rate : rate
+        });
     });
     return result;
 }
@@ -1299,7 +1312,10 @@ function addDoor(event) {
         material:       upperMat,
         thickness:      document.getElementById('doorUpperThickness').value,
         glassType:      upperMat === 'Glass' ? document.getElementById('doorUpperGlassType').value : null,
-        glassToughened: upperMat === 'Glass' ? document.getElementById('doorUpperGlassToughened').value === '1' : false
+        glassToughened: upperMat === 'Glass' ? document.getElementById('doorUpperGlassToughened').value === '1' : false,
+        // ACP facing: 'single' (1 sheet/panel, default) or 'double' (2 sheets/panel — front + back)
+        // ACP commercially comes single-side coated only; 'double' = customer wants both faces coated → 2 sheets
+        acpFacing:      upperMat === 'ACP' ? (document.getElementById('doorUpperAcpFacing')?.value || 'single') : null
     };
 
     // Lower partition
@@ -1308,7 +1324,8 @@ function addDoor(event) {
         material:       lowerMat,
         thickness:      document.getElementById('doorLowerThickness').value,
         glassType:      lowerMat === 'Glass' ? document.getElementById('doorLowerGlassType').value : null,
-        glassToughened: lowerMat === 'Glass' ? document.getElementById('doorLowerGlassToughened').value === '1' : false
+        glassToughened: lowerMat === 'Glass' ? document.getElementById('doorLowerGlassToughened').value === '1' : false,
+        acpFacing:      lowerMat === 'ACP' ? (document.getElementById('doorLowerAcpFacing')?.value || 'single') : null
     };
 
     // Primary glass unit derived from upper partition (used by existing quotation glass lookup)
@@ -1384,11 +1401,14 @@ const _partitionThicknessOpts = {
 };
 
 function updateDoorPartitionThickness(zone) {
-    const mat       = document.getElementById(`door${zone.charAt(0).toUpperCase()+zone.slice(1)}Material`)?.value || 'Glass';
-    const thickSel  = document.getElementById(`door${zone.charAt(0).toUpperCase()+zone.slice(1)}Thickness`);
-    const glassRow  = document.getElementById(`door${zone.charAt(0).toUpperCase()+zone.slice(1)}GlassRow`);
+    const cap = zone.charAt(0).toUpperCase() + zone.slice(1);
+    const mat       = document.getElementById(`door${cap}Material`)?.value || 'Glass';
+    const thickSel  = document.getElementById(`door${cap}Thickness`);
+    const glassRow  = document.getElementById(`door${cap}GlassRow`);
+    const acpRow    = document.getElementById(`door${cap}AcpFacingRow`);
 
     if (glassRow) glassRow.style.display = mat === 'Glass' ? 'flex' : 'none';
+    if (acpRow)   acpRow.style.display   = mat === 'ACP'   ? '' : 'none';
 
     if (thickSel) {
         const opts = _partitionThicknessOpts[mat] || [{ v: '0', t: 'N/A' }];
@@ -2141,7 +2161,13 @@ function saveWindowEdit(event) {
         updatedWindow.mosquitoShutters = parseInt(document.getElementById('editMosquitoShutters').value);
     }
 
-    windows[idx] = updatedWindow;
+    // MERGE instead of REPLACE — preserves fields the edit modal doesn't expose
+    // (accessories, upperPartition, lowerPartition, leaves, closingMechanism,
+    //  middleRailPositionMM, floorSpringHingeProfile, handleWidth, handleProfileNew,
+    //  doorType, qty, location, acpFacing, etc.)
+    // Without this, editing any field silently wiped all unedited data.
+    const original = windows[idx] || {};
+    windows[idx] = { ...original, ...updatedWindow };
 
     autoSaveWindows();
     closeEditWindowModal();
@@ -2536,34 +2562,69 @@ function updateAluminumRate() {
 function refreshHardwareMaster() {
     const container = document.getElementById('hardwareMasterList');
     if (!container) return;
+    // Ensure Door series is seeded (in case localStorage didn't have it yet)
+    getDoorHardwareList();
+
     let html = '';
 
-    Object.entries(hardwareMaster).forEach(([series, hardwareItems]) => {
+    // Pin Door series at top of the list so users find it quickly
+    const seriesKeys = Object.keys(hardwareMaster);
+    seriesKeys.sort((a, b) => {
+        if (a === 'Door') return -1;
+        if (b === 'Door') return 1;
+        return 0;
+    });
+
+    seriesKeys.forEach(series => {
+        const hardwareItems = hardwareMaster[series];
+        const isDoor = series === 'Door';
+        const titleIcon = isDoor ? '🚪' : '🪟';
+        const colTitle = isDoor ? `${titleIcon} Door Accessories` : `${titleIcon} ${series} Series Hardware`;
+
+        // Column widths differ slightly for Door (extra mechanism column)
+        const cols = isDoor
+            ? `<th style="width: 22%">Hardware Item</th>
+               <th style="width: 14%">Mechanism</th>
+               <th style="width: 10%">Unit</th>
+               <th style="width: 30%">Quantity Formula <span class="formula-info-icon" title="L: Number of leaves (1 single, 2 double). W,H: door width/height.">ⓘ</span></th>
+               <th style="width: 14%">Rate (₹)</th>
+               <th style="width: 10%">Actions</th>`
+            : `<th style="width: 25%">Hardware Item</th>
+               <th style="width: 10%">Unit</th>
+               <th style="width: 40%">Quantity Formula <span class="formula-info-icon" title="H: Height, W: Width, S: Shutters, MS: Mosquito, T: Tracks, GL: Get Length">ⓘ</span></th>
+               <th style="width: 15%">Rate (₹)</th>
+               <th style="width: 10%">Actions</th>`;
+
         html += `< div class="stock-material-card" >
-            <h4>${series} Series Hardware
+            <h4>${colTitle}
                 <button class="btn btn-success btn-sm" style="float: right;" onclick="showAddHardwareModal('${series}')">➕ Add Item</button>
             </h4>
             <div style="overflow-x: auto;">
                 <table class="hardware-table">
-                    <thead>
-                        <tr>
-                            <th style="width: 25%">Hardware Item</th>
-                            <th style="width: 10%">Unit</th>
-                            <th style="width: 40%">Quantity Formula <span class="formula-info-icon" title="H: Height, W: Width, S: Shutters, MS: Mosquito, T: Tracks, GL: Get Length">ⓘ</span></th>
-                            <th style="width: 15%">Rate (₹)</th>
-                            <th style="width: 10%">Actions</th>
-                        </tr>
-                    </thead>
+                    <thead><tr>${cols}</tr></thead>
                     <tbody>`;
 
         hardwareItems.forEach((item, idx) => {
-            html += `<tr>
-                <td><input type="text" value="${item.hardware || ''}" onchange="updateHardwareField('${series}', ${idx}, 'hardware', this.value)" style="width: 100%; padding: 5px; border: 1px solid #ddd; border-radius: 4px; font-weight: 500;"></td>
-                <td><input type="text" value="${item.unit || 'Nos'}" onchange="updateHardwareField('${series}', ${idx}, 'unit', this.value)" style="width: 100%; padding: 5px; border: 1px solid #ddd; border-radius: 4px;"></td>
-                <td><input type="text" value="${item.formula || ''}" onchange="updateHardwareField('${series}', ${idx}, 'formula', this.value)" style="width: 100%; font-family: monospace; padding: 5px; border: 1px solid #ddd; border-radius: 4px;"></td>
-                <td><input type="number" value="${item.rate}" onchange="updateHardwareField('${series}', ${idx}, 'rate', this.value)" style="width: 100%; padding: 5px; border: 1px solid #ddd; border-radius: 4px;"></td>
-                <td><button class="btn btn-danger btn-sm" onclick="deleteHardwareItem('${series}', ${idx})">🗑️</button></td>
-            </tr>`;
+            // Per-item row
+            const nameCell = `<td><input type="text" value="${item.hardware || ''}" onchange="updateHardwareField('${series}', ${idx}, 'hardware', this.value)" style="width: 100%; padding: 5px; border: 1px solid #ddd; border-radius: 4px; font-weight: 500;"></td>`;
+            const unitCell = `<td><input type="text" value="${item.unit || 'Nos'}" onchange="updateHardwareField('${series}', ${idx}, 'unit', this.value)" style="width: 100%; padding: 5px; border: 1px solid #ddd; border-radius: 4px;"></td>`;
+            const formulaCell = `<td><input type="text" value="${item.formula || ''}" onchange="updateHardwareField('${series}', ${idx}, 'formula', this.value)" style="width: 100%; font-family: monospace; padding: 5px; border: 1px solid #ddd; border-radius: 4px;"></td>`;
+            const rateCell = `<td><input type="number" value="${item.rate}" onchange="updateHardwareField('${series}', ${idx}, 'rate', this.value)" style="width: 100%; padding: 5px; border: 1px solid #ddd; border-radius: 4px;"></td>`;
+            const actionCell = `<td><button class="btn btn-danger btn-sm" onclick="deleteHardwareItem('${series}', ${idx})">🗑️</button></td>`;
+
+            if (isDoor) {
+                const mech = item.mechanism || 'both';
+                const mechCell = `<td>
+                    <select onchange="updateHardwareField('${series}', ${idx}, 'mechanism', this.value)" style="width:100%;padding:5px;border:1px solid #ddd;border-radius:4px;">
+                        <option value="both"        ${mech==='both'        ?'selected':''}>Both</option>
+                        <option value="Hinge"       ${mech==='Hinge'       ?'selected':''}>Hinge only</option>
+                        <option value="FloorSpring" ${mech==='FloorSpring' ?'selected':''}>Floor Spring only</option>
+                    </select>
+                </td>`;
+                html += `<tr>${nameCell}${mechCell}${unitCell}${formulaCell}${rateCell}${actionCell}</tr>`;
+            } else {
+                html += `<tr>${nameCell}${unitCell}${formulaCell}${rateCell}${actionCell}</tr>`;
+            }
         });
 
         html += '</tbody></table></div></div > ';
@@ -2587,6 +2648,13 @@ function showAddHardwareModal(series) {
     document.getElementById('modalHardwareUnit').value = 'Nos';
     document.getElementById('modalHardwareFormula').value = '';
     document.getElementById('modalHardwareRate').value = '';
+    // Show mechanism dropdown only when adding to Door series
+    const mechRow = document.getElementById('modalHardwareMechanismRow');
+    if (mechRow) {
+        mechRow.style.display = (series === 'Door') ? '' : 'none';
+        const mechEl = document.getElementById('modalHardwareMechanism');
+        if (mechEl) mechEl.value = 'both';
+    }
     document.getElementById('addHardwareModal').classList.add('active');
     document.body.style.overflow = 'hidden';
 }
@@ -2606,7 +2674,12 @@ function saveNewHardwareItem(event) {
 
     if (!hardwareMaster[series]) hardwareMaster[series] = [];
 
-    hardwareMaster[series].push({ hardware, unit, formula, rate });
+    const newItem = { hardware, unit, formula, rate };
+    if (series === 'Door') {
+        const mechEl = document.getElementById('modalHardwareMechanism');
+        newItem.mechanism = (mechEl && mechEl.value) || 'both';
+    }
+    hardwareMaster[series].push(newItem);
     autoSaveHardwareMaster();
     closeAddHardwareModal();
     refreshHardwareMaster();

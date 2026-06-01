@@ -1778,8 +1778,10 @@ function safeEval(formula, context, defaultValue = 0) {
 }
 
 function generateDoorHardware(win) {
-    // Use accessories saved on the door config (set via checklist in door form)
-    if (win.accessories && win.accessories.length > 0) {
+    // Use accessories saved on the door config (set via checklist in door form).
+    // Empty array = user explicitly unchecked all items → honor that, return [].
+    // Only fall through to defaults when the field is truly missing (legacy doors).
+    if (Array.isArray(win.accessories)) {
         return win.accessories;
     }
 

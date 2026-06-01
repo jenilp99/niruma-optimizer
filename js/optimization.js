@@ -989,13 +989,37 @@ function collectPartitionPanels(windows) {
                 ? (win.upperPartition || (win.partitionMaterial ? { material: win.partitionMaterial, thickness: String(win.partitionThickness || '0') } : null))
                 : win.lowerPartition;
             if (!part || !SHEET_MATS.has(part.material)) return;
-            panels.push({
-                label: `${win.configId} (${zone})`,
-                material: part.material,
-                thickness: String(part.thickness || '0'),
-                w: panelW, h: zoneH,
-                qty: qty * L,
-            });
+
+            const baseQty = qty * L;
+            // ACP double-side coating: customer wants both faces coated, but ACP sheets
+            // come only single-side coated commercially → need 2 sheets per panel
+            // (one face for front, one face for back, plain sides glued together inside).
+            // Emit as two distinct rows so cutting plan shows W01(zone·front) + W01(zone·back).
+            const isAcpDouble = part.material === 'ACP' && part.acpFacing === 'double';
+            if (isAcpDouble) {
+                panels.push({
+                    label: `${win.configId} (${zone} · front)`,
+                    material: part.material,
+                    thickness: String(part.thickness || '0'),
+                    w: panelW, h: zoneH,
+                    qty: baseQty,
+                });
+                panels.push({
+                    label: `${win.configId} (${zone} · back)`,
+                    material: part.material,
+                    thickness: String(part.thickness || '0'),
+                    w: panelW, h: zoneH,
+                    qty: baseQty,
+                });
+            } else {
+                panels.push({
+                    label: `${win.configId} (${zone})`,
+                    material: part.material,
+                    thickness: String(part.thickness || '0'),
+                    w: panelW, h: zoneH,
+                    qty: baseQty,
+                });
+            }
         };
         addPanel('upper', upperH);
         addPanel('lower', lowerH);

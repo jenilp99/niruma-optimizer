@@ -10,8 +10,8 @@
     <title>Niruma Aluminum Profile Optimizer</title>
 
     <!-- CSS -->
-    <link rel="stylesheet" href="css/styles.css?v=1.19">
-    <link rel="stylesheet" href="css/modal.css?v=1.19">
+    <link rel="stylesheet" href="css/styles.css?v=1.20">
+    <link rel="stylesheet" href="css/modal.css?v=1.20">
 
     <!-- External Libraries -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -61,7 +61,7 @@
                 <span><strong>mm</strong></span>
             </div>
             <!-- APP VERSION — bump this number on every push/update -->
-            <div class="navbar-version">Ver: 1.19</div>
+            <div class="navbar-version">Ver: 1.20</div>
         </div>
     </nav>
 
@@ -528,6 +528,15 @@
                                             <option value="6" selected>6mm</option>
                                             <option value="8">8mm</option>
                                         </select>
+                                        <!-- ACP facing: only shown when material = ACP -->
+                                        <div id="doorUpperAcpFacingRow" style="display:none;">
+                                            <label style="font-size:11px;color:#1a5276;font-weight:600;">ACP Coating Sides</label>
+                                            <select id="doorUpperAcpFacing"
+                                                style="width:100%;padding:6px;border:1px solid #1a5276;border-radius:4px;font-size:12px;background:#fffceb;">
+                                                <option value="single" selected>Single-side (1 sheet / panel — default)</option>
+                                                <option value="double">Double-side (2 sheets / panel — front + back)</option>
+                                            </select>
+                                        </div>
                                     </div>
                                 </div>
                                 <!-- Lower Partition -->
@@ -562,6 +571,15 @@
                                             <option value="8">8mm</option>
                                             <option value="12">12mm</option>
                                         </select>
+                                        <!-- ACP facing: only shown when material = ACP -->
+                                        <div id="doorLowerAcpFacingRow" style="display:none;">
+                                            <label style="font-size:11px;color:#1e8449;font-weight:600;">ACP Coating Sides</label>
+                                            <select id="doorLowerAcpFacing"
+                                                style="width:100%;padding:6px;border:1px solid #1e8449;border-radius:4px;font-size:12px;background:#fffceb;">
+                                                <option value="single" selected>Single-side (1 sheet / panel — default)</option>
+                                                <option value="double">Double-side (2 sheets / panel — front + back)</option>
+                                            </select>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
@@ -652,14 +670,14 @@
                                         </tr>
                                     </thead>
                                     <tbody id="doorAccessoriesBody">
-                                        <!-- Populated by renderDoorAccessoriesChecklist() -->
+                                        <!-- Populated by renderDoorAccessoriesChecklist() from hardwareMaster['Door'] -->
                                     </tbody>
                                 </table>
                             </div>
-                            <button type="button" onclick="addCustomDoorAccessory()"
-                                style="padding:5px 14px;background:#e67e22;color:white;border:none;border-radius:4px;cursor:pointer;font-size:13px;margin-bottom:12px;">
-                                ➕ Add Custom Item
-                            </button>
+                            <p style="font-size:11px;color:#888;margin:2px 0 12px;">
+                                💡 Manage the master accessory list (add new items, edit defaults, delete) in
+                                <strong>Hardware Master Configuration</strong> under the 🚪 Door card.
+                            </p>
 
                             <!-- Actions -->
                             <div class="wizard-actions" style="margin-top: 20px;">
@@ -1199,7 +1217,16 @@
                         <label>Calculation Formula</label>
                         <input type="text" id="modalHardwareFormula" placeholder="e.g., 2 * S + MS" required>
                         <small style="color: #666;">Available: W (Width), H (Height), S (Shutters), MS (Mosquito), T
-                            (Tracks), P (Perimeter), GL("Name") (Profile Length)</small>
+                            (Tracks), P (Perimeter), L (Leaves — for doors), GL("Name") (Profile Length)</small>
+                    </div>
+                    <div class="form-group" id="modalHardwareMechanismRow" style="display:none;">
+                        <label>Closing Mechanism (Door only)</label>
+                        <select id="modalHardwareMechanism">
+                            <option value="both">Both (Hinge + Floor Spring)</option>
+                            <option value="Hinge">Hinge only</option>
+                            <option value="FloorSpring">Floor Spring only</option>
+                        </select>
+                        <small style="color: #666;">Controls which mechanism auto-checks this item on the door form.</small>
                     </div>
                     <div style="text-align: right; margin-top: 20px;">
                         <button type="button" class="btn btn-secondary"
@@ -1718,18 +1745,18 @@
     </div>
 
     <!-- JavaScript Files - Load in Order -->
-    <script src="js/storage.js?v=1.19"></script>
-    <script src="js/supplier_master.js?v=1.19"></script>
+    <script src="js/storage.js?v=1.20"></script>
+    <script src="js/supplier_master.js?v=1.20"></script>
     <!-- Supplier Modules -->
-    <script src="js/suppliers/windalco.js?v=1.19"></script>
-    <script src="js/suppliers/jk_alu.js?v=1.19"></script>
-    <script src="js/suppliers/atlantis.js?v=1.19"></script>
-    <script src="js/suppliers/vitco.js?v=1.19"></script>
+    <script src="js/suppliers/windalco.js?v=1.20"></script>
+    <script src="js/suppliers/jk_alu.js?v=1.20"></script>
+    <script src="js/suppliers/atlantis.js?v=1.20"></script>
+    <script src="js/suppliers/vitco.js?v=1.20"></script>
 
-    <script src="js/app.js?v=1.19"></script>
-    <script src="js/optimization.js?v=1.19"></script>
-    <script src="js/exports.js?v=1.19"></script>
-    <script src="js/Quotation.js?v=1.19"></script>
+    <script src="js/app.js?v=1.20"></script>
+    <script src="js/optimization.js?v=1.20"></script>
+    <script src="js/exports.js?v=1.20"></script>
+    <script src="js/Quotation.js?v=1.20"></script>
 
 </body>
 
