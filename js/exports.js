@@ -2475,22 +2475,28 @@ function exportMasterOrderSummaryPDF() {
         }
         y += 8;
 
-        // Body lines
+        // Body lines (v1.30: wrap to box width)
         doc.setTextColor(0, 0, 0);
         doc.setFont('helvetica', 'normal');
         doc.setFontSize(9);
-        const lineH = 5;
+        const lineH = 4.5;
         const lines = Array.isArray(summary) ? summary : [summary];
-        // Body box (light tinted background)
+        const maxW = PW - 2 * padX - 6;
+        // First pass: split each input line into wrapped segments
+        const wrapped = [];
+        lines.forEach(line => {
+            const parts = doc.splitTextToSize(line, maxW);
+            parts.forEach(p => wrapped.push(p));
+        });
         const bgR = colorRGB[0] + (255 - colorRGB[0]) * 0.88;
         const bgG = colorRGB[1] + (255 - colorRGB[1]) * 0.88;
         const bgB = colorRGB[2] + (255 - colorRGB[2]) * 0.88;
         doc.setFillColor(bgR, bgG, bgB);
-        doc.rect(padX, y, PW - 2 * padX, lines.length * lineH + 4, 'F');
-        lines.forEach((line, i) => {
+        doc.rect(padX, y, PW - 2 * padX, wrapped.length * lineH + 4, 'F');
+        wrapped.forEach((line, i) => {
             doc.text(line, padX + 3, y + 4 + i * lineH);
         });
-        y += lines.length * lineH + 6;
+        y += wrapped.length * lineH + 6;
     }
 
     // ── 1. Aluminum Profiles ────────────────────────────────────────────────
@@ -2737,131 +2743,101 @@ async function exportProjectSpecSheetPDF() {
 async function _drawSpecPage(doc, win, pageNum, totalPages, project, laborPerSqft) {
     const PW = doc.internal.pageSize.width;
     const PH = doc.internal.pageSize.height;
-    const MG = 12;
+    const MG = 10;                              // v1.30: tighter margins
     const isDoor = win.category === 'Door';
     const today = new Date().toLocaleDateString('en-IN', { day:'2-digit', month:'short', year:'numeric' });
 
-    // ── Top banner ─────────────────────────────────────────────────────────
+    // ── Top banner (compact, 16mm) ─────────────────────────────────────────
     const bannerColor = isDoor ? [191, 54, 12] : [30, 60, 114];
     doc.setFillColor(...bannerColor);
-    doc.rect(0, 0, PW, 22, 'F');
+    doc.rect(0, 0, PW, 16, 'F');
     doc.setTextColor(255, 255, 255);
     doc.setFont('helvetica', 'bold');
-    doc.setFontSize(14);
-    doc.text(`${isDoor ? '🚪' : '🪟'} ${win.configId}  —  ${win.description || (isDoor ? 'Door' : 'Window')}`, MG, 11);
+    doc.setFontSize(13);
+    doc.text(`${isDoor ? '🚪' : '🪟'} ${win.configId}  —  ${win.description || (isDoor ? 'Door' : 'Window')}`, MG, 10);
     doc.setFont('helvetica', 'normal');
-    doc.setFontSize(9);
-    doc.text(`Project: ${project}`, PW - MG, 8, { align: 'right' });
-    doc.text(`Date: ${today}`, PW - MG, 13, { align: 'right' });
-    doc.text(`Page ${pageNum} of ${totalPages}`, PW - MG, 18, { align: 'right' });
+    doc.setFontSize(8);
+    doc.text(`Project: ${project}   |   Date: ${today}   |   Page ${pageNum} of ${totalPages}`,
+        PW - MG, 12, { align: 'right' });
     doc.setTextColor(0, 0, 0);
 
-    let y = 28;
+    let y = 20;
 
-    // ── Top row: Identification (left) + Diagram (right) ───────────────────
-    const colGap = 6;
-    const diagW = 70;
-    const idW = PW - 2 * MG - colGap - diagW;
-
-    // Identification & Dimensions block
-    const idLines = [
-        `ID: ${win.configId}`,
-        `Location: ${win.location || '—'}`,
-        `Vendor: ${win.vendor || '—'}`,
-        `Series: ${win.series || '—'}`,
-        `Qty: ${win.qty || 1}    Type: ${isDoor ? ((win.leaves || 1) > 1 ? 'Double Door' : 'Single Door') : 'Window'}`
-    ];
+    // ── Top row: Identification + Dimensions combined (left) + Diagram (right)
+    const diagW = 60;
+    const idW = PW - 2 * MG - 4 - diagW;
     const wMm = Math.round(win.width * 25.4);
     const hMm = Math.round(win.height * 25.4);
     const areaSqft = (win.width * win.height / 144);
-    const dimLines = [
-        `Width:  ${wMm}mm  (${win.width.toFixed(2)}")`,
-        `Height: ${hMm}mm  (${win.height.toFixed(2)}")`,
-        `Area:   ${areaSqft.toFixed(2)} sqft`
+    const idLines = [
+        `ID: ${win.configId}    Qty: ${win.qty || 1}    ${isDoor ? ((win.leaves || 1) > 1 ? 'Double Door' : 'Single Door') : 'Window'}`,
+        `Location: ${win.location || '—'}`,
+        `Vendor: ${win.vendor || '—'}   |   Series: ${win.series || '—'}`,
+        `Size: ${wMm} × ${hMm} mm   (${win.width.toFixed(2)}" × ${win.height.toFixed(2)}")   |   Area: ${areaSqft.toFixed(2)} sqft`
     ];
+    _drawSpecBlock(doc, 'Identification & Dimensions', idLines, [108, 117, 125], MG, y, idW, 25);
 
-    _drawSpecBlock(doc, 'Identification', idLines, [108, 117, 125], MG, y, idW, 30);
-    _drawSpecBlock(doc, 'Dimensions',     dimLines, [52, 73, 94],   MG, y + 32, idW, 22);
-
-    // Diagram on the right
+    // Diagram on the right — compact, frame around
     try {
         const svgString = (typeof generateWindowDiagram === 'function') ? generateWindowDiagram(win) : null;
         if (svgString) {
-            const png = await _svgToPngDataUrl(svgString, 3);
+            const png = await _svgToPngDataUrl(svgString, 1.5, 'png');
             if (png && png.dataUrl) {
-                const maxH = 54;
-                let imgW = diagW;
+                const maxH = 25;
+                let imgW = diagW - 2;
                 let imgH = (png.h / png.w) * imgW;
                 if (imgH > maxH) { imgH = maxH; imgW = (png.w / png.h) * imgH; }
                 const dx = PW - MG - diagW + (diagW - imgW) / 2;
-                const dy = y + (54 - imgH) / 2;
-                // Light frame around diagram
+                const dy = y + (25 - imgH) / 2;
                 doc.setDrawColor(220, 220, 220);
-                doc.rect(PW - MG - diagW, y, diagW, 54);
-                doc.addImage(png.dataUrl, 'PNG', dx, dy, imgW, imgH);
+                doc.rect(PW - MG - diagW, y, diagW, 25);
+                doc.addImage(png.dataUrl, png.fmt || 'PNG', dx, dy, imgW, imgH);
             }
         }
     } catch (e) { console.warn('Spec sheet diagram error:', e); }
 
-    y += 60;
+    y += 27;
 
-    // ── Construction block ────────────────────────────────────────────────
+    // ── Construction + Partitions combined (doors) ────────────────────────
     const constrLines = [];
     if (isDoor) {
-        constrLines.push(`Frame: ${win.frame ? '3-Side (with leg partition)' : 'No frame'}    |    Closing: ${win.closingMechanism === 'FloorSpring' ? '🌀 Floor Spring' : '🔩 Hinge'}`);
-        constrLines.push(`Handle Profile: ${win.handleProfile || 'Door Vertical'}    Handle Width: ${win.handleWidth || 47.5}mm`);
-        constrLines.push(`Bottom Profile: ${win.bottomProfile || 'Door Bottom'}    Bottom Width: ${win.bottomWidth || 114.5}mm`);
-        constrLines.push(`Top Width: ${win.topWidth || 47.5}mm    Middle Width: ${win.middleWidth || 47.5}mm`);
-        if (win.floorSpringHingeProfile) constrLines.push(`Floor Spring Hinge Profile: ${win.floorSpringHingeProfile}`);
-    } else {
-        constrLines.push(`Tracks: ${win.tracks || '—'}    Shutters: ${win.shutters || '—'}    Mosquito: ${win.mosquitoShutters || 0}`);
-        constrLines.push(`Glass: ${win.glassUnit || 'SGU'} ${win.glassThickness || '5'}mm${win.glassToughened ? ' Toughened' : ' Non-Toughened'}`);
-        if (win.interlockType) constrLines.push(`Interlock: ${win.interlockType}    Corner Joint: ${win.cornerJoint || 90}°`);
-        if (win.mosquitoShutters > 0) constrLines.push(`Mosquito: type ${win.mosquitoType || 'V-2513'}, interlock ${win.mosquitoInterlock || 'V-2516'}`);
-    }
-    _drawSpecBlock(doc, 'Construction', constrLines, bannerColor, MG, y, PW - 2 * MG, constrLines.length * 4 + 8);
-    y += constrLines.length * 4 + 12;
-
-    // ── Partitions block (doors only) ──────────────────────────────────────
-    if (isDoor) {
-        const up = win.upperPartition || {};
-        const lo = win.lowerPartition || {};
+        constrLines.push(`Frame: ${win.frame ? '3-Side' : 'No frame'}   |   Closing: ${win.closingMechanism === 'FloorSpring' ? 'Floor Spring' : 'Hinge'}`);
+        constrLines.push(`Handle: ${win.handleProfile || 'Door Vertical'} (${win.handleWidth || 47.5}mm)   |   Bottom: ${win.bottomProfile || 'Door Bottom'} (${win.bottomWidth || 114.5}mm)`);
+        constrLines.push(`Top: ${win.topWidth || 47.5}mm   |   Middle: ${win.middleWidth || 47.5}mm${win.floorSpringHingeProfile ? '   |   FS Hinge: ' + win.floorSpringHingeProfile : ''}`);
+        // Add partitions inline (saves a whole block)
         const fmt = (p) => {
-            if (!p || !p.material || p.material === 'None') return '— (None / Open)';
-            if (p.material === 'Glass') {
-                return `Glass ${p.glassType || 'SGU'} ${p.thickness || '6'}mm${p.glassToughened ? ' Toughened' : ' Non-Tough'}`;
-            }
-            if (p.material === 'ACP') {
-                const facing = p.acpFacing === 'double' ? ' (Double-side — 2 sheets/panel)' : ' (Single-side — 1 sheet/panel)';
-                return `ACP ${p.thickness || '4'}mm${facing}`;
-            }
+            if (!p || !p.material || p.material === 'None') return 'None / Open';
+            if (p.material === 'Glass') return `Glass ${p.glassType || 'SGU'} ${p.thickness || '6'}mm${p.glassToughened ? ' Tough' : ''}`;
+            if (p.material === 'ACP') return `ACP ${p.thickness || '4'}mm (${p.acpFacing === 'double' ? '2 sheets/panel' : '1 sheet/panel'})`;
             return `${p.material} ${p.thickness || ''}mm`.trim();
         };
-        const midPos = win.middleRailPositionMM != null
-            ? `${win.middleRailPositionMM}mm from bottom`
-            : 'Centre (auto)';
-        const partLines = [
-            `⬆ Upper Partition: ${fmt(up)}`,
-            `⬇ Lower Partition: ${fmt(lo)}`,
-            `Middle Rail Position: ${midPos}`
-        ];
-        _drawSpecBlock(doc, 'Partitions', partLines, [46, 125, 50], MG, y, PW - 2 * MG, 20);
-        y += 24;
+        const midPos = win.middleRailPositionMM != null ? `${win.middleRailPositionMM}mm from bottom` : 'Centre';
+        constrLines.push(`⬆ Upper: ${fmt(win.upperPartition)}   |   ⬇ Lower: ${fmt(win.lowerPartition)}`);
+        constrLines.push(`Middle Rail: ${midPos}`);
+    } else {
+        constrLines.push(`Tracks: ${win.tracks || '—'}   |   Shutters: ${win.shutters || '—'}   |   Mosquito: ${win.mosquitoShutters || 0}`);
+        constrLines.push(`Glass: ${win.glassUnit || 'SGU'} ${win.glassThickness || '5'}mm${win.glassToughened ? ' Toughened' : ''}`);
+        if (win.interlockType) constrLines.push(`Interlock: ${win.interlockType}   |   Corner Joint: ${win.cornerJoint || 90}°`);
+        if (win.mosquitoShutters > 0) constrLines.push(`Mosquito Type: ${win.mosquitoType || 'V-2513'}, Interlock: ${win.mosquitoInterlock || 'V-2516'}`);
     }
+    _drawSpecBlock(doc,
+        isDoor ? 'Construction & Partitions' : 'Construction',
+        constrLines, bannerColor, MG, y, PW - 2 * MG,
+        constrLines.length * 3.5 + 7);
+    y += constrLines.length * 3.5 + 9;
 
-    // ── Accessories table ──────────────────────────────────────────────────
+    // ── Accessories table (compact) ───────────────────────────────────────
     const accList = (typeof calculateWindowHardware === 'function')
         ? calculateWindowHardware(win, optimizationResults)
         : [];
     if (accList.length > 0) {
-        // Section header
         doc.setFillColor(0, 121, 107);
-        doc.rect(MG, y, PW - 2 * MG, 6, 'F');
+        doc.rect(MG, y, PW - 2 * MG, 5, 'F');
         doc.setTextColor(255, 255, 255);
         doc.setFont('helvetica', 'bold');
-        doc.setFontSize(9.5);
-        doc.text(isDoor ? 'Accessories' : 'Hardware', MG + 2, y + 4.2);
-        y += 8;
+        doc.setFontSize(9);
+        doc.text(isDoor ? 'Accessories' : 'Hardware', MG + 2, y + 3.6);
+        y += 6;
         doc.setTextColor(0, 0, 0);
 
         const accBody = accList.map(h => [
@@ -2869,13 +2845,12 @@ async function _drawSpecPage(doc, win, pageNum, totalPages, project, laborPerSqf
             (Math.round(h.qty * 100) / 100).toString(),
             h.unit || 'Nos',
             `₹${h.rate}`,
-            `₹${(h.total).toFixed(2)}`
+            `₹${(h.total).toFixed(0)}`
         ]);
-        // Hardware total
         const hwTotal = accList.reduce((s, h) => s + h.total, 0);
         accBody.push([
             { content: 'Hardware Subtotal', colSpan: 4, styles: { fontStyle: 'bold', halign: 'right', fillColor: [240,240,240] } },
-            { content: `₹${hwTotal.toFixed(2)}`, styles: { fontStyle: 'bold', fillColor: [240,240,240] } }
+            { content: `₹${hwTotal.toFixed(0)}`, styles: { fontStyle: 'bold', fillColor: [240,240,240] } }
         ]);
 
         doc.autoTable({
@@ -2884,111 +2859,113 @@ async function _drawSpecPage(doc, win, pageNum, totalPages, project, laborPerSqf
             head: [['Item — Variant', 'Qty', 'Unit', 'Rate', 'Total']],
             body: accBody,
             theme: 'grid',
-            headStyles: { fillColor: [0, 121, 107], textColor: [255,255,255], fontSize: 8, halign: 'center' },
-            bodyStyles: { fontSize: 7.5, valign: 'middle' },
+            headStyles: { fillColor: [0, 121, 107], textColor: [255,255,255], fontSize: 7.5, halign: 'center', cellPadding: 1.2 },
+            bodyStyles:  { fontSize: 7, valign: 'middle', cellPadding: 1 },
             columnStyles: {
                 0: { halign: 'left' },
-                1: { halign: 'center', cellWidth: 16 },
-                2: { halign: 'center', cellWidth: 14 },
-                3: { halign: 'right',  cellWidth: 20 },
-                4: { halign: 'right',  cellWidth: 24 }
+                1: { halign: 'center', cellWidth: 14 },
+                2: { halign: 'center', cellWidth: 12 },
+                3: { halign: 'right',  cellWidth: 18 },
+                4: { halign: 'right',  cellWidth: 22 }
             }
         });
-        y = doc.lastAutoTable.finalY + 4;
+        y = doc.lastAutoTable.finalY + 2;
     }
 
-    // ── Cost Summary block ─────────────────────────────────────────────────
+    // ── Cost Summary (compact, 2-column layout for tighter fit) ──────────
     if (typeof calculateWindowTotalCost === 'function') {
         try {
             const c = calculateWindowTotalCost(win, { laborPerSqft });
             const q = win.qty || 1;
 
-            // If we don't have room, add a new page just for cost
-            if (y > PH - 56) { doc.addPage(); y = 14; }
-
-            // Section header
+            // Don't break to a new page — try to fit on the same page (v1.30 goal)
             doc.setFillColor(30, 60, 114);
-            doc.rect(MG, y, PW - 2 * MG, 6, 'F');
+            doc.rect(MG, y, PW - 2 * MG, 5, 'F');
             doc.setTextColor(255, 255, 255);
             doc.setFont('helvetica', 'bold');
-            doc.setFontSize(9.5);
-            doc.text('Cost Summary (Per Unit)', MG + 2, y + 4.2);
-            doc.text(`× Qty ${q}`, PW - MG - 2, y + 4.2, { align: 'right' });
-            y += 8;
+            doc.setFontSize(9);
+            doc.text(`Cost Summary (Per Unit × Qty ${q})`, MG + 2, y + 3.6);
+            y += 6;
             doc.setTextColor(0, 0, 0);
 
             const costRows = [
-                ['Profile (Aluminum)',     `₹${(c.profileCost || 0).toFixed(2)}`,        `₹${((c.profileCost || 0) * q).toFixed(2)}`],
-                ['Profile Wastage',        `₹${(c.wastageCost || 0).toFixed(2)}`,        `₹${((c.wastageCost || 0) * q).toFixed(2)}`],
-                ['Powder Coating',         `₹${(c.powderCoatingCost || 0).toFixed(2)}`,  `₹${((c.powderCoatingCost || 0) * q).toFixed(2)}`],
-                ['Glass / Partition',      `₹${(c.glassCost || 0).toFixed(2)}`,          `₹${((c.glassCost || 0) * q).toFixed(2)}`],
-                ['Sheet Wastage (ACP etc)',`₹${(c.partitionWastageCost || 0).toFixed(2)}`,`₹${((c.partitionWastageCost || 0) * q).toFixed(2)}`],
-                ['Hardware',               `₹${(c.hardwareCost || 0).toFixed(2)}`,       `₹${((c.hardwareCost || 0) * q).toFixed(2)}`],
-                ['Labor',                  `₹${(c.laborCost || 0).toFixed(2)}`,          `₹${((c.laborCost || 0) * q).toFixed(2)}`],
+                ['Profile',         `₹${(c.profileCost || 0).toFixed(0)}`,           `₹${((c.profileCost || 0) * q).toFixed(0)}`],
+                ['Profile Waste',   `₹${(c.wastageCost || 0).toFixed(0)}`,           `₹${((c.wastageCost || 0) * q).toFixed(0)}`],
+                ['Powder Coat',     `₹${(c.powderCoatingCost || 0).toFixed(0)}`,     `₹${((c.powderCoatingCost || 0) * q).toFixed(0)}`],
+                ['Glass / Part.',   `₹${(c.glassCost || 0).toFixed(0)}`,             `₹${((c.glassCost || 0) * q).toFixed(0)}`],
+                ['Sheet Waste',     `₹${(c.partitionWastageCost || 0).toFixed(0)}`,  `₹${((c.partitionWastageCost || 0) * q).toFixed(0)}`],
+                ['Hardware',        `₹${(c.hardwareCost || 0).toFixed(0)}`,          `₹${((c.hardwareCost || 0) * q).toFixed(0)}`],
+                ['Labor',           `₹${(c.laborCost || 0).toFixed(0)}`,             `₹${((c.laborCost || 0) * q).toFixed(0)}`],
                 [
                     { content: 'TOTAL', styles: { fontStyle: 'bold', fillColor: [235, 235, 235] } },
-                    { content: `₹${(c.totalCost || 0).toFixed(2)}`, styles: { fontStyle: 'bold', halign: 'right', fillColor: [235, 235, 235] } },
-                    { content: `₹${((c.totalCost || 0) * q).toFixed(2)}`, styles: { fontStyle: 'bold', halign: 'right', fillColor: [235, 235, 235] } }
+                    { content: `₹${(c.totalCost || 0).toFixed(0)}`, styles: { fontStyle: 'bold', halign: 'right', fillColor: [235, 235, 235] } },
+                    { content: `₹${((c.totalCost || 0) * q).toFixed(0)}`, styles: { fontStyle: 'bold', halign: 'right', fillColor: [235, 235, 235] } }
                 ]
             ];
 
             doc.autoTable({
                 startY: y,
                 margin: { left: MG, right: MG },
-                head: [['Item', 'Per Unit (₹)', `Line Total × ${q} (₹)`]],
+                head: [['Item', 'Per Unit', `Line Total (×${q})`]],
                 body: costRows,
                 theme: 'grid',
-                headStyles: { fillColor: [30, 60, 114], textColor: [255,255,255], fontSize: 8, halign: 'center' },
-                bodyStyles: { fontSize: 8 },
+                headStyles: { fillColor: [30, 60, 114], textColor: [255,255,255], fontSize: 7.5, halign: 'center', cellPadding: 1.2 },
+                bodyStyles:  { fontSize: 7.5, cellPadding: 1 },
                 columnStyles: {
                     0: { halign: 'left' },
-                    1: { halign: 'right', cellWidth: 36 },
-                    2: { halign: 'right', cellWidth: 46 }
+                    1: { halign: 'right', cellWidth: 30 },
+                    2: { halign: 'right', cellWidth: 36 }
                 }
             });
-            y = doc.lastAutoTable.finalY + 6;
+            y = doc.lastAutoTable.finalY + 2;
         } catch (e) {
             console.warn('Spec page cost calc error:', e);
         }
     }
 
     // ── Sign-off footer ────────────────────────────────────────────────────
-    if (y < PH - 16) {
+    if (y < PH - 12) {
         doc.setDrawColor(180, 180, 180);
-        doc.line(MG, PH - 14, PW - MG, PH - 14);
-        doc.setFontSize(8);
+        doc.line(MG, PH - 10, PW - MG, PH - 10);
+        doc.setFontSize(7.5);
         doc.setFont('helvetica', 'italic');
         doc.setTextColor(120, 120, 120);
-        doc.text('Approved by: ______________________________', MG, PH - 8);
-        doc.text('Date: ________________', PW - MG - 50, PH - 8);
+        doc.text('Approved by: ______________________________', MG, PH - 5);
+        doc.text('Date: ________________', PW - MG - 45, PH - 5);
     }
 }
 
-// Helper to draw a labeled rectangular spec block
+// Helper to draw a labeled rectangular spec block (v1.30: compact)
 function _drawSpecBlock(doc, title, lines, color, x, y, w, h) {
-    // Header bar
+    // Header bar (4.5mm tall)
     doc.setFillColor(...color);
-    doc.rect(x, y, w, 6, 'F');
+    doc.rect(x, y, w, 4.5, 'F');
     doc.setTextColor(255, 255, 255);
     doc.setFont('helvetica', 'bold');
-    doc.setFontSize(8.5);
-    doc.text(title, x + 2, y + 4.2);
+    doc.setFontSize(8);
+    doc.text(title, x + 2, y + 3.3);
     // Body box (light tint)
     const bgR = color[0] + (255 - color[0]) * 0.9;
     const bgG = color[1] + (255 - color[1]) * 0.9;
     const bgB = color[2] + (255 - color[2]) * 0.9;
     doc.setFillColor(bgR, bgG, bgB);
-    doc.rect(x, y + 6, w, h - 6, 'F');
+    doc.rect(x, y + 4.5, w, h - 4.5, 'F');
     doc.setDrawColor(200, 200, 200);
     doc.rect(x, y, w, h);
-    // Body lines
+    // Body lines — auto-wrap to box width to avoid overflow
     doc.setTextColor(0, 0, 0);
     doc.setFont('helvetica', 'normal');
-    doc.setFontSize(8.5);
-    lines.forEach((line, i) => {
-        if (y + 11 + i * 4 < y + h) {
-            doc.text(line, x + 2, y + 11 + i * 4);
-        }
+    doc.setFontSize(7.8);
+    const maxTextW = w - 4;
+    let curY = y + 8;
+    lines.forEach(line => {
+        const wrapped = doc.splitTextToSize(line, maxTextW);
+        wrapped.forEach(wl => {
+            if (curY < y + h) {
+                doc.text(wl, x + 2, curY);
+                curY += 3.5;
+            }
+        });
     });
 }
 
@@ -2999,18 +2976,55 @@ function _fmtMmIn(inches) {
     return `${mm}mm (${inches.toFixed(1)}")`;
 }
 
-// Convert an SVG string into a PNG data URL via off-screen canvas.
-// Uses Promise wrapping so we can await it before addImage. Returns null on failure.
-function _svgToPngDataUrl(svgString, scale) {
-    scale = scale || 2; // 2× DPI for sharper PDF render
+// Carpenter-friendly fraction format — always denominator 8 (NEVER simplifies
+// to 1/4 or 1/2). Carpenters count in 1/8 marks on their tapes.
+// 30.25" → "30 2/8\"", 30.5" → "30 4/8\"", 30.125" → "30 1/8\""
+function _fmtCarpenterFraction(inches) {
+    if (inches == null || isNaN(inches)) return '-';
+    const sign = inches < 0 ? '-' : '';
+    const abs = Math.abs(inches);
+    const whole = Math.floor(abs);
+    const remainder = abs - whole;
+    const eighths = Math.round(remainder * 8);
+    if (eighths === 0) return `${sign}${whole}"`;
+    if (eighths === 8) return `${sign}${whole + 1}"`;
+    if (whole === 0)   return `${sign}${eighths}/8"`;
+    return `${sign}${whole} ${eighths}/8"`;
+}
+
+// For site / cutter PDFs: shows both mm and carpenter fraction.
+// "762mm (30 2/8\")"
+function _fmtMmInFrac(inches) {
+    const mm = Math.round(inches * 25.4);
+    return `${mm}mm (${_fmtCarpenterFraction(inches)})`;
+}
+
+// Convert an SVG string into an image data URL via off-screen canvas.
+// v1.30: switched from PNG to JPEG and dropped default scale from 2× → 1×
+// to reduce file size dramatically (Sheet Cut PDF was 130 MB, now ~5-10 MB).
+// JPEG quality 0.78 keeps diagrams readable; canvas pixel-cap prevents huge
+// renders.
+//
+// fmt: 'jpeg' (default, small) or 'png' (use only when you need transparency)
+function _svgToPngDataUrl(svgString, scale, fmt, quality) {
+    scale   = scale   || 1;       // was 2
+    fmt     = fmt     || 'jpeg';
+    quality = quality || 0.78;
+    const MAX_DIM = 1400;         // cap canvas to keep file size sane
+
     return new Promise(resolve => {
         try {
-            // Parse the svg to get its width/height
             const parser = new DOMParser();
             const svgDoc = parser.parseFromString(svgString, 'image/svg+xml');
             const svgEl  = svgDoc.documentElement;
             const w = parseFloat(svgEl.getAttribute('width'))  || 600;
             const h = parseFloat(svgEl.getAttribute('height')) || 400;
+
+            let cw = Math.ceil(w * scale);
+            let ch = Math.ceil(h * scale);
+            // Scale down further if either dimension exceeds the cap
+            const overshoot = Math.max(cw / MAX_DIM, ch / MAX_DIM);
+            if (overshoot > 1) { cw = Math.ceil(cw / overshoot); ch = Math.ceil(ch / overshoot); }
 
             const blob = new Blob([svgString], { type: 'image/svg+xml;charset=utf-8' });
             const url  = URL.createObjectURL(blob);
@@ -3018,15 +3032,18 @@ function _svgToPngDataUrl(svgString, scale) {
             img.onload = () => {
                 try {
                     const canvas = document.createElement('canvas');
-                    canvas.width  = Math.ceil(w * scale);
-                    canvas.height = Math.ceil(h * scale);
+                    canvas.width  = cw;
+                    canvas.height = ch;
                     const ctx = canvas.getContext('2d');
                     ctx.fillStyle = '#ffffff';
                     ctx.fillRect(0, 0, canvas.width, canvas.height);
                     ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-                    const dataUrl = canvas.toDataURL('image/png');
+                    const mime = (fmt === 'png') ? 'image/png' : 'image/jpeg';
+                    const dataUrl = (fmt === 'png')
+                        ? canvas.toDataURL(mime)
+                        : canvas.toDataURL(mime, quality);
                     URL.revokeObjectURL(url);
-                    resolve({ dataUrl, w, h });
+                    resolve({ dataUrl, w, h, fmt: (fmt === 'png') ? 'PNG' : 'JPEG' });
                 } catch (e) {
                     URL.revokeObjectURL(url);
                     console.error('SVG → canvas error:', e);
@@ -3140,8 +3157,8 @@ async function exportNetCutDiagramsPDF() {
         .sort((a,b) => a.label.localeCompare(b.label))
         .map(r => [
             r.label,
-            _fmtMmIn(r.w),
-            _fmtMmIn(r.h),
+            _fmtMmInFrac(r.w),
+            _fmtMmInFrac(r.h),
             String(r.qty)
         ]);
 
@@ -3219,8 +3236,8 @@ async function exportSheetCutDiagramsPDF() {
                 requiredBody.push([
                     `${title} ${gr.thickness}`,
                     r.label,
-                    _fmtMmIn(r.w),
-                    _fmtMmIn(r.h),
+                    _fmtMmInFrac(r.w),
+                    _fmtMmInFrac(r.h),
                     String(r.qty)
                 ]);
             });
@@ -3279,17 +3296,17 @@ async function _drawBinPage(doc, bin, binIndex, binTotal, labelColorCache, headC
     // Dimensions header
     doc.setFontSize(10);
     doc.setFont('helvetica', 'bold');
-    doc.text(`Width: ${_fmtMmIn(bin.width)}    |    Length: ${_fmtMmIn(bin.capacityLength)}`, 14, y);
+    doc.text(`Width: ${_fmtMmInFrac(bin.width)}    |    Length: ${_fmtMmInFrac(bin.capacityLength)}`, 14, y);
     y += 5;
     doc.setFontSize(9);
     doc.setFont('helvetica', 'normal');
-    doc.text(`Used: ${_fmtMmIn(bin.usedLength)}    Leftover: ${_fmtMmIn(bin.capacityLength - bin.usedLength)} → return to store`, 14, y);
+    doc.text(`Used: ${_fmtMmInFrac(bin.usedLength)}    Leftover: ${_fmtMmInFrac(bin.capacityLength - bin.usedLength)} → return to store`, 14, y);
     y += 6;
 
-    // Render SVG diagram → PNG via canvas
+    // Render SVG diagram → JPEG via canvas (v1.30 fix for 130 MB file size)
     if (typeof generateNetDiagramBin === 'function') {
         const svgString = generateNetDiagramBin(bin, labelColorCache);
-        const pngResult = await _svgToPngDataUrl(svgString, 2);
+        const pngResult = await _svgToPngDataUrl(svgString, 1, 'jpeg', 0.78);
         if (pngResult && pngResult.dataUrl) {
             // Fit width to page minus margins (PW - 28), keep aspect ratio
             const maxW = PW - 28;
@@ -3298,7 +3315,7 @@ async function _drawBinPage(doc, bin, binIndex, binTotal, labelColorCache, headC
             let imgH = (pngResult.h / pngResult.w) * imgW;
             if (imgH > maxH) { imgH = maxH; imgW = (pngResult.w / pngResult.h) * imgH; }
             const xCenter = (PW - imgW) / 2;
-            doc.addImage(pngResult.dataUrl, 'PNG', xCenter, y, imgW, imgH);
+            doc.addImage(pngResult.dataUrl, pngResult.fmt || 'PNG', xCenter, y, imgW, imgH);
             y += imgH + 6;
         }
     }
@@ -3312,15 +3329,15 @@ async function _drawBinPage(doc, bin, binIndex, binTotal, labelColorCache, headC
 
     const rowsBody = [];
     (bin.shelves || []).forEach((shelf, si) => {
-        const cutFromTo = `${_fmtMmIn(shelf.y)} → ${_fmtMmIn(shelf.y + shelf.shelfH)}`;
+        const cutFromTo = `${_fmtMmInFrac(shelf.y)} → ${_fmtMmInFrac(shelf.y + shelf.shelfH)}`;
         const piecesDesc = (shelf.pieces || []).map(p => {
             const rotMark = p.rotated ? ' ↺' : '';
-            return `${_fmtMmIn(p.w)} × ${_fmtMmIn(p.h)} → ${p.label}${rotMark}`;
+            return `${_fmtMmInFrac(p.w)} × ${_fmtMmInFrac(p.h)} → ${p.label}${rotMark}`;
         }).join('\n');
         rowsBody.push([
             `Row ${si + 1}`,
             cutFromTo,
-            _fmtMmIn(shelf.shelfH),
+            _fmtMmInFrac(shelf.shelfH),
             piecesDesc
         ]);
     });

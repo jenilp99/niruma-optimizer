@@ -256,11 +256,13 @@ function generateOptimizedCutListPDF(projectWindows, selectedProject) {
                 doc.setFillColor(230, 240, 255); // Light Blue for parts
                 doc.rect(currentX, currentY, pieceWidth, stickHeight, 'FD'); // Fill & Draw
 
-                // Label
+                // Label — v1.30: carpenter fraction (always /8)
                 if (pieceWidth > 15) { // Only label if space permits
                     doc.setFontSize(8);
                     doc.setFont('helvetica', 'bold');
-                    const text = `${piece.length}"`;
+                    const text = (typeof _fmtCarpenterFraction === 'function')
+                        ? _fmtCarpenterFraction(piece.length)
+                        : `${piece.length}"`;
                     const textWidth = doc.getTextWidth(text);
                     doc.text(text, currentX + (pieceWidth - textWidth) / 2, currentY + 6);
 
