@@ -553,6 +553,92 @@ function svgToPng(svgString, width, height) {
 // Wastage is proportionally included via shareRatio × stockLen logic.
 // ============================================================================
 
+/**
+ * Per-unit-door (or window) wastage cost for non-aluminum materials.
+ *
+ * Computes the door's *pro-rata share* of the extra material the optimizer
+ * had to buy beyond the strict panel/piece area:
+ *   - ACP / Bakelite / Particle Board sheet offcuts beyond panel area
+ *   - Mosquito net roll offcuts beyond piece area
+ *
+ * Pure aluminum profile wastage is already covered separately by
+ * `wastageCost` (which uses purchased stock-length share).
+ *
+ * Returns 0 when the door has no panels/net pieces in optimization results.
+ *
+ * Per-unit semantics: the caller multiplies by win.qty when displaying
+ * the line in the quotation PDF, so this function divides by win.qty for
+ * the sheet portion (panel data already includes qty × leaves).
+ */
+function _computeDoorPartitionWastageCost(win) {
+    if (!win || !optimizationResults) return 0;
+    const winQty = Math.max(1, win.qty || 1);
+    let total = 0;
+
+    // — Sheet wastage (ACP / Bakelite / Particle Board) —
+    const sheetRes = optimizationResults.sheetResults;
+    if (sheetRes && sheetRes.byGroup) {
+        for (const [, gr] of Object.entries(sheetRes.byGroup)) {
+            const ratePerSqft    = gr.ratePerSqft || 0;
+            const piecesAreaSqft = (gr.piecesArea || 0) / 144;
+            if (piecesAreaSqft <= 0) continue;
+            const usefulCost   = piecesAreaSqft * ratePerSqft;
+            const groupWastage = Math.max(0, (gr.cost || 0) - usefulCost);
+            if (groupWastage <= 0) continue;
+
+            // Door's panel area share — panels in this group whose label
+            // starts with the door's configId. panel.qty already includes
+            // win.qty × leaves (set by collectPartitionPanels in optimization.js).
+            let doorPanelAreaSqft = 0;
+            (gr.panels || []).forEach(p => {
+                if (!p.label) return;
+                if (p.label === win.configId || p.label.startsWith(win.configId + ' ')) {
+                    doorPanelAreaSqft += (p.w * p.h * (p.qty || 1)) / 144;
+                }
+            });
+            if (doorPanelAreaSqft <= 0) continue;
+
+            // Total wastage for this config's panels (across all qty doors), then
+            // divide by qty to get per-unit (PDF will multiply back by qty)
+            const configTotalWastage = (doorPanelAreaSqft / piecesAreaSqft) * groupWastage;
+            total += configTotalWastage / winQty;
+        }
+    }
+
+    // — Mosquito net roll wastage —
+    const netRes = optimizationResults.netResults;
+    if (netRes && Array.isArray(netRes.bins)) {
+        let totalNetAreaSqft = 0;
+        let doorNetAreaSqft  = 0;
+        netRes.bins.forEach(bin => {
+            (bin.shelves || []).forEach(shelf => {
+                (shelf.pieces || []).forEach(p => {
+                    const a = ((p.origW || p.w) * (p.origH || p.h)) / 144;
+                    totalNetAreaSqft += a;
+                    if (p.label && (p.label === win.configId || p.label.startsWith(win.configId + ' '))) {
+                        doorNetAreaSqft += a;
+                    }
+                });
+            });
+        });
+        if (totalNetAreaSqft > 0 && doorNetAreaSqft > 0) {
+            const pr        = (ratesConfig && ratesConfig.partitionRates) || {};
+            const netRate   = pr.SSMosquito || pr.MosquitoNet || 0;
+            const totalCost = netRes.cost || 0;
+            const usefulCost   = totalNetAreaSqft * netRate;
+            const totalWastage = Math.max(0, totalCost - usefulCost);
+            if (totalWastage > 0) {
+                // Net pieces don't include win.qty (computeNetPieces uses MS qty),
+                // so don't divide here. The PDF will still × qty, which matches
+                // the existing pattern used for other per-unit costs.
+                total += (doorNetAreaSqft / totalNetAreaSqft) * totalWastage;
+            }
+        }
+    }
+
+    return total;
+}
+
 function calculateWindowTotalCost(win, opts) {
     opts = opts || {};
     const laborPerSqft = parseFloat(opts.laborPerSqft) || 0;
@@ -627,11 +713,16 @@ function calculateWindowTotalCost(win, opts) {
     const windowAreaSqft = (win.width * win.height) / 144; // inches → sqft
     const laborCost = windowAreaSqft * laborPerSqft;
 
-    const totalCost = profileCost + wastageCost + powderCoatingCost + glassCost + hardwareCost + laborCost;
+    // v1.24: ACP / Bakelite / PB sheet offcuts + mosquito net roll offcuts
+    // (per-unit-door share of optimizer's actual material cost above panel area)
+    const partitionWastageCost = _computeDoorPartitionWastageCost(win);
+
+    const totalCost = profileCost + wastageCost + powderCoatingCost + glassCost + hardwareCost + laborCost + partitionWastageCost;
     const rateSqft = windowAreaSqft > 0 ? totalCost / windowAreaSqft : 0;
 
     return {
         profileCost, wastageCost, powderCoatingCost, glassCost, hardwareCost, laborCost,
+        partitionWastageCost,
         totalCost,
         pieceWeightKg, wastageWeightKg, weightKg: purchasedWeightKg,
         windowAreaSqft, rateSqft, efficiency,
@@ -931,6 +1022,7 @@ function generateQuotationPDF(projectWindows, selectedProject, formData) {
                 (c.wastageCost * q).toFixed(2),
                 (c.powderCoatingCost * q).toFixed(2),
                 (c.glassCost * q).toFixed(2),
+                ((c.partitionWastageCost || 0) * q).toFixed(2),
                 (c.hardwareCost * q).toFixed(2),
                 (c.laborCost * q).toFixed(2),
                 (c.totalCost * q).toFixed(2),
@@ -946,11 +1038,12 @@ function generateQuotationPDF(projectWindows, selectedProject, formData) {
             acc.wasteC   += c.wastageCost * q;
             acc.pc       += c.powderCoatingCost * q;
             acc.glass    += c.glassCost * q;
+            acc.snw      += (c.partitionWastageCost || 0) * q;
             acc.hardware += c.hardwareCost * q;
             acc.labor    += c.laborCost * q;
             acc.total    += c.totalCost * q;
             return acc;
-        }, { piece: 0, waste: 0, profile: 0, wasteC: 0, pc: 0, glass: 0, hardware: 0, labor: 0, total: 0 });
+        }, { piece: 0, waste: 0, profile: 0, wasteC: 0, pc: 0, glass: 0, snw: 0, hardware: 0, labor: 0, total: 0 });
 
         breakupBody.push([
             { content: 'Total', colSpan: 2, styles: { fontStyle: 'bold', halign: 'right', fillColor: [245, 245, 245] } },
@@ -960,6 +1053,7 @@ function generateQuotationPDF(projectWindows, selectedProject, formData) {
             { content: tot.wasteC.toFixed(2),   styles: { fontStyle: 'bold', halign: 'right', fillColor: [245, 245, 245] } },
             { content: tot.pc.toFixed(2),       styles: { fontStyle: 'bold', halign: 'right', fillColor: [245, 245, 245] } },
             { content: tot.glass.toFixed(2),    styles: { fontStyle: 'bold', halign: 'right', fillColor: [245, 245, 245] } },
+            { content: tot.snw.toFixed(2),      styles: { fontStyle: 'bold', halign: 'right', fillColor: [245, 245, 245] } },
             { content: tot.hardware.toFixed(2), styles: { fontStyle: 'bold', halign: 'right', fillColor: [245, 245, 245] } },
             { content: tot.labor.toFixed(2),    styles: { fontStyle: 'bold', halign: 'right', fillColor: [245, 245, 245] } },
             { content: tot.total.toFixed(2),    styles: { fontStyle: 'bold', halign: 'right', fillColor: [245, 245, 245] } },
@@ -974,6 +1068,7 @@ function generateQuotationPDF(projectWindows, selectedProject, formData) {
                 'Net Wt\n(kg)', 'Waste Wt\n(kg)',
                 'Profile\n(Rs.)', 'Wastage\n(Rs.)',
                 'Powder\nCoat (Rs.)', 'Glass\n(Rs.)',
+                'Sheet/Net\nWaste (Rs.)',
                 'Hardware\n(Rs.)', 'Labor\n(Rs.)',
                 'Sub-Total\n(Rs.)', 'Effic.\n(%)'
             ]],
@@ -981,7 +1076,7 @@ function generateQuotationPDF(projectWindows, selectedProject, formData) {
             theme: 'grid',
             headStyles: { fillColor: [30, 60, 114], textColor: [255, 255, 255], fontSize: 7, fontStyle: 'bold', halign: 'center', valign: 'middle' },
             bodyStyles: { fontSize: 7, halign: 'right', valign: 'middle' },
-            columnStyles: { 0: { halign: 'center' }, 1: { halign: 'center' }, 11: { halign: 'center' } }
+            columnStyles: { 0: { halign: 'center' }, 1: { halign: 'center' }, 12: { halign: 'center' } }
         });
 
         y = doc.lastAutoTable.finalY + 5;
@@ -2203,7 +2298,9 @@ function generateQuotationHTML(projectWindows, selectedProject) {
 
         const _seriesRate = (typeof stockRates !== 'undefined' && stockRates[win.series]) ? stockRates[win.series] : (typeof aluminumRate !== 'undefined' ? aluminumRate : 280);
         const profileCost = weightTotal * _seriesRate;
-        const winTotal = profileCost + powderCoatingCost + glassCost + hardwareCost + rubberCost;
+        // v1.24: pro-rata share of ACP/Bakelite/PB sheet + mosquito net roll wastage
+        const partitionWastageCost = _computeDoorPartitionWastageCost(win);
+        const winTotal = profileCost + powderCoatingCost + glassCost + hardwareCost + rubberCost + partitionWastageCost;
         grandTotal += winTotal;
 
         html += `
@@ -2219,6 +2316,7 @@ function generateQuotationHTML(projectWindows, selectedProject) {
                 <tr><td style="padding: 8px;">Aluminum Profiles (${weightTotal.toFixed(2)} Kg)</td><td style="text-align: right; padding: 8px;">${profileCost.toFixed(0)}</td></tr>
                 <tr><td style="padding: 8px;">Powder Coating</td><td style="text-align: right; padding: 8px;">${powderCoatingCost.toFixed(0)}</td></tr>
                 ${glass ? `<tr><td style="padding: 8px;">Glass Area (${(glass.area * glass.qty).toFixed(1)} sqft)</td><td style="text-align: right; padding: 8px;">${glassCost.toFixed(0)}</td></tr>` : ''}
+                ${partitionWastageCost > 0 ? `<tr><td style="padding: 8px;">Sheet / Net Wastage <span style="color:#888;font-size:11px;">(extra material beyond panel area)</span></td><td style="text-align: right; padding: 8px;">${partitionWastageCost.toFixed(0)}</td></tr>` : ''}
                 <tr><td style="padding: 8px;">Hardware & Rubber</td><td style="text-align: right; padding: 8px;">${(hardwareCost + rubberCost).toFixed(0)}</td></tr>
                 <tr style="font-weight: bold;"><td style="padding: 8px;">Subtotal</td><td style="text-align: right; padding: 8px;">₹${winTotal.toFixed(0)}</td></tr>
             </table>
