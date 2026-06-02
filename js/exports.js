@@ -674,6 +674,7 @@ function displayResults() {
         <div style="${btnGrp}">
             <button class="btn btn-primary" onclick="showReportPreview('quotation')">📜 Customer Quotation</button>
             <button class="btn" style="background:#1e3c72;color:white;" onclick="exportMasterOrderSummaryPDF()">📊 Master Order Summary</button>
+            <button class="btn" style="background:#283593;color:white;" onclick="exportProjectSpecSheetPDF()">📋 Project Spec Sheet</button>
         </div>
     </div>
     <div class="import-export-section">
@@ -2387,6 +2388,288 @@ function exportMasterOrderSummaryPDF() {
     doc.text('Customer-facing pricing is on the Customer Quotation PDF.', 14, y);
 
     doc.save(`${project}_Master_Order_Summary.pdf`);
+}
+
+// ============================================================================
+// v1.28 — PROJECT SPEC SHEET (one A4 page per window/door)
+// ============================================================================
+
+async function exportProjectSpecSheetPDF() {
+    if (!optimizationResults) { showAlert('⚠️ Run optimization first.'); return; }
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF({ unit: 'mm', format: 'a4' });
+    const project = optimizationResults.project;
+    const projectWindows = windows.filter(w => w.projectName === project);
+    if (projectWindows.length === 0) { showAlert('No windows/doors in this project.'); return; }
+
+    // Read labor rate once (same as quotation modal)
+    const labelEl = document.getElementById('qtModalLaborPerSqft');
+    const laborPerSqft = labelEl ? (parseFloat(labelEl.value) || 0) : 0;
+
+    for (let i = 0; i < projectWindows.length; i++) {
+        if (i > 0) doc.addPage();
+        await _drawSpecPage(doc, projectWindows[i], i + 1, projectWindows.length, project, laborPerSqft);
+    }
+
+    doc.save(`${project}_Project_Spec_Sheet.pdf`);
+}
+
+async function _drawSpecPage(doc, win, pageNum, totalPages, project, laborPerSqft) {
+    const PW = doc.internal.pageSize.width;
+    const PH = doc.internal.pageSize.height;
+    const MG = 12;
+    const isDoor = win.category === 'Door';
+    const today = new Date().toLocaleDateString('en-IN', { day:'2-digit', month:'short', year:'numeric' });
+
+    // ── Top banner ─────────────────────────────────────────────────────────
+    const bannerColor = isDoor ? [191, 54, 12] : [30, 60, 114];
+    doc.setFillColor(...bannerColor);
+    doc.rect(0, 0, PW, 22, 'F');
+    doc.setTextColor(255, 255, 255);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(14);
+    doc.text(`${isDoor ? '🚪' : '🪟'} ${win.configId}  —  ${win.description || (isDoor ? 'Door' : 'Window')}`, MG, 11);
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(9);
+    doc.text(`Project: ${project}`, PW - MG, 8, { align: 'right' });
+    doc.text(`Date: ${today}`, PW - MG, 13, { align: 'right' });
+    doc.text(`Page ${pageNum} of ${totalPages}`, PW - MG, 18, { align: 'right' });
+    doc.setTextColor(0, 0, 0);
+
+    let y = 28;
+
+    // ── Top row: Identification (left) + Diagram (right) ───────────────────
+    const colGap = 6;
+    const diagW = 70;
+    const idW = PW - 2 * MG - colGap - diagW;
+
+    // Identification & Dimensions block
+    const idLines = [
+        `ID: ${win.configId}`,
+        `Location: ${win.location || '—'}`,
+        `Vendor: ${win.vendor || '—'}`,
+        `Series: ${win.series || '—'}`,
+        `Qty: ${win.qty || 1}    Type: ${isDoor ? ((win.leaves || 1) > 1 ? 'Double Door' : 'Single Door') : 'Window'}`
+    ];
+    const wMm = Math.round(win.width * 25.4);
+    const hMm = Math.round(win.height * 25.4);
+    const areaSqft = (win.width * win.height / 144);
+    const dimLines = [
+        `Width:  ${wMm}mm  (${win.width.toFixed(2)}")`,
+        `Height: ${hMm}mm  (${win.height.toFixed(2)}")`,
+        `Area:   ${areaSqft.toFixed(2)} sqft`
+    ];
+
+    _drawSpecBlock(doc, 'Identification', idLines, [108, 117, 125], MG, y, idW, 30);
+    _drawSpecBlock(doc, 'Dimensions',     dimLines, [52, 73, 94],   MG, y + 32, idW, 22);
+
+    // Diagram on the right
+    try {
+        const svgString = (typeof generateWindowDiagram === 'function') ? generateWindowDiagram(win) : null;
+        if (svgString) {
+            const png = await _svgToPngDataUrl(svgString, 3);
+            if (png && png.dataUrl) {
+                const maxH = 54;
+                let imgW = diagW;
+                let imgH = (png.h / png.w) * imgW;
+                if (imgH > maxH) { imgH = maxH; imgW = (png.w / png.h) * imgH; }
+                const dx = PW - MG - diagW + (diagW - imgW) / 2;
+                const dy = y + (54 - imgH) / 2;
+                // Light frame around diagram
+                doc.setDrawColor(220, 220, 220);
+                doc.rect(PW - MG - diagW, y, diagW, 54);
+                doc.addImage(png.dataUrl, 'PNG', dx, dy, imgW, imgH);
+            }
+        }
+    } catch (e) { console.warn('Spec sheet diagram error:', e); }
+
+    y += 60;
+
+    // ── Construction block ────────────────────────────────────────────────
+    const constrLines = [];
+    if (isDoor) {
+        constrLines.push(`Frame: ${win.frame ? '3-Side (with leg partition)' : 'No frame'}    |    Closing: ${win.closingMechanism === 'FloorSpring' ? '🌀 Floor Spring' : '🔩 Hinge'}`);
+        constrLines.push(`Handle Profile: ${win.handleProfile || 'Door Vertical'}    Handle Width: ${win.handleWidth || 47.5}mm`);
+        constrLines.push(`Bottom Profile: ${win.bottomProfile || 'Door Bottom'}    Bottom Width: ${win.bottomWidth || 114.5}mm`);
+        constrLines.push(`Top Width: ${win.topWidth || 47.5}mm    Middle Width: ${win.middleWidth || 47.5}mm`);
+        if (win.floorSpringHingeProfile) constrLines.push(`Floor Spring Hinge Profile: ${win.floorSpringHingeProfile}`);
+    } else {
+        constrLines.push(`Tracks: ${win.tracks || '—'}    Shutters: ${win.shutters || '—'}    Mosquito: ${win.mosquitoShutters || 0}`);
+        constrLines.push(`Glass: ${win.glassUnit || 'SGU'} ${win.glassThickness || '5'}mm${win.glassToughened ? ' Toughened' : ' Non-Toughened'}`);
+        if (win.interlockType) constrLines.push(`Interlock: ${win.interlockType}    Corner Joint: ${win.cornerJoint || 90}°`);
+        if (win.mosquitoShutters > 0) constrLines.push(`Mosquito: type ${win.mosquitoType || 'V-2513'}, interlock ${win.mosquitoInterlock || 'V-2516'}`);
+    }
+    _drawSpecBlock(doc, 'Construction', constrLines, bannerColor, MG, y, PW - 2 * MG, constrLines.length * 4 + 8);
+    y += constrLines.length * 4 + 12;
+
+    // ── Partitions block (doors only) ──────────────────────────────────────
+    if (isDoor) {
+        const up = win.upperPartition || {};
+        const lo = win.lowerPartition || {};
+        const fmt = (p) => {
+            if (!p || !p.material || p.material === 'None') return '— (None / Open)';
+            if (p.material === 'Glass') {
+                return `Glass ${p.glassType || 'SGU'} ${p.thickness || '6'}mm${p.glassToughened ? ' Toughened' : ' Non-Tough'}`;
+            }
+            if (p.material === 'ACP') {
+                const facing = p.acpFacing === 'double' ? ' (Double-side — 2 sheets/panel)' : ' (Single-side — 1 sheet/panel)';
+                return `ACP ${p.thickness || '4'}mm${facing}`;
+            }
+            return `${p.material} ${p.thickness || ''}mm`.trim();
+        };
+        const midPos = win.middleRailPositionMM != null
+            ? `${win.middleRailPositionMM}mm from bottom`
+            : 'Centre (auto)';
+        const partLines = [
+            `⬆ Upper Partition: ${fmt(up)}`,
+            `⬇ Lower Partition: ${fmt(lo)}`,
+            `Middle Rail Position: ${midPos}`
+        ];
+        _drawSpecBlock(doc, 'Partitions', partLines, [46, 125, 50], MG, y, PW - 2 * MG, 20);
+        y += 24;
+    }
+
+    // ── Accessories table ──────────────────────────────────────────────────
+    const accList = (typeof calculateWindowHardware === 'function')
+        ? calculateWindowHardware(win, optimizationResults)
+        : [];
+    if (accList.length > 0) {
+        // Section header
+        doc.setFillColor(0, 121, 107);
+        doc.rect(MG, y, PW - 2 * MG, 6, 'F');
+        doc.setTextColor(255, 255, 255);
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(9.5);
+        doc.text(isDoor ? 'Accessories' : 'Hardware', MG + 2, y + 4.2);
+        y += 8;
+        doc.setTextColor(0, 0, 0);
+
+        const accBody = accList.map(h => [
+            h.hardware,
+            (Math.round(h.qty * 100) / 100).toString(),
+            h.unit || 'Nos',
+            `₹${h.rate}`,
+            `₹${(h.total).toFixed(2)}`
+        ]);
+        // Hardware total
+        const hwTotal = accList.reduce((s, h) => s + h.total, 0);
+        accBody.push([
+            { content: 'Hardware Subtotal', colSpan: 4, styles: { fontStyle: 'bold', halign: 'right', fillColor: [240,240,240] } },
+            { content: `₹${hwTotal.toFixed(2)}`, styles: { fontStyle: 'bold', fillColor: [240,240,240] } }
+        ]);
+
+        doc.autoTable({
+            startY: y,
+            margin: { left: MG, right: MG },
+            head: [['Item — Variant', 'Qty', 'Unit', 'Rate', 'Total']],
+            body: accBody,
+            theme: 'grid',
+            headStyles: { fillColor: [0, 121, 107], textColor: [255,255,255], fontSize: 8, halign: 'center' },
+            bodyStyles: { fontSize: 7.5, valign: 'middle' },
+            columnStyles: {
+                0: { halign: 'left' },
+                1: { halign: 'center', cellWidth: 16 },
+                2: { halign: 'center', cellWidth: 14 },
+                3: { halign: 'right',  cellWidth: 20 },
+                4: { halign: 'right',  cellWidth: 24 }
+            }
+        });
+        y = doc.lastAutoTable.finalY + 4;
+    }
+
+    // ── Cost Summary block ─────────────────────────────────────────────────
+    if (typeof calculateWindowTotalCost === 'function') {
+        try {
+            const c = calculateWindowTotalCost(win, { laborPerSqft });
+            const q = win.qty || 1;
+
+            // If we don't have room, add a new page just for cost
+            if (y > PH - 56) { doc.addPage(); y = 14; }
+
+            // Section header
+            doc.setFillColor(30, 60, 114);
+            doc.rect(MG, y, PW - 2 * MG, 6, 'F');
+            doc.setTextColor(255, 255, 255);
+            doc.setFont('helvetica', 'bold');
+            doc.setFontSize(9.5);
+            doc.text('Cost Summary (Per Unit)', MG + 2, y + 4.2);
+            doc.text(`× Qty ${q}`, PW - MG - 2, y + 4.2, { align: 'right' });
+            y += 8;
+            doc.setTextColor(0, 0, 0);
+
+            const costRows = [
+                ['Profile (Aluminum)',     `₹${(c.profileCost || 0).toFixed(2)}`,        `₹${((c.profileCost || 0) * q).toFixed(2)}`],
+                ['Profile Wastage',        `₹${(c.wastageCost || 0).toFixed(2)}`,        `₹${((c.wastageCost || 0) * q).toFixed(2)}`],
+                ['Powder Coating',         `₹${(c.powderCoatingCost || 0).toFixed(2)}`,  `₹${((c.powderCoatingCost || 0) * q).toFixed(2)}`],
+                ['Glass / Partition',      `₹${(c.glassCost || 0).toFixed(2)}`,          `₹${((c.glassCost || 0) * q).toFixed(2)}`],
+                ['Sheet Wastage (ACP etc)',`₹${(c.partitionWastageCost || 0).toFixed(2)}`,`₹${((c.partitionWastageCost || 0) * q).toFixed(2)}`],
+                ['Hardware',               `₹${(c.hardwareCost || 0).toFixed(2)}`,       `₹${((c.hardwareCost || 0) * q).toFixed(2)}`],
+                ['Labor',                  `₹${(c.laborCost || 0).toFixed(2)}`,          `₹${((c.laborCost || 0) * q).toFixed(2)}`],
+                [
+                    { content: 'TOTAL', styles: { fontStyle: 'bold', fillColor: [235, 235, 235] } },
+                    { content: `₹${(c.totalCost || 0).toFixed(2)}`, styles: { fontStyle: 'bold', halign: 'right', fillColor: [235, 235, 235] } },
+                    { content: `₹${((c.totalCost || 0) * q).toFixed(2)}`, styles: { fontStyle: 'bold', halign: 'right', fillColor: [235, 235, 235] } }
+                ]
+            ];
+
+            doc.autoTable({
+                startY: y,
+                margin: { left: MG, right: MG },
+                head: [['Item', 'Per Unit (₹)', `Line Total × ${q} (₹)`]],
+                body: costRows,
+                theme: 'grid',
+                headStyles: { fillColor: [30, 60, 114], textColor: [255,255,255], fontSize: 8, halign: 'center' },
+                bodyStyles: { fontSize: 8 },
+                columnStyles: {
+                    0: { halign: 'left' },
+                    1: { halign: 'right', cellWidth: 36 },
+                    2: { halign: 'right', cellWidth: 46 }
+                }
+            });
+            y = doc.lastAutoTable.finalY + 6;
+        } catch (e) {
+            console.warn('Spec page cost calc error:', e);
+        }
+    }
+
+    // ── Sign-off footer ────────────────────────────────────────────────────
+    if (y < PH - 16) {
+        doc.setDrawColor(180, 180, 180);
+        doc.line(MG, PH - 14, PW - MG, PH - 14);
+        doc.setFontSize(8);
+        doc.setFont('helvetica', 'italic');
+        doc.setTextColor(120, 120, 120);
+        doc.text('Approved by: ______________________________', MG, PH - 8);
+        doc.text('Date: ________________', PW - MG - 50, PH - 8);
+    }
+}
+
+// Helper to draw a labeled rectangular spec block
+function _drawSpecBlock(doc, title, lines, color, x, y, w, h) {
+    // Header bar
+    doc.setFillColor(...color);
+    doc.rect(x, y, w, 6, 'F');
+    doc.setTextColor(255, 255, 255);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(8.5);
+    doc.text(title, x + 2, y + 4.2);
+    // Body box (light tint)
+    const bgR = color[0] + (255 - color[0]) * 0.9;
+    const bgG = color[1] + (255 - color[1]) * 0.9;
+    const bgB = color[2] + (255 - color[2]) * 0.9;
+    doc.setFillColor(bgR, bgG, bgB);
+    doc.rect(x, y + 6, w, h - 6, 'F');
+    doc.setDrawColor(200, 200, 200);
+    doc.rect(x, y, w, h);
+    // Body lines
+    doc.setTextColor(0, 0, 0);
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(8.5);
+    lines.forEach((line, i) => {
+        if (y + 11 + i * 4 < y + h) {
+            doc.text(line, x + 2, y + 11 + i * 4);
+        }
+    });
 }
 
 
