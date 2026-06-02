@@ -334,11 +334,18 @@ function buildCNCBrief() {
         const MAT_TITLE = { ACP: 'ACP', Bakelite: 'Bakelite', ParticleBoard: 'Particle Board' };
         for (const [groupKey, gr] of Object.entries(r.sheetResults.byGroup)) {
             const matTitle = MAT_TITLE[gr.material] || gr.material;
-            const sWmm = (gr.sheetW * 25.4).toFixed(1);
-            const sHmm = (gr.sheetH * 25.4).toFixed(1);
+
+            // v1.23: per-size breakdown when mixed sizes used
+            const breakdown = gr.newSheetsBreakdown || { [gr.sheetName]: gr.newSheetsUsed };
+            const breakdownEntries = Object.entries(breakdown).filter(([, n]) => n > 0);
+            const isMixed = breakdownEntries.length > 1;
+            const breakdownStr = breakdownEntries.map(([nm, n]) => `${n} × ${nm}`).join(' + ');
+            const headerSheets = isMixed
+                ? `${breakdownStr}  (mixed)`
+                : `${gr.bins.length} × ${gr.sheetName}`;
 
             lines.push('');
-            lines.push(`▣  ${matTitle} ${gr.thickness}  —  Sheet ${gr.sheetName} (${sWmm} × ${sHmm} mm)  —  ${gr.bins.length} sheet${gr.bins.length>1?'s':''}`);
+            lines.push(`▣  ${matTitle} ${gr.thickness}  —  ${headerSheets}`);
 
             let sumPieces = 0;
             gr.bins.forEach((bin, idx) => {
@@ -371,7 +378,11 @@ function buildCNCBrief() {
             });
 
             const labelKey = `${matTitle} ${gr.thickness}`;
-            grand.sheetRolls[labelKey] = { sheets: gr.bins.length, pieces: sumPieces, sheetName: gr.sheetName };
+            grand.sheetRolls[labelKey] = {
+                sheets: gr.bins.length,
+                pieces: sumPieces,
+                sheetName: isMixed ? breakdownStr : gr.sheetName
+            };
         }
     }
 
@@ -1052,20 +1063,30 @@ function displayResults() {
             const totalPieces = gr.panels.reduce((s, p) => s + p.qty, 0);
             const CS_SH = `background:white;border-radius:8px;padding:10px 14px;font-size:12px;border:1.5px solid ${mCol}30;flex:1;min-width:100px;`;
 
+            // v1.23: mix breakdown (e.g. "2 × 8'×4' + 1 × 12'×4'")
+            const breakdown = gr.newSheetsBreakdown || { [gr.sheetName]: gr.newSheetsUsed };
+            const breakdownStr = Object.entries(breakdown)
+                .filter(([, n]) => n > 0)
+                .map(([nm, n]) => `${n} × ${nm}`)
+                .join(' + ');
+            const isMixed = Object.keys(breakdown).filter(k => breakdown[k] > 0).length > 1;
+            const sheetSizeLabel = isMixed ? 'Mixed sizes' : gr.sheetName;
+
             html += `<details class="material-section collapsible-section" open style="border-left:4px solid ${mCol};margin-top:16px;">
 <summary class="collapsible-summary" style="background:${mBg};">
   <span class="cs-title" style="color:${mDark};">📄 ${mTitle} — ${gr.thickness} Cutting Plan</span>
-  <span class="cs-meta" style="color:#555;">${gr.sheetName}&ensp;·&ensp;${gr.storeSheetsUsed > 0 ? gr.storeSheetsUsed + ' from stock, ' : ''}${gr.newSheetsUsed} new sheet${gr.newSheetsUsed !== 1 ? 's' : ''}&ensp;·&ensp;Eff:&nbsp;${eff}%</span>
+  <span class="cs-meta" style="color:#555;">${breakdownStr || gr.sheetName}&ensp;·&ensp;${gr.storeSheetsUsed > 0 ? gr.storeSheetsUsed + ' from stock, ' : ''}${gr.newSheetsUsed} new sheet${gr.newSheetsUsed !== 1 ? 's' : ''}&ensp;·&ensp;Eff:&nbsp;${eff}%</span>
   <span class="cs-arrow"></span>
 </summary>
 <div class="cs-body">
-<p style="font-size:12px;color:#666;margin:0 0 10px;">2D optimized — partial sheets from store used first, new sheets opened only as needed. Kerf (⅛") deducted from each panel.</p>`;
+<p style="font-size:12px;color:#666;margin:0 0 10px;">2D optimized — partial sheets from store used first, new sheets opened only as needed. Kerf (⅛") deducted from each panel.${isMixed ? ' <strong>Mixed sheet sizes</strong> for best material use.' : ''}</p>`;
 
             // Stat cards
             html += `<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px;">
     <div style="${CS_SH}">
-        <div style="font-size:11px;color:${mCol};margin-bottom:3px;">Best Sheet Size</div>
-        <div style="font-size:16px;font-weight:700;color:${mDark};">${gr.sheetName}</div>
+        <div style="font-size:11px;color:${mCol};margin-bottom:3px;">${isMixed ? 'Sheet Sizes Used' : 'Best Sheet Size'}</div>
+        <div style="font-size:16px;font-weight:700;color:${mDark};">${sheetSizeLabel}</div>
+        ${isMixed ? `<div style="font-size:10px;color:#888;margin-top:2px;">${breakdownStr}</div>` : ''}
     </div>
     ${gr.storeSheetsUsed > 0 ? `<div style="${CS_SH}">
         <div style="font-size:11px;color:#1b5e20;margin-bottom:3px;">From Stock</div>
@@ -1096,7 +1117,7 @@ function displayResults() {
     <strong style="color:${mDark};">📦 Order Summary:</strong>
     ${gr.storeSheetsUsed > 0 ? `<strong style="color:#1b5e20;">Use ${gr.storeSheetsUsed} from stock</strong>` : ''}
     ${gr.storeSheetsUsed > 0 && gr.newSheetsUsed > 0 ? ' &nbsp;+&nbsp; ' : ''}
-    ${gr.newSheetsUsed > 0 ? `<strong style="color:${mDark};">Order ${gr.newSheetsUsed} × ${gr.sheetName} ${mTitle}</strong>` : ''}
+    ${gr.newSheetsUsed > 0 ? `<strong style="color:${mDark};">Order ${breakdownStr} of ${mTitle}</strong>` : ''}
     <br>
     <span style="font-size:12px;color:#555;">
         Panels: <strong>${totalPieces}</strong>

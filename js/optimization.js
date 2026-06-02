@@ -1027,71 +1027,235 @@ function collectPartitionPanels(windows) {
     return panels;
 }
 
+// Sort strategies tried for each combination (FFDH benefits from largest-first)
+const _SHEET_SORTS = [
+    arr => [...arr].sort((a,b) => (b.w*b.h) - (a.w*a.h)),
+    arr => [...arr].sort((a,b) => Math.max(b.w,b.h) - Math.max(a.w,a.h)),
+    arr => [...arr].sort((a,b) => b.h - a.h),
+    arr => [...arr].sort((a,b) => b.w - a.w),
+];
+
 /**
- * Pack one material+thickness group of door panels into sheets using FFDH+rotation.
- * Reuses _packBin/_packMultiBin with sheetH as the bounded bin length.
+ * Pack pieces across an ordered list of pre-allocated bins (each can be a
+ * different size — e.g. one 12'×4' + one 8'×4'). Goes through bins in order;
+ * for each bin, runs FFDH-best-fit on remaining pieces. Returns bins (with
+ * shelves) and leftover unplaced pieces.
+ *
+ * @param {Array} items   pre-sorted pieces
+ * @param {Array} binSpecs [{kind, width, length, label}] — partials first, then new sheets
+ */
+function _packAcrossBins(items, binSpecs) {
+    let pending = [...items];
+    const usedBins = [];
+    for (const spec of binSpecs) {
+        if (pending.length === 0) break;
+        const r = _packBin(pending, spec.width, spec.length);
+        usedBins.push({
+            kind: spec.kind,
+            label: spec.label,
+            width: spec.width,
+            capacityLength: spec.length,
+            usedLength: r.usedLength,
+            shelves: r.shelves
+        });
+        pending = r.remaining;
+    }
+    return { bins: usedBins, unpacked: pending };
+}
+
+/**
+ * EXHAUSTIVE multi-size sheet packing (v1.23).
+ * Enumerates every combination (n_0, n_1, ..., n_k) of new-sheet counts per
+ * size in the catalog, packs pieces into [partials ++ newSheets], and picks
+ * the cheapest feasible combination. Tie-breaks by least waste area, then
+ * fewer total sheets.
+ *
+ * Safety cap: COMBO_LIMIT iterations. Above that, falls back to single-size
+ * greedy (the original packSheetGroup logic).
+ *
+ * @param {Array}   rawPanels      [{w, h, qty, label}]
+ * @param {Array}   sheetSizes     SHEET_CATALOG entry  [{name, w, h}, ...]
+ * @param {Array}   partialSheets  user's leftover stock for this material
+ * @param {number}  ratePerSqft    cost rate per sqft
  */
 function packSheetGroup(rawPanels, sheetSizes, partialSheets, ratePerSqft) {
     if (!rawPanels.length || !sheetSizes.length) return null;
 
-    // Expand panels by qty into individual pieces
+    // Expand qty → individual pieces
     const allPieces = [];
     rawPanels.forEach(p => {
         for (let i = 0; i < p.qty; i++)
             allPieces.push({ w: p.w, h: p.h, label: p.label, origW: p.w, origH: p.h });
     });
 
-    const SORTS = [
-        arr => [...arr].sort((a,b) => (b.w*b.h) - (a.w*a.h)),
-        arr => [...arr].sort((a,b) => Math.max(b.w,b.h) - Math.max(a.w,a.h)),
-        arr => [...arr].sort((a,b) => b.h - a.h),
-        arr => [...arr].sort((a,b) => b.w - a.w),
-    ];
+    const piecesArea = allPieces.reduce((s,p) => s + p.w*p.h, 0);
+
+    // Pre-build the partials list (used as fixed prefix in every combo)
+    const partials = (partialSheets || [])
+        .filter(ps => ps.w >= 1 && ps.h >= 1)
+        .flatMap((ps, i) => {
+            const qty = Math.max(1, ps.qty || 1);
+            return Array.from({ length: qty }, (_, q) => ({
+                kind: 'store', width: ps.w, length: ps.h,
+                label: ps.label ? `${ps.label} (${ps.w}"×${ps.h}")` : `Stock sheet #${i+1} (${ps.w}"×${ps.h}")`
+            }));
+        })
+        .sort((a, b) => a.length - b.length); // smallest-first
+
+    // Quick estimate of how many sheets of each size could possibly be needed.
+    // Upper bound: every remaining piece could need its own sheet → P sheets total.
+    // Practical bound: enough capacity to hold the total pieces area.
+    // We pad +1 for safety so the search space includes "one extra" sheets.
+    const maxPerSize = sheetSizes.map(sz => {
+        const sheetArea = sz.w * sz.h;
+        const partialsArea = partials.reduce((s, p) => s + p.width * p.length, 0);
+        const remainingArea = Math.max(0, piecesArea - partialsArea);
+        return Math.max(1, Math.ceil(remainingArea / sheetArea) + 1);
+    });
+
+    // Combination cap — if the search space is too large, fall back to greedy
+    const totalCombos = maxPerSize.reduce((p, n) => p * (n + 1), 1);
+    const COMBO_LIMIT = 10000;
+    if (totalCombos > COMBO_LIMIT) {
+        return _packSheetGroupGreedy(allPieces, sheetSizes, partials, ratePerSqft, piecesArea);
+    }
 
     let best = null;
+    const counts = new Array(sheetSizes.length).fill(0);
 
+    function tryCombo() {
+        // Build bin list: partials first (smallest first), then new sheets (LARGEST first
+        // so big pieces get the big sheets — critical for mixed packing)
+        const newBins = [];
+        sheetSizes.forEach((sz, i) => {
+            for (let k = 0; k < counts[i]; k++) {
+                newBins.push({
+                    kind: 'new', width: sz.w, length: sz.h,
+                    label: `New ${sz.name} #${k+1}`
+                });
+            }
+        });
+        newBins.sort((a, b) => b.length - a.length); // largest first
+        const binSpecs = [...partials, ...newBins];
+
+        // Compute this combo's new-sheet cost
+        let comboCost = 0;
+        sheetSizes.forEach((sz, i) => {
+            comboCost += counts[i] * (ratePerSqft * sz.w * sz.h / 144);
+        });
+
+        // Pruning: if even the cheapest feasible cost so far is beaten by this combo,
+        // and this combo's cost ALREADY ≥ best, skip
+        if (best && comboCost > best.cost) return;
+
+        // Try multiple sort orders, pick whichever lets ALL pieces fit
+        let feasible = null;
+        for (const sort of _SHEET_SORTS) {
+            const sorted = sort(allPieces);
+            const result = _packAcrossBins(sorted, binSpecs);
+            if (result.unpacked.length === 0) { feasible = result; break; }
+        }
+        if (!feasible) return;
+
+        // Strip empty new bins (sheets we didn't actually use) — saves ordering noise
+        const usedBins = feasible.bins.filter(b => b.shelves.length > 0);
+        const usedNewBins = usedBins.filter(b => b.kind === 'new');
+
+        // Recompute cost from ACTUAL new sheets used (in case some were skipped)
+        const actualCost = usedNewBins.reduce((s, b) => s + (ratePerSqft * b.width * b.capacityLength / 144), 0);
+        const consumedArea = usedBins.reduce((s, b) => s + b.width * b.usedLength, 0);
+        const wasteArea    = Math.max(0, consumedArea - piecesArea);
+
+        const better = !best
+            || actualCost < best.cost
+            || (actualCost === best.cost && wasteArea < best.wasteArea)
+            || (actualCost === best.cost && wasteArea === best.wasteArea && usedBins.length < best.totalBins);
+
+        if (better) {
+            // Rebuild bin labels to use sequential numbering within each size group
+            const newCountPerSize = {};
+            usedNewBins.forEach(b => {
+                const key = `${b.width}x${b.capacityLength}`;
+                newCountPerSize[key] = (newCountPerSize[key] || 0) + 1;
+                b.label = `New ${b.width}"×${b.capacityLength}" #${newCountPerSize[key]}`;
+            });
+            // Pick the "primary" sheet size — the most-used new sheet size, for display
+            let primarySize = sheetSizes[0];
+            let primaryMax = -1;
+            sheetSizes.forEach((sz, i) => {
+                const cnt = usedNewBins.filter(b => b.width === sz.w && b.capacityLength === sz.h).length;
+                if (cnt > primaryMax) { primaryMax = cnt; primarySize = sz; }
+            });
+            // Build per-size breakdown for display
+            const newSheetsBreakdown = {};
+            sheetSizes.forEach(sz => {
+                const cnt = usedNewBins.filter(b => b.width === sz.w && b.capacityLength === sz.h).length;
+                if (cnt > 0) newSheetsBreakdown[sz.name] = cnt;
+            });
+            best = {
+                sheetW: primarySize.w, sheetH: primarySize.h, sheetName: primarySize.name,
+                bins: usedBins,
+                piecesArea, consumedArea, wasteArea,
+                efficiency: consumedArea > 0 ? Math.round(piecesArea / consumedArea * 100) : 0,
+                newSheetsUsed: usedNewBins.length,
+                newSheetsBreakdown,                    // {"8'×4'": 2, "12'×4'": 1}
+                storeSheetsUsed: usedBins.filter(b => b.kind === 'store').length,
+                cost: actualCost,
+                costPerSheet: ratePerSqft * primarySize.w * primarySize.h / 144,
+                totalBins: usedBins.length,
+                leftover: usedBins.filter(b => b.kind === 'new' && (b.capacityLength - b.usedLength) > 1)
+                    .map(b => ({ kind:'new', width: b.width, remainingAfter: b.capacityLength - b.usedLength, label: b.label })),
+            };
+        }
+    }
+
+    // Recursive enumeration of all combinations
+    function enumerate(sizeIdx) {
+        if (sizeIdx === sheetSizes.length) { tryCombo(); return; }
+        for (let n = 0; n <= maxPerSize[sizeIdx]; n++) {
+            counts[sizeIdx] = n;
+            enumerate(sizeIdx + 1);
+        }
+    }
+    enumerate(0);
+
+    return best;
+}
+
+/**
+ * Fallback for very large search spaces — single-size greedy (original behavior).
+ * Tries each sheet size independently and picks the best single-size plan.
+ */
+function _packSheetGroupGreedy(allPieces, sheetSizes, partials, ratePerSqft, piecesArea) {
+    let best = null;
     for (const sz of sheetSizes) {
         const costPerSheet = ratePerSqft * sz.w * sz.h / 144;
-
-        const partials = (partialSheets || [])
-            .filter(ps => ps.w >= 1 && ps.h >= 1)
-            .flatMap((ps, i) => {
-                const qty = Math.max(1, ps.qty || 1);
-                return Array.from({ length: qty }, (_, q) => ({
-                    kind: 'store', width: ps.w, length: ps.h,
-                    label: ps.label ? `${ps.label} (${ps.w}"×${ps.h}")` : `Stock sheet #${i+1} (${ps.w}"×${ps.h}")`
-                }));
-            })
-            .sort((a, b) => a.length - b.length); // smallest-first for _packMultiBin
-
         const newSpec = { name: sz.name, width: sz.w, length: sz.h };
-
-        for (const sort of SORTS) {
+        for (const sort of _SHEET_SORTS) {
             const sorted = sort(allPieces);
             const bins = _packMultiBin(sorted, partials, newSpec);
             if (!bins) continue;
-
-            const piecesArea    = allPieces.reduce((s,p) => s + p.w*p.h, 0);
             const consumedArea  = bins.reduce((s,b) => s + b.width * b.usedLength, 0);
             const wasteArea     = Math.max(0, consumedArea - piecesArea);
-            const eff           = consumedArea > 0 ? Math.round(piecesArea / consumedArea * 100) : 0;
             const newSheetsUsed = bins.filter(b => b.kind === 'new').length;
-            const storeSheetsUsed = bins.filter(b => b.kind === 'store').length;
             const cost          = newSheetsUsed * costPerSheet;
-
-            const cand = {
-                sheetW: sz.w, sheetH: sz.h, sheetName: sz.name,
-                bins, piecesArea, consumedArea, wasteArea, efficiency: eff,
-                newSheetsUsed, storeSheetsUsed, cost, costPerSheet,
-                leftover: bins.filter(b => b.kind === 'new' && (b.capacityLength - b.usedLength) > 1)
-                    .map(b => ({ kind:'new', width: b.width, remainingAfter: b.capacityLength - b.usedLength, label: b.label })),
-            };
-
             const better = !best
-                || cand.cost < best.cost
-                || (cand.cost === best.cost && cand.newSheetsUsed < best.newSheetsUsed)
-                || (cand.cost === best.cost && cand.newSheetsUsed === best.newSheetsUsed && cand.consumedArea < best.consumedArea);
-            if (better) best = cand;
+                || cost < best.cost
+                || (cost === best.cost && wasteArea < best.wasteArea)
+                || (cost === best.cost && wasteArea === best.wasteArea && bins.length < best.totalBins);
+            if (better) {
+                const newSheetsBreakdown = { [sz.name]: newSheetsUsed };
+                best = {
+                    sheetW: sz.w, sheetH: sz.h, sheetName: sz.name,
+                    bins, piecesArea, consumedArea, wasteArea,
+                    efficiency: consumedArea > 0 ? Math.round(piecesArea / consumedArea * 100) : 0,
+                    newSheetsUsed, newSheetsBreakdown,
+                    storeSheetsUsed: bins.filter(b => b.kind === 'store').length,
+                    cost, costPerSheet, totalBins: bins.length,
+                    leftover: bins.filter(b => b.kind === 'new' && (b.capacityLength - b.usedLength) > 1)
+                        .map(b => ({ kind:'new', width: b.width, remainingAfter: b.capacityLength - b.usedLength, label: b.label })),
+                };
+            }
         }
     }
     return best;
