@@ -645,29 +645,43 @@ function displayResults() {
     const r = optimizationResults;
     let html = '<div class="alert alert-success">Smart Cost-Optimized Results for Project <strong>' + r.project + '</strong></div>';
     
-    // Export buttons
+    // v1.25 — Export buttons reorganized into 4 logical groups
+    const grpHdr = 'font-size:14px;font-weight:700;color:#2c3e50;margin-bottom:8px;text-align:center;';
+    const btnGrp = 'display:flex;gap:8px;flex-wrap:wrap;justify-content:center;';
     html += `
     <div class="import-export-section">
-        <div style="text-align: center; margin-bottom: 15px;"><strong style="font-size: 16px;">📦 Project Exports & Previews</strong></div>
-        <div style="display: flex; gap: 10px; flex-wrap: wrap; justify-content: center;">
-            <button class="btn btn-primary" onclick="showReportPreview('quotation')">📜 Customer Quotation</button>
-            <button class="btn btn-success" onclick="showReportPreview('purchase_material')">🏢 Material Purchase</button>
-            <button class="btn btn-info" onclick="showReportPreview('purchase_hardware')">🔩 Hardware Vendor List</button>
-            <button class="btn btn-warning" onclick="showReportPreview('cutlist')">🪚 Optimized Cut List</button>
-            <button class="btn" style="background:#e67e22;color:white;" onclick="showCNCBrief()">🔧 Workshop Cut Brief</button>
-        </div>
-        <div style="display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; margin-top: 10px; opacity: 0.8;">
-            <button class="btn btn-primary btn-sm" onclick="exportFullResultsExcel()">📊 Full Excel</button>
-            <button class="btn btn-danger btn-sm" onclick="exportFullResultsPDF()">📄 Full PDF</button>
-            <button class="btn btn-secondary btn-sm" onclick="exportProject()">💾 Save JSON</button>
+        <div style="${grpHdr}">📦 Vendor Orders</div>
+        <div style="${btnGrp}">
+            <button class="btn btn-success" onclick="showReportPreview('purchase_material')">🏭 Aluminum Profile Order</button>
+            <button class="btn" style="background:#0288d1;color:white;" onclick="exportGlassOrderPDF()">🪟 Glass Order</button>
+            <button class="btn" style="background:#bf360c;color:white;" onclick="exportPartitionSheetOrderPDF()">📄 Partition Sheets</button>
+            <button class="btn" style="background:#6a1b9a;color:white;" onclick="exportNetRollOrderPDF()">🕸️ Mosquito Net Rolls</button>
+            <button class="btn btn-info" onclick="showReportPreview('purchase_hardware')">🔩 Hardware List</button>
+            <button class="btn" style="background:#558b2f;color:white;" onclick="exportPowderCoatingPDF()">✨ Powder Coating</button>
         </div>
     </div>
     <div class="import-export-section">
-        <div style="text-align: center; margin-bottom: 15px;"><strong style="font-size: 16px;">📤 Share Results</strong></div>
-        <div style="display: flex; gap: 10px; flex-wrap: wrap; justify-content: center;">
-            <button class="btn btn-success" onclick="shareViaWhatsApp()">📱 Share via WhatsApp</button>
-            <button class="btn btn-primary" onclick="shareViaEmail()">✉️ Share via Email</button>
-            <button class="btn btn-warning" onclick="generatePrintableLabels()">🏷️ Print Labels (A4)</button>
+        <div style="${grpHdr}">🔨 Workshop / Floor</div>
+        <div style="${btnGrp}">
+            <button class="btn" style="background:#e67e22;color:white;" onclick="showCNCBrief()">🔧 Workshop Cut Brief</button>
+            <button class="btn btn-warning" onclick="showReportPreview('cutlist')">🪚 Profile Cut List</button>
+        </div>
+    </div>
+    <div class="import-export-section">
+        <div style="${grpHdr}">📜 Customer / Project</div>
+        <div style="${btnGrp}">
+            <button class="btn btn-primary" onclick="showReportPreview('quotation')">📜 Customer Quotation</button>
+        </div>
+    </div>
+    <div class="import-export-section">
+        <div style="${grpHdr}">💾 Records & Share</div>
+        <div style="${btnGrp}">
+            <button class="btn btn-primary btn-sm" onclick="exportFullResultsExcel()">📊 Full Excel</button>
+            <button class="btn btn-danger btn-sm" onclick="exportFullResultsPDF()">📄 Full PDF</button>
+            <button class="btn btn-secondary btn-sm" onclick="exportProject()">💾 Save JSON</button>
+            <button class="btn btn-success btn-sm" onclick="shareViaWhatsApp()">📱 WhatsApp</button>
+            <button class="btn btn-primary btn-sm" onclick="shareViaEmail()">✉️ Email</button>
+            <button class="btn btn-warning btn-sm" onclick="generatePrintableLabels()">🏷️ Print Labels</button>
         </div>
     </div>`;
     
@@ -1725,3 +1739,367 @@ function exportFullResultsPDF() {
     
 //     doc.save(`Quotation_${selectedProject}_${Date.now()}.pdf`);
 // }
+
+// ============================================================================
+// v1.25 — VENDOR ORDER EXPORTS (PDFs)
+// ============================================================================
+
+// Shared header drawer for vendor-order PDFs
+function _drawVendorOrderHeader(doc, title, opts) {
+    opts = opts || {};
+    const PW = doc.internal.pageSize.width;
+    const project = (optimizationResults && optimizationResults.project) || '—';
+    const today = new Date().toLocaleDateString('en-IN', { day:'2-digit', month:'short', year:'numeric' });
+    doc.setFillColor(30, 60, 114);
+    doc.rect(0, 0, PW, 18, 'F');
+    doc.setTextColor(255, 255, 255);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(13);
+    doc.text(title, 14, 12);
+    doc.setFontSize(9);
+    doc.setFont('helvetica', 'normal');
+    doc.text(`Project: ${project}`, PW - 14, 8, { align: 'right' });
+    doc.text(`Date: ${today}`, PW - 14, 14, { align: 'right' });
+    doc.setTextColor(0, 0, 0);
+    return 24; // y after header
+}
+
+// --- Glass Order Sheet ------------------------------------------------------
+function exportGlassOrderPDF() {
+    if (!optimizationResults) { showAlert('⚠️ Run optimization first.'); return; }
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF();
+    const project = optimizationResults.project;
+    const projectWindows = windows.filter(w => w.projectName === project);
+
+    let y = _drawVendorOrderHeader(doc, '🪟 Glass Order Sheet');
+    doc.setFontSize(9);
+    doc.text('All sizes in mm. Each row = one cut piece. Group by glass type when ordering.', 14, y);
+    y += 6;
+
+    const rows = [];   // [winId, location, zone, type, thickness, toughened, w_mm, h_mm, qty, area_sqft]
+    let totalArea = 0;
+    let totalPieces = 0;
+
+    projectWindows.forEach(win => {
+        const winQty = win.qty || 1;
+        const isDoor = win.category === 'Door';
+
+        if (!isDoor) {
+            // Window: full glass pane
+            const glass = (typeof calculateGlassDimensions === 'function') ? calculateGlassDimensions(win) : null;
+            const gi = (typeof resolveGlassInfo === 'function') ? resolveGlassInfo(win) : null;
+            if (glass && gi && gi.hasGlass) {
+                const wMM = Math.round(glass.width * 25.4);
+                const hMM = Math.round(glass.height * 25.4);
+                const qty = (glass.qty || 1) * winQty;
+                const areaSqft = ((glass.width * glass.height) / 144) * qty;
+                rows.push([
+                    win.configId, win.location || '-', 'Pane',
+                    (gi.unit === 'DGU' ? 'DGU' : 'SGU'),
+                    `${gi.thickness}mm`,
+                    gi.toughened ? 'Yes' : 'No',
+                    String(wMM), String(hMM),
+                    String(qty),
+                    areaSqft.toFixed(2)
+                ]);
+                totalArea += areaSqft;
+                totalPieces += qty;
+            }
+        } else {
+            // Door: upper + lower partitions, each if glass
+            const F  = win.frame || 0;
+            const L  = win.leaves || 1;
+            const VW = (win.handleWidth || win.verticalWidth || 47.5) / 25.4;
+            const TW = (win.topWidth    || 47.5) / 25.4;
+            const BW = (win.bottomWidth || 114.5)/ 25.4;
+            const MW = (win.middleWidth || 47.5) / 25.4;
+            const leafW = (win.width - (F * (80/25.4))) / L - 2 * VW;
+            const innerW = Math.max(0, leafW);
+            const innerH = win.height - (F * (40/25.4));
+            const midMM = win.middleRailPositionMM;
+            let upperZoneH, lowerZoneH;
+            if (midMM != null) {
+                const midIn = midMM / 25.4;
+                lowerZoneH = Math.max(0, midIn - BW - MW/2);
+                upperZoneH = Math.max(0, innerH - midIn - TW - MW/2);
+            } else {
+                const halfH = (innerH - TW - BW - MW) / 2;
+                lowerZoneH = upperZoneH = Math.max(0, halfH);
+            }
+            const GLASS_DEDUCT = 0.3125; // 8mm rubber + buffer
+
+            const addZone = (zone, part, zoneH) => {
+                if (!part || part.material !== 'Glass') return;
+                const w  = Math.max(0, innerW - GLASS_DEDUCT);
+                const h  = Math.max(0, zoneH  - GLASS_DEDUCT);
+                if (w <= 0 || h <= 0) return;
+                const qty = winQty * L;
+                const wMM = Math.round(w * 25.4);
+                const hMM = Math.round(h * 25.4);
+                const areaSqft = (w * h * qty) / 144;
+                rows.push([
+                    win.configId, win.location || '-', zone,
+                    (part.glassType === 'DGU' ? 'DGU' : 'SGU'),
+                    `${part.thickness || '6'}mm`,
+                    part.glassToughened ? 'Yes' : 'No',
+                    String(wMM), String(hMM),
+                    String(qty),
+                    areaSqft.toFixed(2)
+                ]);
+                totalArea += areaSqft;
+                totalPieces += qty;
+            };
+            addZone('Upper', win.upperPartition, upperZoneH);
+            addZone('Lower', win.lowerPartition, lowerZoneH);
+        }
+    });
+
+    if (rows.length === 0) {
+        doc.text('No glass pieces in this project.', 14, y + 8);
+    } else {
+        rows.push([
+            { content: 'TOTAL', colSpan: 8, styles: { fontStyle: 'bold', halign: 'right', fillColor: [240,240,240] } },
+            { content: String(totalPieces), styles: { fontStyle: 'bold', fillColor: [240,240,240] } },
+            { content: totalArea.toFixed(2), styles: { fontStyle: 'bold', fillColor: [240,240,240] } }
+        ]);
+        doc.autoTable({
+            startY: y,
+            margin: { left: 14, right: 14 },
+            head: [['Window/Door', 'Location', 'Zone', 'Type', 'Thk', 'Tough.', 'W (mm)', 'H (mm)', 'Qty', 'Area sqft']],
+            body: rows,
+            theme: 'grid',
+            headStyles: { fillColor: [2, 136, 209], textColor: [255,255,255], fontSize: 8, halign: 'center' },
+            bodyStyles: { fontSize: 8, halign: 'center' }
+        });
+    }
+
+    doc.save(`${project}_Glass_Order.pdf`);
+}
+
+// --- Partition Sheet Order --------------------------------------------------
+function exportPartitionSheetOrderPDF() {
+    if (!optimizationResults) { showAlert('⚠️ Run optimization first.'); return; }
+    const sheetRes = optimizationResults.sheetResults;
+    if (!sheetRes || !sheetRes.byGroup || Object.keys(sheetRes.byGroup).length === 0) {
+        showAlert('No partition sheets in this project.');
+        return;
+    }
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF();
+    const project = optimizationResults.project;
+
+    let y = _drawVendorOrderHeader(doc, '📄 Partition Sheet Order');
+    doc.setFontSize(9);
+    doc.text('Order the sheets listed below. Sizes shown are the actual sheet dimensions to purchase.', 14, y);
+    y += 6;
+
+    const MAT_TITLE = { ACP: 'ACP', Bakelite: 'Bakelite', ParticleBoard: 'Particle Board' };
+    const rows = [];
+    let grandSheets = 0;
+    let grandCost = 0;
+
+    for (const [groupKey, gr] of Object.entries(sheetRes.byGroup)) {
+        const matTitle = MAT_TITLE[gr.material] || gr.material;
+        const ratePerSqft = gr.ratePerSqft || 0;
+        const breakdown = gr.newSheetsBreakdown || { [gr.sheetName]: gr.newSheetsUsed };
+        Object.entries(breakdown).forEach(([size, count]) => {
+            if (count <= 0) return;
+            const catalogEntry = (SHEET_CATALOG[gr.material] || []).find(s => s.name === size);
+            const sheetArea = catalogEntry ? (catalogEntry.w * catalogEntry.h / 144) : 32;
+            const cost = count * sheetArea * ratePerSqft;
+            rows.push([
+                matTitle,
+                gr.thickness,
+                size,
+                String(count),
+                (count * sheetArea).toFixed(1),
+                ratePerSqft ? `₹${ratePerSqft}` : '-',
+                cost > 0 ? `₹${cost.toFixed(0)}` : '-'
+            ]);
+            grandSheets += count;
+            grandCost   += cost;
+        });
+
+        // From-stock line if any
+        if (gr.storeSheetsUsed > 0) {
+            rows.push([
+                matTitle,
+                gr.thickness,
+                'From stock (partials)',
+                String(gr.storeSheetsUsed),
+                '-', '-', '— used from your stock'
+            ]);
+        }
+    }
+
+    rows.push([
+        { content: 'GRAND TOTAL', colSpan: 3, styles: { fontStyle: 'bold', halign: 'right', fillColor: [240,240,240] } },
+        { content: String(grandSheets) + ' new sheets', styles: { fontStyle: 'bold', fillColor: [240,240,240] } },
+        { content: '', styles: { fillColor: [240,240,240] } },
+        { content: '', styles: { fillColor: [240,240,240] } },
+        { content: grandCost > 0 ? `₹${grandCost.toFixed(0)}` : '-', styles: { fontStyle: 'bold', fillColor: [240,240,240] } }
+    ]);
+
+    doc.autoTable({
+        startY: y,
+        margin: { left: 14, right: 14 },
+        head: [['Material', 'Thickness', 'Sheet Size', 'Qty', 'Total Area (sqft)', 'Rate ₹/sqft', 'Cost']],
+        body: rows,
+        theme: 'grid',
+        headStyles: { fillColor: [191, 54, 12], textColor: [255,255,255], fontSize: 9, halign: 'center' },
+        bodyStyles: { fontSize: 9, halign: 'center' }
+    });
+
+    doc.save(`${project}_Partition_Sheet_Order.pdf`);
+}
+
+// --- Mosquito Net Roll Order ------------------------------------------------
+function exportNetRollOrderPDF() {
+    if (!optimizationResults) { showAlert('⚠️ Run optimization first.'); return; }
+    const netRes = optimizationResults.netResults;
+    if (!netRes || !netRes.bins || netRes.bins.length === 0) {
+        showAlert('No mosquito net in this project.');
+        return;
+    }
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF();
+    const project = optimizationResults.project;
+
+    let y = _drawVendorOrderHeader(doc, '🕸️ Mosquito Net Roll Order');
+    doc.setFontSize(9);
+    doc.text('New rolls needed for this project. Stock partials (if any) are listed at the end for reference.', 14, y);
+    y += 6;
+
+    // Group new rolls by width
+    const byWidth = {};
+    let totalNewRolls = 0;
+    netRes.bins.filter(b => b.kind === 'new').forEach(b => {
+        const w = b.width;
+        if (!byWidth[w]) byWidth[w] = { count: 0, totalLength: 0 };
+        byWidth[w].count++;
+        byWidth[w].totalLength += b.capacityLength;
+        totalNewRolls++;
+    });
+
+    const rows = [];
+    Object.entries(byWidth).forEach(([w, info]) => {
+        const wFt = parseFloat(w) / 12;
+        const lFt = info.totalLength / 12;
+        rows.push([
+            `${w}" (${wFt.toFixed(1)}')`,
+            `${info.totalLength.toFixed(1)}" (${lFt.toFixed(1)} ft)`,
+            String(info.count),
+            `${(info.totalLength * 25.4).toFixed(0)} mm`
+        ]);
+    });
+
+    // From-stock (partials used) summary
+    const storeBins = netRes.bins.filter(b => b.kind === 'store');
+    if (storeBins.length > 0) {
+        rows.push([
+            { content: '— Partials from your stock —', colSpan: 4, styles: { fontStyle: 'italic', halign: 'center', fillColor: [232, 245, 233], textColor: [27, 94, 32] } }
+        ]);
+        storeBins.forEach(b => {
+            rows.push([
+                `${b.width}"`,
+                `${b.capacityLength.toFixed(1)}"`,
+                '1',
+                `${b.label || '—'}`
+            ]);
+        });
+    }
+
+    rows.push([
+        { content: 'TOTAL NEW ROLLS', colSpan: 2, styles: { fontStyle: 'bold', halign: 'right', fillColor: [240,240,240] } },
+        { content: String(totalNewRolls), styles: { fontStyle: 'bold', fillColor: [240,240,240] } },
+        { content: '', styles: { fillColor: [240,240,240] } }
+    ]);
+
+    doc.autoTable({
+        startY: y,
+        margin: { left: 14, right: 14 },
+        head: [['Roll Width', 'Roll Length', 'Qty (rolls)', 'Notes / Source']],
+        body: rows,
+        theme: 'grid',
+        headStyles: { fillColor: [106, 27, 154], textColor: [255,255,255], fontSize: 9, halign: 'center' },
+        bodyStyles: { fontSize: 9, halign: 'center' }
+    });
+
+    doc.save(`${project}_Net_Roll_Order.pdf`);
+}
+
+// --- Powder Coating Calculation ---------------------------------------------
+function exportPowderCoatingPDF() {
+    if (!optimizationResults || !optimizationResults.results) { showAlert('⚠️ Run optimization first.'); return; }
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF();
+    const project = optimizationResults.project;
+
+    let y = _drawVendorOrderHeader(doc, '✨ Powder Coating Calculation');
+    doc.setFontSize(9);
+    doc.text('Per-section running-foot cost. Length = total purchased aluminum (includes wastage offcuts).', 14, y);
+    y += 6;
+
+    // Aggregate by (series, component)
+    const lookupPC = (typeof lookupPowderCoatingRate === 'function') ? lookupPowderCoatingRate : null;
+    const aggregated = {};
+
+    for (const [key, plans] of Object.entries(optimizationResults.results)) {
+        const parts = key.split('|').map(s => s.trim());
+        const series = parts[0] || '';
+        const compName = parts[1] || key;
+
+        let purchasedLenIn = 0;
+        plans.forEach(plan => {
+            const stockLen = parseFloat(plan.stockLength ?? plan.stock ?? 0);
+            if (stockLen > 0) purchasedLenIn += stockLen;
+        });
+
+        const rate = lookupPC ? (lookupPC(series, compName) || 0) : 0;
+        const lenFt = purchasedLenIn / 12;
+        const cost = lenFt * rate;
+        const aggKey = key;
+        aggregated[aggKey] = { series, component: compName, lenFt, rate, cost };
+    }
+
+    const rows = [];
+    let grandLen = 0;
+    let grandCost = 0;
+    Object.values(aggregated)
+        .sort((a, b) => a.series.localeCompare(b.series) || a.component.localeCompare(b.component))
+        .forEach(r => {
+            rows.push([
+                r.series,
+                r.component,
+                r.lenFt.toFixed(2),
+                r.rate ? `₹${r.rate}` : '-',
+                r.cost ? `₹${r.cost.toFixed(0)}` : '-'
+            ]);
+            grandLen  += r.lenFt;
+            grandCost += r.cost;
+        });
+
+    if (rows.length === 0) {
+        doc.text('No powder coating data — run optimization first.', 14, y + 8);
+    } else {
+        rows.push([
+            { content: 'TOTAL', colSpan: 2, styles: { fontStyle: 'bold', halign: 'right', fillColor: [240,240,240] } },
+            { content: grandLen.toFixed(2), styles: { fontStyle: 'bold', fillColor: [240,240,240] } },
+            { content: '', styles: { fillColor: [240,240,240] } },
+            { content: grandCost > 0 ? `₹${grandCost.toFixed(0)}` : '-', styles: { fontStyle: 'bold', fillColor: [240,240,240] } }
+        ]);
+        doc.autoTable({
+            startY: y,
+            margin: { left: 14, right: 14 },
+            head: [['Series', 'Component / Section', 'Length (ft)', 'Rate ₹/ft', 'Cost']],
+            body: rows,
+            theme: 'grid',
+            headStyles: { fillColor: [85, 139, 47], textColor: [255,255,255], fontSize: 9, halign: 'center' },
+            bodyStyles: { fontSize: 9, halign: 'center' },
+            columnStyles: { 0: { halign: 'left' }, 1: { halign: 'left' } }
+        });
+    }
+
+    doc.save(`${project}_Powder_Coating.pdf`);
+}

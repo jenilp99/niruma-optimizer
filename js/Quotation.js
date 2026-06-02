@@ -556,15 +556,17 @@ function svgToPng(svgString, width, height) {
 /**
  * Per-unit-door (or window) wastage cost for non-aluminum materials.
  *
- * Computes the door's *pro-rata share* of the extra material the optimizer
- * had to buy beyond the strict panel/piece area:
- *   - ACP / Bakelite / Particle Board sheet offcuts beyond panel area
- *   - Mosquito net roll offcuts beyond piece area
+ * Computes the door's *pro-rata share* of the extra ACP / Bakelite /
+ * Particle Board sheet offcuts the optimizer had to buy beyond the strict
+ * panel area.
+ *
+ * **Mosquito net is intentionally excluded** (v1.25 policy): customers are
+ * billed only for the net length actually used, not the full roll offcut.
  *
  * Pure aluminum profile wastage is already covered separately by
  * `wastageCost` (which uses purchased stock-length share).
  *
- * Returns 0 when the door has no panels/net pieces in optimization results.
+ * Returns 0 when the door has no panels in optimization results.
  *
  * Per-unit semantics: the caller multiplies by win.qty when displaying
  * the line in the quotation PDF, so this function divides by win.qty for
@@ -605,36 +607,9 @@ function _computeDoorPartitionWastageCost(win) {
         }
     }
 
-    // — Mosquito net roll wastage —
-    const netRes = optimizationResults.netResults;
-    if (netRes && Array.isArray(netRes.bins)) {
-        let totalNetAreaSqft = 0;
-        let doorNetAreaSqft  = 0;
-        netRes.bins.forEach(bin => {
-            (bin.shelves || []).forEach(shelf => {
-                (shelf.pieces || []).forEach(p => {
-                    const a = ((p.origW || p.w) * (p.origH || p.h)) / 144;
-                    totalNetAreaSqft += a;
-                    if (p.label && (p.label === win.configId || p.label.startsWith(win.configId + ' '))) {
-                        doorNetAreaSqft += a;
-                    }
-                });
-            });
-        });
-        if (totalNetAreaSqft > 0 && doorNetAreaSqft > 0) {
-            const pr        = (ratesConfig && ratesConfig.partitionRates) || {};
-            const netRate   = pr.SSMosquito || pr.MosquitoNet || 0;
-            const totalCost = netRes.cost || 0;
-            const usefulCost   = totalNetAreaSqft * netRate;
-            const totalWastage = Math.max(0, totalCost - usefulCost);
-            if (totalWastage > 0) {
-                // Net pieces don't include win.qty (computeNetPieces uses MS qty),
-                // so don't divide here. The PDF will still × qty, which matches
-                // the existing pattern used for other per-unit costs.
-                total += (doorNetAreaSqft / totalNetAreaSqft) * totalWastage;
-            }
-        }
-    }
+    // — Mosquito net intentionally NOT included (v1.25 policy) —
+    // Customer pays only for the net length actually used (panel area × rate),
+    // not the full 50ft roll offcut. The workshop absorbs net wastage.
 
     return total;
 }
@@ -1068,7 +1043,7 @@ function generateQuotationPDF(projectWindows, selectedProject, formData) {
                 'Net Wt\n(kg)', 'Waste Wt\n(kg)',
                 'Profile\n(Rs.)', 'Wastage\n(Rs.)',
                 'Powder\nCoat (Rs.)', 'Glass\n(Rs.)',
-                'Sheet/Net\nWaste (Rs.)',
+                'Sheet\nWaste (Rs.)',
                 'Hardware\n(Rs.)', 'Labor\n(Rs.)',
                 'Sub-Total\n(Rs.)', 'Effic.\n(%)'
             ]],
@@ -2316,7 +2291,7 @@ function generateQuotationHTML(projectWindows, selectedProject) {
                 <tr><td style="padding: 8px;">Aluminum Profiles (${weightTotal.toFixed(2)} Kg)</td><td style="text-align: right; padding: 8px;">${profileCost.toFixed(0)}</td></tr>
                 <tr><td style="padding: 8px;">Powder Coating</td><td style="text-align: right; padding: 8px;">${powderCoatingCost.toFixed(0)}</td></tr>
                 ${glass ? `<tr><td style="padding: 8px;">Glass Area (${(glass.area * glass.qty).toFixed(1)} sqft)</td><td style="text-align: right; padding: 8px;">${glassCost.toFixed(0)}</td></tr>` : ''}
-                ${partitionWastageCost > 0 ? `<tr><td style="padding: 8px;">Sheet / Net Wastage <span style="color:#888;font-size:11px;">(extra material beyond panel area)</span></td><td style="text-align: right; padding: 8px;">${partitionWastageCost.toFixed(0)}</td></tr>` : ''}
+                ${partitionWastageCost > 0 ? `<tr><td style="padding: 8px;">Sheet Wastage <span style="color:#888;font-size:11px;">(ACP/Bakelite/PB offcuts beyond panel area)</span></td><td style="text-align: right; padding: 8px;">${partitionWastageCost.toFixed(0)}</td></tr>` : ''}
                 <tr><td style="padding: 8px;">Hardware & Rubber</td><td style="text-align: right; padding: 8px;">${(hardwareCost + rubberCost).toFixed(0)}</td></tr>
                 <tr style="font-weight: bold;"><td style="padding: 8px;">Subtotal</td><td style="text-align: right; padding: 8px;">₹${winTotal.toFixed(0)}</td></tr>
             </table>
