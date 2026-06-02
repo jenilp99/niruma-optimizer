@@ -665,6 +665,8 @@ function displayResults() {
         <div style="${btnGrp}">
             <button class="btn" style="background:#e67e22;color:white;" onclick="showCNCBrief()">🔧 Workshop Cut Brief</button>
             <button class="btn btn-warning" onclick="showReportPreview('cutlist')">🪚 Profile Cut List</button>
+            <button class="btn" style="background:#8e44ad;color:white;" onclick="exportNetCutDiagramsPDF()">📐 Net Cut Diagrams</button>
+            <button class="btn" style="background:#bf360c;color:white;" onclick="exportSheetCutDiagramsPDF()">📐 Sheet Cut Diagrams</button>
         </div>
     </div>
     <div class="import-export-section">
@@ -2102,4 +2104,352 @@ function exportPowderCoatingPDF() {
     }
 
     doc.save(`${project}_Powder_Coating.pdf`);
+}
+
+// ============================================================================
+// v1.26 — CUTTING DIAGRAMS PDFs (Net + Sheets, with SVG + cover page)
+// ============================================================================
+
+// Format an inch value as "Xmm (Y")" — used everywhere in the diagram PDFs
+function _fmtMmIn(inches) {
+    const mm = Math.round(inches * 25.4);
+    return `${mm}mm (${inches.toFixed(1)}")`;
+}
+
+// Convert an SVG string into a PNG data URL via off-screen canvas.
+// Uses Promise wrapping so we can await it before addImage. Returns null on failure.
+function _svgToPngDataUrl(svgString, scale) {
+    scale = scale || 2; // 2× DPI for sharper PDF render
+    return new Promise(resolve => {
+        try {
+            // Parse the svg to get its width/height
+            const parser = new DOMParser();
+            const svgDoc = parser.parseFromString(svgString, 'image/svg+xml');
+            const svgEl  = svgDoc.documentElement;
+            const w = parseFloat(svgEl.getAttribute('width'))  || 600;
+            const h = parseFloat(svgEl.getAttribute('height')) || 400;
+
+            const blob = new Blob([svgString], { type: 'image/svg+xml;charset=utf-8' });
+            const url  = URL.createObjectURL(blob);
+            const img  = new Image();
+            img.onload = () => {
+                try {
+                    const canvas = document.createElement('canvas');
+                    canvas.width  = Math.ceil(w * scale);
+                    canvas.height = Math.ceil(h * scale);
+                    const ctx = canvas.getContext('2d');
+                    ctx.fillStyle = '#ffffff';
+                    ctx.fillRect(0, 0, canvas.width, canvas.height);
+                    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+                    const dataUrl = canvas.toDataURL('image/png');
+                    URL.revokeObjectURL(url);
+                    resolve({ dataUrl, w, h });
+                } catch (e) {
+                    URL.revokeObjectURL(url);
+                    console.error('SVG → canvas error:', e);
+                    resolve(null);
+                }
+            };
+            img.onerror = (e) => {
+                URL.revokeObjectURL(url);
+                console.error('SVG image load failed:', e);
+                resolve(null);
+            };
+            img.src = url;
+        } catch (e) {
+            console.error('SVG parse error:', e);
+            resolve(null);
+        }
+    });
+}
+
+// Shared cover page drawer for both diagram PDFs.
+function _drawDiagramCover(doc, title, project, orderSummaryLines, requiredRows, headColor) {
+    const PW = doc.internal.pageSize.width;
+    const today = new Date().toLocaleDateString('en-IN', { day:'2-digit', month:'short', year:'numeric' });
+
+    // Top banner
+    doc.setFillColor(...headColor);
+    doc.rect(0, 0, PW, 22, 'F');
+    doc.setTextColor(255, 255, 255);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(15);
+    doc.text(title, 14, 13);
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'normal');
+    doc.text(`Project: ${project}`, PW - 14, 9, { align: 'right' });
+    doc.text(`Date: ${today}`, PW - 14, 16, { align: 'right' });
+
+    let y = 32;
+    doc.setTextColor(0, 0, 0);
+    doc.setFontSize(11);
+    doc.setFont('helvetica', 'bold');
+    doc.text('Order Summary', 14, y);
+    y += 6;
+
+    // Order summary box
+    doc.setFontSize(9);
+    doc.setFont('helvetica', 'normal');
+    doc.setFillColor(248, 248, 248);
+    doc.rect(14, y, PW - 28, orderSummaryLines.length * 5 + 4, 'F');
+    orderSummaryLines.forEach((line, i) => {
+        doc.text(line, 18, y + 6 + i * 5);
+    });
+    y += orderSummaryLines.length * 5 + 10;
+
+    // Required pieces table
+    if (requiredRows && requiredRows.body && requiredRows.body.length > 0) {
+        doc.setFontSize(11);
+        doc.setFont('helvetica', 'bold');
+        doc.text('Pieces Required', 14, y);
+        y += 4;
+        doc.autoTable({
+            startY: y,
+            margin: { left: 14, right: 14 },
+            head: [requiredRows.head],
+            body: requiredRows.body,
+            theme: 'grid',
+            headStyles: { fillColor: headColor, textColor: [255,255,255], fontSize: 9, halign: 'center' },
+            bodyStyles: { fontSize: 9, halign: 'center' }
+        });
+    }
+}
+
+// --- Net Cut Diagrams PDF --------------------------------------------------
+async function exportNetCutDiagramsPDF() {
+    if (!optimizationResults || !optimizationResults.netResults || !optimizationResults.netResults.bins) {
+        showAlert('No mosquito net in this project.');
+        return;
+    }
+    const netRes = optimizationResults.netResults;
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF({ unit: 'mm', format: 'a4' });
+    const project = optimizationResults.project;
+    const PW = doc.internal.pageSize.width;
+
+    // === COVER PAGE ===
+    const storeBins = netRes.bins.filter(b => b.kind === 'store');
+    const newBins   = netRes.bins.filter(b => b.kind === 'new');
+    const byWidth = {};
+    newBins.forEach(b => {
+        const w = b.width;
+        byWidth[w] = (byWidth[w] || 0) + 1;
+    });
+    const orderLines = [];
+    if (storeBins.length > 0) orderLines.push(`From stock: ${storeBins.length} partial roll${storeBins.length > 1 ? 's' : ''}`);
+    Object.entries(byWidth).forEach(([w, n]) => {
+        orderLines.push(`Order new: ${n} × ${w}" × 50 ft roll${n > 1 ? 's' : ''}`);
+    });
+    orderLines.push(`Total bins to cut: ${netRes.bins.length}    |    Pieces: ${countNetPieces(netRes)}`);
+
+    // Required pieces table (grouped by label+size)
+    const piecesByKey = {};
+    netRes.bins.forEach(bin => {
+        (bin.shelves || []).forEach(shelf => {
+            (shelf.pieces || []).forEach(p => {
+                const key = `${p.label}|${p.origW.toFixed(2)}|${p.origH.toFixed(2)}`;
+                if (!piecesByKey[key]) piecesByKey[key] = { label: p.label, w: p.origW, h: p.origH, qty: 0 };
+                piecesByKey[key].qty++;
+            });
+        });
+    });
+    const requiredBody = Object.values(piecesByKey)
+        .sort((a,b) => a.label.localeCompare(b.label))
+        .map(r => [
+            r.label,
+            _fmtMmIn(r.w),
+            _fmtMmIn(r.h),
+            String(r.qty)
+        ]);
+
+    _drawDiagramCover(
+        doc,
+        '🕸️ Mosquito Net Cutting Plan',
+        project,
+        orderLines,
+        { head: ['Window / Label', 'Width', 'Height', 'Qty'], body: requiredBody },
+        [142, 68, 173] // purple
+    );
+
+    // === ROLL PAGES ===
+    const labelColorCache = {};
+    for (let i = 0; i < netRes.bins.length; i++) {
+        const bin = netRes.bins[i];
+        doc.addPage();
+        await _drawBinPage(doc, bin, i + 1, netRes.bins.length, labelColorCache,
+            [142, 68, 173], '🕸️ Mosquito Net Roll');
+    }
+
+    doc.save(`${project}_Net_Cutting_Diagrams.pdf`);
+}
+
+function countNetPieces(netRes) {
+    let n = 0;
+    netRes.bins.forEach(bin => (bin.shelves || []).forEach(shelf => { n += (shelf.pieces || []).length; }));
+    return n;
+}
+
+// --- Sheet Cut Diagrams PDF ------------------------------------------------
+async function exportSheetCutDiagramsPDF() {
+    if (!optimizationResults || !optimizationResults.sheetResults || !optimizationResults.sheetResults.byGroup) {
+        showAlert('No partition sheets in this project.');
+        return;
+    }
+    const sheetRes = optimizationResults.sheetResults;
+    const groups = Object.values(sheetRes.byGroup);
+    if (groups.length === 0) { showAlert('No partition sheets in this project.'); return; }
+
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF({ unit: 'mm', format: 'a4' });
+    const project = optimizationResults.project;
+    const MAT_TITLE = { ACP: 'ACP', Bakelite: 'Bakelite', ParticleBoard: 'Particle Board' };
+
+    // Combined cover page covering ALL material groups
+    const orderLines = [];
+    const requiredBody = [];
+    let totalPieces = 0;
+    let totalSheets = 0;
+    groups.forEach(gr => {
+        const title = MAT_TITLE[gr.material] || gr.material;
+        const breakdown = gr.newSheetsBreakdown || { [gr.sheetName]: gr.newSheetsUsed };
+        const bdStr = Object.entries(breakdown).filter(([,n]) => n > 0)
+            .map(([nm,n]) => `${n} × ${nm}`).join(' + ');
+        if (gr.storeSheetsUsed > 0) orderLines.push(`${title} ${gr.thickness}: ${gr.storeSheetsUsed} from stock + Order ${bdStr || '0 new'}`);
+        else                        orderLines.push(`${title} ${gr.thickness}: Order ${bdStr || '0 new'}`);
+        totalSheets += gr.bins.length;
+
+        // Aggregate required pieces for this group
+        const piecesByKey = {};
+        (gr.bins || []).forEach(bin => {
+            (bin.shelves || []).forEach(shelf => {
+                (shelf.pieces || []).forEach(p => {
+                    const key = `${p.label}|${p.origW.toFixed(2)}|${p.origH.toFixed(2)}`;
+                    if (!piecesByKey[key]) piecesByKey[key] = { label: p.label, w: p.origW, h: p.origH, qty: 0 };
+                    piecesByKey[key].qty++;
+                    totalPieces++;
+                });
+            });
+        });
+        Object.values(piecesByKey)
+            .sort((a,b) => a.label.localeCompare(b.label))
+            .forEach(r => {
+                requiredBody.push([
+                    `${title} ${gr.thickness}`,
+                    r.label,
+                    _fmtMmIn(r.w),
+                    _fmtMmIn(r.h),
+                    String(r.qty)
+                ]);
+            });
+    });
+    orderLines.push(`Total sheets to cut: ${totalSheets}    |    Panels: ${totalPieces}`);
+
+    _drawDiagramCover(
+        doc,
+        '📄 Partition Sheet Cutting Plan',
+        project,
+        orderLines,
+        { head: ['Material', 'Door / Panel', 'Width', 'Height', 'Qty'], body: requiredBody },
+        [191, 54, 12] // orange-brown
+    );
+
+    // Per-sheet pages, grouped by material
+    let runningSheetNum = 0;
+    const totalSheetsCount = totalSheets;
+    const labelColorCache = {};
+    for (const gr of groups) {
+        const matTitle = MAT_TITLE[gr.material] || gr.material;
+        for (let i = 0; i < gr.bins.length; i++) {
+            runningSheetNum++;
+            const bin = gr.bins[i];
+            doc.addPage();
+            await _drawBinPage(doc, bin, runningSheetNum, totalSheetsCount, labelColorCache,
+                [191, 54, 12], `📄 ${matTitle} ${gr.thickness}`);
+        }
+    }
+
+    doc.save(`${project}_Sheet_Cutting_Diagrams.pdf`);
+}
+
+// Shared per-bin page drawer (used by both Net + Sheet diagram PDFs)
+async function _drawBinPage(doc, bin, binIndex, binTotal, labelColorCache, headColor, materialPrefix) {
+    const PW = doc.internal.pageSize.width;
+    const PH = doc.internal.pageSize.height;
+    const today = new Date().toLocaleDateString('en-IN', { day:'2-digit', month:'short', year:'numeric' });
+    const project = (optimizationResults && optimizationResults.project) || '—';
+
+    // Top banner
+    doc.setFillColor(...headColor);
+    doc.rect(0, 0, PW, 18, 'F');
+    doc.setTextColor(255, 255, 255);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(12);
+    const sourceTag = bin.kind === 'store' ? `FROM STOCK: ${bin.label}` : `NEW ROLL/SHEET: ${bin.label}`;
+    doc.text(`${materialPrefix}  |  ${sourceTag}  |  Page ${binIndex} of ${binTotal}`, 14, 11);
+    doc.setFontSize(8.5);
+    doc.setFont('helvetica', 'normal');
+    doc.text(`Project: ${project}    |    Date: ${today}`, PW - 14, 11, { align: 'right' });
+
+    let y = 26;
+    doc.setTextColor(0, 0, 0);
+
+    // Dimensions header
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'bold');
+    doc.text(`Width: ${_fmtMmIn(bin.width)}    |    Length: ${_fmtMmIn(bin.capacityLength)}`, 14, y);
+    y += 5;
+    doc.setFontSize(9);
+    doc.setFont('helvetica', 'normal');
+    doc.text(`Used: ${_fmtMmIn(bin.usedLength)}    Leftover: ${_fmtMmIn(bin.capacityLength - bin.usedLength)} → return to store`, 14, y);
+    y += 6;
+
+    // Render SVG diagram → PNG via canvas
+    if (typeof generateNetDiagramBin === 'function') {
+        const svgString = generateNetDiagramBin(bin, labelColorCache);
+        const pngResult = await _svgToPngDataUrl(svgString, 2);
+        if (pngResult && pngResult.dataUrl) {
+            // Fit width to page minus margins (PW - 28), keep aspect ratio
+            const maxW = PW - 28;
+            const maxH = 100; // cap at 100mm tall
+            let imgW = maxW;
+            let imgH = (pngResult.h / pngResult.w) * imgW;
+            if (imgH > maxH) { imgH = maxH; imgW = (pngResult.w / pngResult.h) * imgH; }
+            const xCenter = (PW - imgW) / 2;
+            doc.addImage(pngResult.dataUrl, 'PNG', xCenter, y, imgW, imgH);
+            y += imgH + 6;
+        }
+    }
+
+    // Row-by-row cutting sequence
+    if (y > PH - 80) { doc.addPage(); y = 18; }
+    doc.setFontSize(11);
+    doc.setFont('helvetica', 'bold');
+    doc.text('Cutting Sequence', 14, y);
+    y += 4;
+
+    const rowsBody = [];
+    (bin.shelves || []).forEach((shelf, si) => {
+        const cutFromTo = `${_fmtMmIn(shelf.y)} → ${_fmtMmIn(shelf.y + shelf.shelfH)}`;
+        const piecesDesc = (shelf.pieces || []).map(p => {
+            const rotMark = p.rotated ? ' ↺' : '';
+            return `${_fmtMmIn(p.w)} × ${_fmtMmIn(p.h)} → ${p.label}${rotMark}`;
+        }).join('\n');
+        rowsBody.push([
+            `Row ${si + 1}`,
+            cutFromTo,
+            _fmtMmIn(shelf.shelfH),
+            piecesDesc
+        ]);
+    });
+
+    doc.autoTable({
+        startY: y,
+        margin: { left: 14, right: 14 },
+        head: [['#', 'Cut Position', 'Row Height', 'Pieces (W × H → Label)']],
+        body: rowsBody,
+        theme: 'grid',
+        headStyles: { fillColor: headColor, textColor: [255,255,255], fontSize: 9, halign: 'center' },
+        bodyStyles: { fontSize: 8.5, valign: 'middle' },
+        columnStyles: { 0: { halign: 'center', cellWidth: 12 }, 1: { halign: 'center', cellWidth: 40 }, 2: { halign: 'center', cellWidth: 30 }, 3: { halign: 'left' } }
+    });
 }

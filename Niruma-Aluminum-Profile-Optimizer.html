@@ -10,8 +10,8 @@
     <title>Niruma Aluminum Profile Optimizer</title>
 
     <!-- CSS -->
-    <link rel="stylesheet" href="css/styles.css?v=1.25">
-    <link rel="stylesheet" href="css/modal.css?v=1.25">
+    <link rel="stylesheet" href="css/styles.css?v=1.26">
+    <link rel="stylesheet" href="css/modal.css?v=1.26">
 
     <!-- External Libraries -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -61,7 +61,7 @@
                 <span><strong>mm</strong></span>
             </div>
             <!-- APP VERSION — bump this number on every push/update -->
-            <div class="navbar-version">Ver: 1.25</div>
+            <div class="navbar-version">Ver: 1.26</div>
         </div>
     </nav>
 
@@ -1009,6 +1009,19 @@
                         </div>
                     </details>
 
+                    <details class="rate-group" id="sheetAvailabilityPanel" style="margin-bottom: 20px; border: 1px solid #bf360c; border-radius: 8px; background: white;">
+                        <summary style="padding: 12px 15px; cursor: pointer; font-weight: bold; background: #fff3e0; border-radius: 8px; list-style: none; color:#bf360c;">
+                            📐 Partition Sheet Sizes Available <span style="font-weight:normal;font-size:12px;color:#666;">(filter optimizer to your stock)</span></summary>
+                        <div style="padding: 15px; border-top: 1px solid #ffe0b2;">
+                            <p style="font-size:12px;color:#666;margin:0 0 10px 0;">
+                                Uncheck sizes you don't keep in stock. The optimizer will only suggest sizes you have available.
+                                Default: all sizes enabled.
+                            </p>
+                            <div id="sheetAvailabilityList"></div>
+                            <button class="btn btn-sm" style="background:#bf360c;color:white;margin-top:10px;" onclick="saveSheetAvailability()">💾 Save Sheet Availability</button>
+                        </div>
+                    </details>
+
                     <details class="rate-group" id="netStockPanel" style="margin-bottom: 20px; border: 1px solid #8e44ad; border-radius: 8px; background: white;">
                         <summary style="padding: 12px 15px; cursor: pointer; font-weight: bold; background: #f3e5f5; border-radius: 8px; list-style: none; color:#6c3483;">
                             🕸️ SS Mosquito Net Roll Stock &amp; Prices</summary>
@@ -1753,18 +1766,18 @@
     </div>
 
     <!-- JavaScript Files - Load in Order -->
-    <script src="js/storage.js?v=1.25"></script>
-    <script src="js/supplier_master.js?v=1.25"></script>
+    <script src="js/storage.js?v=1.26"></script>
+    <script src="js/supplier_master.js?v=1.26"></script>
     <!-- Supplier Modules -->
-    <script src="js/suppliers/windalco.js?v=1.25"></script>
-    <script src="js/suppliers/jk_alu.js?v=1.25"></script>
-    <script src="js/suppliers/atlantis.js?v=1.25"></script>
-    <script src="js/suppliers/vitco.js?v=1.25"></script>
+    <script src="js/suppliers/windalco.js?v=1.26"></script>
+    <script src="js/suppliers/jk_alu.js?v=1.26"></script>
+    <script src="js/suppliers/atlantis.js?v=1.26"></script>
+    <script src="js/suppliers/vitco.js?v=1.26"></script>
 
-    <script src="js/app.js?v=1.25"></script>
-    <script src="js/optimization.js?v=1.25"></script>
-    <script src="js/exports.js?v=1.25"></script>
-    <script src="js/Quotation.js?v=1.25"></script>
+    <script src="js/app.js?v=1.26"></script>
+    <script src="js/optimization.js?v=1.26"></script>
+    <script src="js/exports.js?v=1.26"></script>
+    <script src="js/Quotation.js?v=1.26"></script>
 
 </body>
 

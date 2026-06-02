@@ -1273,11 +1273,25 @@ function packAllSheets(windows, partialSheets) {
     });
 
     const byGroup = {};
+    const warnings = [];
+    const availability = (ratesConfig && ratesConfig.sheetAvailability) || {};
+
     for (const [key, gPanels] of Object.entries(groups)) {
         const mat = gPanels[0].material;
         const thk = gPanels[0].thickness;
-        const sizes = SHEET_CATALOG[mat];
-        if (!sizes || !sizes.length) continue;
+        const allSizes = SHEET_CATALOG[mat];
+        if (!allSizes || !allSizes.length) continue;
+
+        // v1.26: filter catalog by user's "Sheet Availability" toggles
+        const matAv = availability[mat] || {};
+        // Default: enabled if not in toggles (preserves behavior when user hasn't visited the panel)
+        const sizes = allSizes.filter(sz => matAv[sz.name] !== false);
+        if (sizes.length === 0) {
+            warnings.push(`⚠️ All ${mat} sheet sizes are disabled in Sheet Availability. ${mat} ${thk}mm panels skipped.`);
+            console.warn(`No enabled sheet sizes for ${mat} — skipping group ${key}`);
+            continue;
+        }
+
         const rate = (ratesConfig.partitionRates || {})[key] || 0;
         // Partial sheets from UI have no thickness field — match by material only
         // (user enters physical sheet dimensions; they won't mix thicknesses in same partial)
@@ -1285,6 +1299,12 @@ function packAllSheets(windows, partialSheets) {
         const result = packSheetGroup(gPanels, sizes, gPartials, rate);
         if (result) byGroup[key] = { material: mat, thickness: thk + 'mm', ratePerSqft: rate, panels: gPanels, ...result };
     }
+
+    // Surface availability warnings to the user (non-blocking)
+    if (warnings.length > 0 && typeof showAlert === 'function') {
+        showAlert(warnings.join('\n'), 'warning');
+    }
+
     return Object.keys(byGroup).length > 0 ? { byGroup } : null;
 }
 

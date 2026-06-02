@@ -150,6 +150,13 @@ let ratesConfig = {
     // to get the net piece size (both width and height, in inches)
     netDeductions: {
         '27mm Domal': { deductW: 2, deductH: 2 }
+    },
+    // v1.26: which sheet sizes the user has in stock. Optimizer filters the
+    // SHEET_CATALOG by this. Default: all enabled. Keys match catalog `name`.
+    sheetAvailability: {
+        ACP:           { "8'×4'": true, "10'×4'": true, "12'×4'": true },
+        Bakelite:      { "8'×4'": true },
+        ParticleBoard: { "8'×4'": true }
     }
 };
 
@@ -193,6 +200,14 @@ function initializeDefaults() {
             if (parsed.netDeductions) {
                 for (const [s, v] of Object.entries(parsed.netDeductions)) {
                     ratesConfig.netDeductions[s] = Object.assign(ratesConfig.netDeductions[s] || {}, v);
+                }
+            }
+            if (parsed.sheetAvailability) {
+                // Deep merge per material so newly added sizes default to enabled
+                for (const [mat, sizes] of Object.entries(parsed.sheetAvailability)) {
+                    ratesConfig.sheetAvailability[mat] = Object.assign(
+                        ratesConfig.sheetAvailability[mat] || {}, sizes
+                    );
                 }
             }
         }
@@ -427,6 +442,71 @@ function refreshRatesDisplay() {
     renderNetStockList();
     renderNetPartialRollsList();
     renderSheetPartialsList();
+    renderSheetAvailabilityList();
+}
+
+// ── Sheet Availability (v1.26) ────────────────────────────────────────────
+// Lets the user uncheck sheet sizes they don't keep in stock. Optimizer
+// filters SHEET_CATALOG by this map before packing.
+function renderSheetAvailabilityList() {
+    const container = document.getElementById('sheetAvailabilityList');
+    if (!container) return;
+
+    if (!ratesConfig.sheetAvailability) ratesConfig.sheetAvailability = {};
+    const av = ratesConfig.sheetAvailability;
+
+    // Use SHEET_CATALOG from optimization.js as the source of truth for
+    // what sizes EXIST. The toggle controls which are AVAILABLE.
+    const catalog = (typeof SHEET_CATALOG !== 'undefined') ? SHEET_CATALOG : {
+        ACP:           [{ name:"8'×4'", w:48, h:96 }, { name:"10'×4'", w:48, h:120 }, { name:"12'×4'", w:48, h:144 }],
+        Bakelite:      [{ name:"8'×4'", w:48, h:96 }],
+        ParticleBoard: [{ name:"8'×4'", w:48, h:96 }]
+    };
+
+    const MAT_TITLE = { ACP: 'ACP', Bakelite: 'Bakelite', ParticleBoard: 'Particle Board' };
+
+    let html = '';
+    Object.entries(catalog).forEach(([mat, sizes]) => {
+        const matAv = av[mat] || (av[mat] = {});
+        const title = MAT_TITLE[mat] || mat;
+
+        html += `<div style="margin-bottom:12px;padding:10px 14px;background:#fffaf3;border:1px solid #ffe0b2;border-radius:6px;">
+            <div style="font-weight:600;color:#bf360c;margin-bottom:6px;font-size:13px;">${title}</div>
+            <div style="display:flex;flex-wrap:wrap;gap:14px;">`;
+        sizes.forEach(sz => {
+            // Default to enabled if not stored
+            if (matAv[sz.name] === undefined) matAv[sz.name] = true;
+            const checked = matAv[sz.name] ? 'checked' : '';
+            const id = `sa_${mat}_${sz.name.replace(/[^a-z0-9]/gi, '_')}`;
+            html += `<label for="${id}" style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:13px;">
+                <input type="checkbox" id="${id}" ${checked}
+                    data-material="${mat}" data-size="${sz.name}"
+                    onchange="onSheetAvailabilityToggle(this)">
+                <span>${sz.name} <span style="color:#999;font-size:11px;">(${sz.w}"×${sz.h}")</span></span>
+            </label>`;
+        });
+        if (sizes.length === 1) {
+            html += `<span style="color:#999;font-size:11px;font-style:italic;">(only one size in catalog)</span>`;
+        }
+        html += `</div></div>`;
+    });
+
+    container.innerHTML = html;
+}
+
+function onSheetAvailabilityToggle(cb) {
+    const mat = cb.getAttribute('data-material');
+    const sz  = cb.getAttribute('data-size');
+    if (!ratesConfig.sheetAvailability[mat]) ratesConfig.sheetAvailability[mat] = {};
+    ratesConfig.sheetAvailability[mat][sz] = cb.checked;
+    autoSaveRates();
+}
+
+function saveSheetAvailability() {
+    // Toggles already autosave via onSheetAvailabilityToggle; this button
+    // is just for user reassurance.
+    autoSaveRates();
+    showAlert('✅ Sheet availability saved');
 }
 
 function renderPartitionRatesList() {
