@@ -1453,67 +1453,246 @@ function exportFullResultsExcel() {
         showAlert('⚠️ No results to export!');
         return;
     }
-    
+
     const r = optimizationResults;
     const wb = XLSX.utils.book_new();
-    
-    const summaryData = [
+    const projectWindows = windows.filter(w => w.projectName === r.project);
+
+    // ── Tab 1: Project Summary ─────────────────────────────────────────────
+    const summary = [
         ['Niruma Aluminum Profile Optimizer'],
         ['Project:', r.project],
+        ['Date:', new Date().toLocaleDateString('en-IN', { day:'2-digit', month:'short', year:'numeric' })],
+        ['Items:', projectWindows.length],
         [''],
-        ['Overall Statistics'],
+        ['── Aluminum Profile Stats ──'],
         ['Total Sticks', r.stats.totalSticks],
         ['Total Used Length', r.stats.totalUsed + '"'],
         ['Total Waste Length', r.stats.totalWaste + '"'],
         ['Overall Efficiency', r.stats.efficiency + '%'],
-        ['Total Cost', '₹' + r.stats.totalCost],
+        ['Profile Cost', '₹' + r.stats.totalCost],
         ['']
     ];
-    
+    if (r.sheetResults && r.sheetResults.byGroup) {
+        summary.push(['── Partition Sheet Stats ──']);
+        let totalSheets = 0, totalSheetCost = 0;
+        for (const [, gr] of Object.entries(r.sheetResults.byGroup)) {
+            totalSheets += gr.bins.length;
+            totalSheetCost += gr.cost || 0;
+            summary.push([`${gr.material} ${gr.thickness}`, `${gr.bins.length} sheets`, '₹' + (gr.cost || 0).toFixed(0)]);
+        }
+        summary.push(['Total sheets', totalSheets, '₹' + totalSheetCost.toFixed(0)]);
+        summary.push(['']);
+    }
+    if (r.netResults && r.netResults.bins) {
+        summary.push(['── Mosquito Net Stats ──']);
+        summary.push(['Total rolls used', r.netResults.bins.length]);
+        summary.push(['New rolls', r.netResults.newRollsUsed || 0]);
+        summary.push(['From stock', r.netResults.storeRollsUsed || 0]);
+        summary.push(['Net cost (rolls)', '₹' + (r.netResults.cost || 0).toFixed(0)]);
+        summary.push(['']);
+    }
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(summary), 'Summary');
+
+    // ── Tab 2: Profile Cutting Plans (preserves the original layout) ───────
+    const profile = [];
     for (const [key, plans] of Object.entries(r.results)) {
-        const materialUsed = plans.reduce((sum, p) => sum + p.used, 0);
-        const materialWaste = plans.reduce((sum, p) => sum + p.waste, 0);
-        const materialTotal = materialUsed + materialWaste;
-        const materialEfficiency = ((materialUsed / materialTotal) * 100).toFixed(2);
-        
+        const matUsed  = plans.reduce((s, p) => s + p.used, 0);
+        const matWaste = plans.reduce((s, p) => s + p.waste, 0);
+        const matTotal = matUsed + matWaste;
+        const matEff   = matTotal > 0 ? ((matUsed / matTotal) * 100).toFixed(2) : '0.00';
         const stockCounts = {};
         plans.forEach(plan => {
-            const stockSize = plan.stock.replace('"', '');
-            stockCounts[stockSize] = (stockCounts[stockSize] || 0) + 1;
+            const sz = plan.stock.replace('"', '');
+            stockCounts[sz] = (stockCounts[sz] || 0) + 1;
         });
-        
         const requirementStr = Object.entries(stockCounts)
-            .map(([size, count]) => `${size}" - ${count} nos`)
-            .join(' | ');
-        
-        summaryData.push([`Material: ${key}`]);
-        summaryData.push(['Requirements', requirementStr]);
-        summaryData.push(['Used Length', materialUsed.toFixed(2) + '"']);
-        summaryData.push(['Waste Length', materialWaste.toFixed(2) + '"']);
-        summaryData.push(['Efficiency', materialEfficiency + '%']);
-        summaryData.push(['']);
-        
-        summaryData.push(['Detailed Cutting Plan']);
-        summaryData.push(['Stick #', 'Stock', 'Pieces', 'Used', 'Waste', 'Efficiency', 'Cost']);
-        
+            .map(([sz, c]) => `${sz}" - ${c} nos`).join(' | ');
+
+        profile.push([`Material: ${key}`]);
+        profile.push(['Requirements', requirementStr]);
+        profile.push(['Used', matUsed.toFixed(2) + '"',  'Waste', matWaste.toFixed(2) + '"', 'Efficiency', matEff + '%']);
+        profile.push(['Stick #', 'Stock', 'Pieces', 'Used', 'Waste', 'Efficiency', 'Cost']);
         plans.forEach((plan, idx) => {
             const piecesStr = plan.pieces.map(p => `${p.length.toFixed(2)}" (${p.label})`).join(' | ');
-            summaryData.push([
+            profile.push([idx + 1, plan.stock, piecesStr, plan.used.toFixed(2) + '"', plan.waste.toFixed(2) + '"', plan.efficiency + '%', '₹' + plan.cost]);
+        });
+        profile.push(['']);
+    }
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(profile), 'Profile Cuts');
+
+    // ── Tab 3: Partition Sheets ────────────────────────────────────────────
+    if (r.sheetResults && r.sheetResults.byGroup && Object.keys(r.sheetResults.byGroup).length > 0) {
+        const sheets = [['Material', 'Thickness', 'Sheet Size', 'Source', 'Used Length', 'Capacity', 'Pieces', 'Cost']];
+        for (const [, gr] of Object.entries(r.sheetResults.byGroup)) {
+            sheets.push([`${gr.material} ${gr.thickness} — Order Summary`,
+                Object.entries(gr.newSheetsBreakdown || { [gr.sheetName]: gr.newSheetsUsed })
+                    .filter(([, n]) => n > 0).map(([nm, n]) => `${n} × ${nm}`).join(' + '),
+                '', '', '', '', '', '₹' + (gr.cost || 0).toFixed(0)]);
+            gr.bins.forEach((bin, idx) => {
+                const pieces = bin.shelves.reduce((s, shelf) => s + shelf.pieces.length, 0);
+                sheets.push([
+                    gr.material, gr.thickness, `${bin.width}"×${bin.capacityLength}"`,
+                    bin.kind === 'store' ? `STOCK: ${bin.label}` : `NEW #${idx + 1}`,
+                    bin.usedLength.toFixed(1) + '"', bin.capacityLength.toFixed(1) + '"',
+                    pieces, ''
+                ]);
+            });
+            sheets.push(['']);
+        }
+        XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(sheets), 'Partition Sheets');
+    }
+
+    // ── Tab 4: Mosquito Net Rolls ──────────────────────────────────────────
+    if (r.netResults && r.netResults.bins) {
+        const net = [['Roll #', 'Source', 'Width', 'Capacity Length', 'Used Length', 'Leftover', 'Pieces']];
+        r.netResults.bins.forEach((bin, idx) => {
+            const pieces = (bin.shelves || []).reduce((s, shelf) => s + (shelf.pieces || []).length, 0);
+            net.push([
                 idx + 1,
-                plan.stock,
-                piecesStr,
-                plan.used.toFixed(2) + '"',
-                plan.waste.toFixed(2) + '"',
-                plan.efficiency + '%',
-                '₹' + plan.cost
+                bin.kind === 'store' ? `STOCK: ${bin.label}` : 'NEW',
+                bin.width + '"',
+                bin.capacityLength.toFixed(1) + '"',
+                bin.usedLength.toFixed(1) + '"',
+                (bin.capacityLength - bin.usedLength).toFixed(1) + '"',
+                pieces
             ]);
         });
-        
-        summaryData.push(['']);
+        net.push(['']);
+        net.push(['Total cost (new rolls)', '', '', '', '', '', '₹' + (r.netResults.cost || 0).toFixed(0)]);
+        XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(net), 'Net Rolls');
     }
-    
-    const ws = XLSX.utils.aoa_to_sheet(summaryData);
-    XLSX.utils.book_append_sheet(wb, ws, 'Full Results');
+
+    // ── Tab 5: Glass List ──────────────────────────────────────────────────
+    const glassRows = [['Window/Door', 'Location', 'Zone', 'Type', 'Thickness', 'Toughened', 'W (mm)', 'H (mm)', 'Qty', 'Area sqft']];
+    projectWindows.forEach(win => {
+        const winQty = win.qty || 1;
+        if (win.category !== 'Door') {
+            const glass = (typeof calculateGlassDimensions === 'function') ? calculateGlassDimensions(win) : null;
+            const gi    = (typeof resolveGlassInfo === 'function') ? resolveGlassInfo(win) : null;
+            if (glass && gi && gi.hasGlass) {
+                const qty = (glass.qty || 1) * winQty;
+                glassRows.push([
+                    win.configId, win.location || '-', 'Pane',
+                    gi.unit === 'DGU' ? 'DGU' : 'SGU',
+                    `${gi.thickness}mm`, gi.toughened ? 'Yes' : 'No',
+                    Math.round(glass.width * 25.4), Math.round(glass.height * 25.4),
+                    qty,
+                    (((glass.width * glass.height) / 144) * qty).toFixed(2)
+                ]);
+            }
+        } else {
+            const F = win.frame || 0;
+            const L = win.leaves || 1;
+            const VW = (win.handleWidth || win.verticalWidth || 47.5) / 25.4;
+            const TW = (win.topWidth || 47.5) / 25.4;
+            const BW = (win.bottomWidth || 114.5) / 25.4;
+            const MW = (win.middleWidth || 47.5) / 25.4;
+            const innerW = Math.max(0, (win.width - F * (80/25.4)) / L - 2 * VW);
+            const innerH = win.height - F * (40/25.4);
+            const midMM = win.middleRailPositionMM;
+            let upperH, lowerH;
+            if (midMM != null) {
+                const midIn = midMM / 25.4;
+                lowerH = Math.max(0, midIn - BW - MW/2);
+                upperH = Math.max(0, innerH - midIn - TW - MW/2);
+            } else {
+                const half = (innerH - TW - BW - MW) / 2;
+                upperH = lowerH = Math.max(0, half);
+            }
+            [['Upper', win.upperPartition, upperH], ['Lower', win.lowerPartition, lowerH]].forEach(([zone, part, h]) => {
+                if (!part || part.material !== 'Glass') return;
+                const w = Math.max(0, innerW - 0.3125);
+                const hh = Math.max(0, h - 0.3125);
+                if (w <= 0 || hh <= 0) return;
+                const qty = winQty * L;
+                glassRows.push([
+                    win.configId, win.location || '-', zone,
+                    part.glassType === 'DGU' ? 'DGU' : 'SGU',
+                    `${part.thickness || '6'}mm`, part.glassToughened ? 'Yes' : 'No',
+                    Math.round(w * 25.4), Math.round(hh * 25.4),
+                    qty, ((w * hh * qty) / 144).toFixed(2)
+                ]);
+            });
+        }
+    });
+    if (glassRows.length > 1) {
+        XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(glassRows), 'Glass');
+    }
+
+    // ── Tab 6: Hardware List ───────────────────────────────────────────────
+    const hwRows = [['Window/Door', 'Item — Variant', 'Qty', 'Unit', 'Rate', 'Total']];
+    const hwAgg = {};
+    projectWindows.forEach(win => {
+        if (typeof calculateWindowHardware !== 'function') return;
+        const list = calculateWindowHardware(win, r);
+        const winQty = win.qty || 1;
+        list.forEach(h => {
+            const q = h.qty * winQty;
+            const t = h.total * winQty;
+            hwRows.push([win.configId, h.hardware, Math.round(q * 100) / 100, h.unit, '₹' + h.rate, '₹' + t.toFixed(2)]);
+            if (!hwAgg[h.hardware]) hwAgg[h.hardware] = { qty: 0, total: 0, unit: h.unit, rate: h.rate };
+            hwAgg[h.hardware].qty   += q;
+            hwAgg[h.hardware].total += t;
+        });
+    });
+    if (hwRows.length > 1) {
+        hwRows.push(['']);
+        hwRows.push(['── Project Aggregate ──']);
+        hwRows.push(['', 'Item — Variant', 'Total Qty', 'Unit', 'Rate', 'Total']);
+        let hwGrand = 0;
+        Object.entries(hwAgg)
+            .sort(([,a], [,b]) => b.total - a.total)
+            .forEach(([name, info]) => {
+                hwRows.push(['', name, Math.round(info.qty * 100) / 100, info.unit, '₹' + info.rate, '₹' + info.total.toFixed(2)]);
+                hwGrand += info.total;
+            });
+        hwRows.push(['', 'GRAND TOTAL', '', '', '', '₹' + hwGrand.toFixed(2)]);
+        XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(hwRows), 'Hardware');
+    }
+
+    // ── Tab 7: Per-Window Cost Breakdown ───────────────────────────────────
+    if (typeof calculateWindowTotalCost === 'function') {
+        const labelEl = document.getElementById('qtModalLaborPerSqft');
+        const laborPerSqft = labelEl ? (parseFloat(labelEl.value) || 0) : 0;
+        const costRows = [['Window/Door', 'Qty', 'Profile', 'Prof.Wastage', 'Powder Coat', 'Glass/Partition', 'Sheet Waste', 'Hardware', 'Labor', 'Per-Unit', 'Line Total']];
+        let tot = { profile: 0, waste: 0, pc: 0, glass: 0, snw: 0, hw: 0, labor: 0, grand: 0 };
+        projectWindows.forEach(win => {
+            try {
+                const c = calculateWindowTotalCost(win, { laborPerSqft });
+                const q = win.qty || 1;
+                costRows.push([
+                    win.configId, q,
+                    (c.profileCost || 0).toFixed(2),
+                    (c.wastageCost || 0).toFixed(2),
+                    (c.powderCoatingCost || 0).toFixed(2),
+                    (c.glassCost || 0).toFixed(2),
+                    (c.partitionWastageCost || 0).toFixed(2),
+                    (c.hardwareCost || 0).toFixed(2),
+                    (c.laborCost || 0).toFixed(2),
+                    (c.totalCost || 0).toFixed(2),
+                    ((c.totalCost || 0) * q).toFixed(2)
+                ]);
+                tot.profile += (c.profileCost || 0) * q;
+                tot.waste   += (c.wastageCost || 0) * q;
+                tot.pc      += (c.powderCoatingCost || 0) * q;
+                tot.glass   += (c.glassCost || 0) * q;
+                tot.snw     += (c.partitionWastageCost || 0) * q;
+                tot.hw      += (c.hardwareCost || 0) * q;
+                tot.labor   += (c.laborCost || 0) * q;
+                tot.grand   += (c.totalCost || 0) * q;
+            } catch (e) { /* skip */ }
+        });
+        costRows.push(['']);
+        costRows.push([
+            'TOTAL', '',
+            tot.profile.toFixed(2), tot.waste.toFixed(2), tot.pc.toFixed(2),
+            tot.glass.toFixed(2), tot.snw.toFixed(2), tot.hw.toFixed(2),
+            tot.labor.toFixed(2), '', tot.grand.toFixed(2)
+        ]);
+        XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(costRows), 'Cost Breakdown');
+    }
+
     XLSX.writeFile(wb, `${r.project}_Full_Results.xlsx`);
 }
 
@@ -1560,32 +1739,32 @@ function exportFullResultsPDF() {
             doc.addPage();
             currentY = 20;
         }
-        
+
         const materialUsed = plans.reduce((sum, p) => sum + p.used, 0);
         const materialWaste = plans.reduce((sum, p) => sum + p.waste, 0);
         const materialTotal = materialUsed + materialWaste;
         const materialEfficiency = ((materialUsed / materialTotal) * 100).toFixed(2);
-        
+
         const stockCounts = {};
         plans.forEach(plan => {
             const stockSize = plan.stock.replace('"', '');
             stockCounts[stockSize] = (stockCounts[stockSize] || 0) + 1;
         });
-        
+
         const requirementStr = Object.entries(stockCounts)
             .map(([size, count]) => `${size}" - ${count} nos`)
             .join(' | ');
-        
+
         doc.setFontSize(14);
         doc.text(`Material: ${key}`, 14, currentY);
         currentY += 7;
-        
+
         doc.setFontSize(10);
         doc.text(`Requirements: ${requirementStr}`, 14, currentY);
         currentY += 5;
         doc.text(`Used: ${materialUsed.toFixed(2)}" | Waste: ${materialWaste.toFixed(2)}" | Efficiency: ${materialEfficiency}%`, 14, currentY);
         currentY += 10;
-        
+
         const tableData = plans.map((plan, idx) => {
             const piecesStr = plan.pieces.map(p => `${p.length.toFixed(2)}" (${p.label})`).join(' | ');
             return [
@@ -1598,7 +1777,7 @@ function exportFullResultsPDF() {
                 '₹' + plan.cost
             ];
         });
-        
+
         doc.autoTable({
             startY: currentY,
             head: [['#', 'Stock', 'Pieces', 'Used', 'Waste', 'Eff%', 'Cost']],
@@ -1607,10 +1786,151 @@ function exportFullResultsPDF() {
             headStyles: { fillColor: [46, 125, 50] },
             styles: { fontSize: 8 }
         });
-        
+
         currentY = doc.lastAutoTable.finalY + 10;
     }
-    
+
+    const projectWindows = windows.filter(w => w.projectName === r.project);
+
+    // ── Section: Partition Sheets (ACP/Bakelite/PB) ────────────────────────
+    if (r.sheetResults && r.sheetResults.byGroup && Object.keys(r.sheetResults.byGroup).length > 0) {
+        if (currentY > 240) { doc.addPage(); currentY = 20; }
+        doc.setFontSize(14);
+        doc.setTextColor(191, 54, 12);
+        doc.text('Partition Sheets', 14, currentY);
+        doc.setTextColor(0, 0, 0);
+        currentY += 7;
+
+        const sheetBody = [];
+        let sheetGrand = 0;
+        for (const [, gr] of Object.entries(r.sheetResults.byGroup)) {
+            const breakdown = gr.newSheetsBreakdown || { [gr.sheetName]: gr.newSheetsUsed };
+            const bdStr = Object.entries(breakdown).filter(([,n]) => n > 0)
+                .map(([nm, n]) => `${n} × ${nm}`).join(' + ');
+            sheetBody.push([
+                gr.material, gr.thickness, bdStr || '0',
+                gr.storeSheetsUsed > 0 ? `${gr.storeSheetsUsed} from stock` : '-',
+                '₹' + (gr.cost || 0).toFixed(0)
+            ]);
+            sheetGrand += gr.cost || 0;
+        }
+        sheetBody.push([
+            { content: 'TOTAL', colSpan: 4, styles: { fontStyle: 'bold', halign: 'right', fillColor: [240,240,240] } },
+            { content: '₹' + sheetGrand.toFixed(0), styles: { fontStyle: 'bold', fillColor: [240,240,240] } }
+        ]);
+        doc.autoTable({
+            startY: currentY,
+            head: [['Material', 'Thickness', 'New Order', 'Stock Used', 'Cost']],
+            body: sheetBody,
+            theme: 'grid',
+            headStyles: { fillColor: [191, 54, 12] },
+            styles: { fontSize: 9 }
+        });
+        currentY = doc.lastAutoTable.finalY + 10;
+    }
+
+    // ── Section: Mosquito Net Rolls ───────────────────────────────────────
+    if (r.netResults && r.netResults.bins && r.netResults.bins.length > 0) {
+        if (currentY > 240) { doc.addPage(); currentY = 20; }
+        doc.setFontSize(14);
+        doc.setTextColor(106, 27, 154);
+        doc.text('Mosquito Net Rolls', 14, currentY);
+        doc.setTextColor(0, 0, 0);
+        currentY += 7;
+
+        const byWidth = {};
+        let newRolls = 0;
+        r.netResults.bins.filter(b => b.kind === 'new').forEach(b => {
+            byWidth[b.width] = (byWidth[b.width] || 0) + 1;
+            newRolls++;
+        });
+        const storeBins = r.netResults.bins.filter(b => b.kind === 'store');
+        const netBody = [];
+        Object.entries(byWidth).forEach(([w, n]) => {
+            netBody.push([`${w}" × 50 ft`, 'NEW', n, '']);
+        });
+        storeBins.forEach(b => {
+            netBody.push([`${b.width}" × ${b.capacityLength.toFixed(1)}"`, 'FROM STOCK', 1, b.label || '-']);
+        });
+        netBody.push([
+            { content: 'Total rolls', colSpan: 2, styles: { fontStyle: 'bold', halign: 'right', fillColor: [240,240,240] } },
+            { content: r.netResults.bins.length, styles: { fontStyle: 'bold', fillColor: [240,240,240] } },
+            { content: 'Cost: ₹' + (r.netResults.cost || 0).toFixed(0), styles: { fontStyle: 'bold', fillColor: [240,240,240] } }
+        ]);
+        doc.autoTable({
+            startY: currentY,
+            head: [['Roll', 'Source', 'Qty', 'Notes']],
+            body: netBody,
+            theme: 'grid',
+            headStyles: { fillColor: [106, 27, 154] },
+            styles: { fontSize: 9 }
+        });
+        currentY = doc.lastAutoTable.finalY + 10;
+    }
+
+    // ── Section: Per-Window Cost Breakdown ────────────────────────────────
+    if (typeof calculateWindowTotalCost === 'function' && projectWindows.length > 0) {
+        if (currentY > 220) { doc.addPage(); currentY = 20; }
+        doc.setFontSize(14);
+        doc.setTextColor(30, 60, 114);
+        doc.text('Per-Window Cost Breakdown', 14, currentY);
+        doc.setTextColor(0, 0, 0);
+        currentY += 7;
+
+        const labelEl = document.getElementById('qtModalLaborPerSqft');
+        const laborPerSqft = labelEl ? (parseFloat(labelEl.value) || 0) : 0;
+        const costBody = [];
+        let tot = { profile: 0, waste: 0, pc: 0, glass: 0, snw: 0, hw: 0, labor: 0, grand: 0 };
+
+        projectWindows.forEach(win => {
+            try {
+                const c = calculateWindowTotalCost(win, { laborPerSqft });
+                const q = win.qty || 1;
+                costBody.push([
+                    win.configId, q,
+                    ((c.profileCost || 0) * q).toFixed(0),
+                    ((c.wastageCost || 0) * q).toFixed(0),
+                    ((c.powderCoatingCost || 0) * q).toFixed(0),
+                    ((c.glassCost || 0) * q).toFixed(0),
+                    ((c.partitionWastageCost || 0) * q).toFixed(0),
+                    ((c.hardwareCost || 0) * q).toFixed(0),
+                    ((c.laborCost || 0) * q).toFixed(0),
+                    ((c.totalCost || 0) * q).toFixed(0)
+                ]);
+                tot.profile += (c.profileCost || 0) * q;
+                tot.waste   += (c.wastageCost || 0) * q;
+                tot.pc      += (c.powderCoatingCost || 0) * q;
+                tot.glass   += (c.glassCost || 0) * q;
+                tot.snw     += (c.partitionWastageCost || 0) * q;
+                tot.hw      += (c.hardwareCost || 0) * q;
+                tot.labor   += (c.laborCost || 0) * q;
+                tot.grand   += (c.totalCost || 0) * q;
+            } catch (e) { /* skip */ }
+        });
+        costBody.push([
+            { content: 'TOTAL', colSpan: 2, styles: { fontStyle: 'bold', halign: 'right', fillColor: [235, 235, 235] } },
+            { content: tot.profile.toFixed(0), styles: { fontStyle: 'bold', fillColor: [235, 235, 235] } },
+            { content: tot.waste.toFixed(0),   styles: { fontStyle: 'bold', fillColor: [235, 235, 235] } },
+            { content: tot.pc.toFixed(0),      styles: { fontStyle: 'bold', fillColor: [235, 235, 235] } },
+            { content: tot.glass.toFixed(0),   styles: { fontStyle: 'bold', fillColor: [235, 235, 235] } },
+            { content: tot.snw.toFixed(0),     styles: { fontStyle: 'bold', fillColor: [235, 235, 235] } },
+            { content: tot.hw.toFixed(0),      styles: { fontStyle: 'bold', fillColor: [235, 235, 235] } },
+            { content: tot.labor.toFixed(0),   styles: { fontStyle: 'bold', fillColor: [235, 235, 235] } },
+            { content: tot.grand.toFixed(0),   styles: { fontStyle: 'bold', fillColor: [235, 235, 235] } }
+        ]);
+
+        doc.autoTable({
+            startY: currentY,
+            margin: { left: 10, right: 10 },
+            head: [['ID', 'Qty', 'Profile', 'Prof.\nWaste', 'Powder\nCoat', 'Glass /\nPart.', 'Sheet\nWaste', 'Hardware', 'Labor', 'Line\nTotal']],
+            body: costBody,
+            theme: 'grid',
+            headStyles: { fillColor: [30, 60, 114], textColor: [255,255,255], fontSize: 7, halign: 'center' },
+            bodyStyles: { fontSize: 7, halign: 'right' },
+            columnStyles: { 0: { halign: 'center' }, 1: { halign: 'center' } }
+        });
+    }
+
     doc.save(`${r.project}_Full_Results.pdf`);
 }
 
