@@ -673,6 +673,7 @@ function displayResults() {
         <div style="${grpHdr}">📜 Customer / Project</div>
         <div style="${btnGrp}">
             <button class="btn btn-primary" onclick="showReportPreview('quotation')">📜 Customer Quotation</button>
+            <button class="btn" style="background:#1e3c72;color:white;" onclick="exportMasterOrderSummaryPDF()">📊 Master Order Summary</button>
         </div>
     </div>
     <div class="import-export-section">
@@ -2107,8 +2108,287 @@ function exportPowderCoatingPDF() {
 }
 
 // ============================================================================
-// v1.26 — CUTTING DIAGRAMS PDFs (Net + Sheets, with SVG + cover page)
+// v1.27 — MASTER ORDER SUMMARY (single-page vendor overview)
 // ============================================================================
+
+function exportMasterOrderSummaryPDF() {
+    if (!optimizationResults || !optimizationResults.results) {
+        showAlert('⚠️ Run optimization first.');
+        return;
+    }
+
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF({ unit: 'mm', format: 'a4' });
+    const project = optimizationResults.project;
+    const projectWindows = windows.filter(w => w.projectName === project);
+    const PW = doc.internal.pageSize.width;
+    const today = new Date().toLocaleDateString('en-IN', { day:'2-digit', month:'short', year:'numeric' });
+
+    // ── Top banner ─────────────────────────────────────────────────────────
+    doc.setFillColor(30, 60, 114);
+    doc.rect(0, 0, PW, 22, 'F');
+    doc.setTextColor(255, 255, 255);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(16);
+    doc.text('📊 Master Order Summary', 14, 13);
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'normal');
+    doc.text(`Project: ${project}`, PW - 14, 9, { align: 'right' });
+    doc.text(`Date: ${today}`, PW - 14, 16, { align: 'right' });
+    doc.setTextColor(0, 0, 0);
+
+    let y = 28;
+
+    // ── Helper to draw a section header strip ──────────────────────────────
+    function drawSection(title, colorRGB, summary, totalText) {
+        const padX = 14;
+        // Header strip
+        doc.setFillColor(...colorRGB);
+        doc.rect(padX, y, PW - 2 * padX, 7, 'F');
+        doc.setTextColor(255, 255, 255);
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(11);
+        doc.text(title, padX + 3, y + 5);
+        if (totalText) {
+            doc.text(totalText, PW - padX - 3, y + 5, { align: 'right' });
+        }
+        y += 8;
+
+        // Body lines
+        doc.setTextColor(0, 0, 0);
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(9);
+        const lineH = 5;
+        const lines = Array.isArray(summary) ? summary : [summary];
+        // Body box (light tinted background)
+        const bgR = colorRGB[0] + (255 - colorRGB[0]) * 0.88;
+        const bgG = colorRGB[1] + (255 - colorRGB[1]) * 0.88;
+        const bgB = colorRGB[2] + (255 - colorRGB[2]) * 0.88;
+        doc.setFillColor(bgR, bgG, bgB);
+        doc.rect(padX, y, PW - 2 * padX, lines.length * lineH + 4, 'F');
+        lines.forEach((line, i) => {
+            doc.text(line, padX + 3, y + 4 + i * lineH);
+        });
+        y += lines.length * lineH + 6;
+    }
+
+    // ── 1. Aluminum Profiles ────────────────────────────────────────────────
+    let totalSticks = 0;
+    let totalAluminumWt = 0;
+    let totalAluminumCost = 0;
+    const aluminumSeriesCounts = {};
+    for (const [key, plans] of Object.entries(optimizationResults.results)) {
+        plans.forEach(plan => {
+            totalSticks++;
+            totalAluminumCost += plan.cost || 0;
+        });
+        const sec = optimizationResults.componentSections && optimizationResults.componentSections[key];
+        if (sec && sec.weight) {
+            plans.forEach(plan => {
+                const stockLen = parseFloat(plan.stock) || 0;
+                totalAluminumWt += (stockLen / 144) * sec.weight;
+            });
+        }
+        const seriesName = key.split('|')[0].trim();
+        aluminumSeriesCounts[seriesName] = (aluminumSeriesCounts[seriesName] || 0) + plans.length;
+    }
+    const seriesBreak = Object.entries(aluminumSeriesCounts)
+        .map(([s, n]) => `${s}: ${n} sticks`).join('   |   ');
+    drawSection(
+        '🏭 Aluminum Profiles',
+        [108, 117, 125],
+        [
+            `Total: ${totalSticks} sticks   |   Weight: ${totalAluminumWt.toFixed(1)} kg`,
+            seriesBreak ? `Breakdown: ${seriesBreak}` : ''
+        ].filter(Boolean),
+        `₹ ${totalAluminumCost.toFixed(0)}`
+    );
+
+    // ── 2. Glass ───────────────────────────────────────────────────────────
+    let glassPieces = 0;
+    let glassAreaSqft = 0;
+    let glassCost = 0;
+    const glassByType = {};
+    projectWindows.forEach(win => {
+        const winQty = win.qty || 1;
+        const isDoor = win.category === 'Door';
+        if (!isDoor) {
+            const glass = (typeof calculateGlassDimensions === 'function') ? calculateGlassDimensions(win) : null;
+            const gi    = (typeof resolveGlassInfo === 'function') ? resolveGlassInfo(win) : null;
+            if (glass && gi && gi.hasGlass) {
+                const qty = (glass.qty || 1) * winQty;
+                const a = ((glass.width * glass.height) / 144) * qty;
+                glassPieces += qty;
+                glassAreaSqft += a;
+                const r = (gi.rateKey ? ratesConfig.glass[gi.rateKey] : 0) || 0;
+                glassCost += a * r;
+                const k = `${gi.unit} ${gi.thickness}mm${gi.toughened ? ' Tough' : ''}`;
+                glassByType[k] = (glassByType[k] || 0) + qty;
+            }
+        } else {
+            // Doors — use calculateDoorGlassCost for cost; count pieces from partitions
+            if (typeof calculateDoorGlassCost === 'function') {
+                glassCost += calculateDoorGlassCost(win);
+            }
+            const L = win.leaves || 1;
+            const up = win.upperPartition;
+            const lo = win.lowerPartition;
+            [up, lo].forEach(part => {
+                if (part && part.material === 'Glass') {
+                    const qty = winQty * L;
+                    glassPieces += qty;
+                    const k = `${part.glassType || 'SGU'} ${part.thickness || '6'}mm${part.glassToughened ? ' Tough' : ''}`;
+                    glassByType[k] = (glassByType[k] || 0) + qty;
+                }
+            });
+        }
+    });
+    const glassTypeBreak = Object.entries(glassByType)
+        .map(([t, n]) => `${n} × ${t}`).join('   |   ');
+    if (glassPieces > 0) {
+        drawSection(
+            '🪟 Glass',
+            [2, 136, 209],
+            [
+                `Total: ${glassPieces} pieces   |   Area: ${glassAreaSqft.toFixed(1)} sqft (windows)`,
+                glassTypeBreak ? `By type: ${glassTypeBreak}` : ''
+            ].filter(Boolean),
+            `₹ ${glassCost.toFixed(0)}`
+        );
+    }
+
+    // ── 3. Partition Sheets ────────────────────────────────────────────────
+    const sheetRes = optimizationResults.sheetResults;
+    if (sheetRes && sheetRes.byGroup && Object.keys(sheetRes.byGroup).length > 0) {
+        const MAT_TITLE = { ACP: 'ACP', Bakelite: 'Bakelite', ParticleBoard: 'PB' };
+        let sheetTotalCost = 0;
+        let sheetTotalCount = 0;
+        const sheetLines = [];
+        for (const [, gr] of Object.entries(sheetRes.byGroup)) {
+            const matTitle = MAT_TITLE[gr.material] || gr.material;
+            const bd = gr.newSheetsBreakdown || { [gr.sheetName]: gr.newSheetsUsed };
+            const bdStr = Object.entries(bd).filter(([,n]) => n > 0)
+                .map(([nm,n]) => `${n} × ${nm}`).join(' + ');
+            const stockNote = gr.storeSheetsUsed > 0 ? ` + ${gr.storeSheetsUsed} from stock` : '';
+            sheetLines.push(`${matTitle} ${gr.thickness}: ${bdStr || '0 new'}${stockNote}   →   ₹${(gr.cost || 0).toFixed(0)}`);
+            sheetTotalCost  += gr.cost || 0;
+            sheetTotalCount += gr.bins.length;
+        }
+        drawSection(
+            '📄 Partition Sheets',
+            [191, 54, 12],
+            sheetLines,
+            `₹ ${sheetTotalCost.toFixed(0)}`
+        );
+    }
+
+    // ── 4. Mosquito Net ────────────────────────────────────────────────────
+    const netRes = optimizationResults.netResults;
+    if (netRes && netRes.bins && netRes.bins.length > 0) {
+        const storeBins = netRes.bins.filter(b => b.kind === 'store');
+        const newBins   = netRes.bins.filter(b => b.kind === 'new');
+        const byWidth = {};
+        newBins.forEach(b => { byWidth[b.width] = (byWidth[b.width] || 0) + 1; });
+        const newStr = Object.entries(byWidth).map(([w, n]) => `${n} × ${w}" × 50ft`).join(' + ');
+        const lines = [];
+        if (newStr) lines.push(`Order: ${newStr}`);
+        if (storeBins.length > 0) lines.push(`From stock: ${storeBins.length} partial roll${storeBins.length > 1 ? 's' : ''}`);
+        const totalPieces = countNetPieces(netRes);
+        lines.push(`Total pieces to cut: ${totalPieces}`);
+        drawSection(
+            '🕸️ Mosquito Net',
+            [142, 68, 173],
+            lines,
+            `₹ ${(netRes.cost || 0).toFixed(0)}`
+        );
+    }
+
+    // ── 5. Hardware ────────────────────────────────────────────────────────
+    let hwTotalQty = 0;
+    let hwTotalCost = 0;
+    const hwByName = {};
+    projectWindows.forEach(win => {
+        if (typeof calculateWindowHardware !== 'function') return;
+        const hwList = calculateWindowHardware(win, optimizationResults);
+        const winQty = win.qty || 1;
+        hwList.forEach(h => {
+            const q = (h.qty || 0) * winQty;
+            const c = (h.total || 0) * winQty;
+            hwTotalQty  += q;
+            hwTotalCost += c;
+            hwByName[h.hardware] = (hwByName[h.hardware] || 0) + q;
+        });
+    });
+    if (hwTotalQty > 0) {
+        const distinctNames = Object.keys(hwByName).length;
+        const topItems = Object.entries(hwByName)
+            .sort((a,b) => b[1] - a[1])
+            .slice(0, 4)
+            .map(([n,q]) => `${q} × ${n}`)
+            .join('   |   ');
+        drawSection(
+            '🔩 Hardware',
+            [0, 121, 107],
+            [
+                `Total: ${Math.round(hwTotalQty * 100) / 100} items across ${distinctNames} types`,
+                topItems ? `Top items: ${topItems}` : ''
+            ].filter(Boolean),
+            `₹ ${hwTotalCost.toFixed(0)}`
+        );
+    }
+
+    // ── 6. Powder Coating ──────────────────────────────────────────────────
+    let pcTotalFt = 0;
+    let pcTotalCost = 0;
+    const lookupPC = (typeof lookupPowderCoatingRate === 'function') ? lookupPowderCoatingRate : null;
+    for (const [key, plans] of Object.entries(optimizationResults.results)) {
+        const parts = key.split('|').map(s => s.trim());
+        const series = parts[0] || '';
+        const compName = parts[1] || key;
+        const rate = lookupPC ? (lookupPC(series, compName) || 0) : 0;
+        let purchasedLenIn = 0;
+        plans.forEach(plan => {
+            const stockLen = parseFloat(plan.stockLength ?? plan.stock ?? 0);
+            if (stockLen > 0) purchasedLenIn += stockLen;
+        });
+        const ft = purchasedLenIn / 12;
+        pcTotalFt   += ft;
+        pcTotalCost += ft * rate;
+    }
+    drawSection(
+        '✨ Powder Coating',
+        [85, 139, 47],
+        [`Total: ${pcTotalFt.toFixed(1)} ft purchased aluminum (includes wastage offcuts)`],
+        `₹ ${pcTotalCost.toFixed(0)}`
+    );
+
+    // ── Grand Total strip ──────────────────────────────────────────────────
+    const grandTotal = totalAluminumCost + glassCost
+                     + ((sheetRes && sheetRes.byGroup) ? Object.values(sheetRes.byGroup).reduce((s, g) => s + (g.cost || 0), 0) : 0)
+                     + (netRes ? (netRes.cost || 0) : 0)
+                     + hwTotalCost
+                     + pcTotalCost;
+
+    y += 4;
+    doc.setFillColor(30, 60, 114);
+    doc.rect(14, y, PW - 28, 11, 'F');
+    doc.setTextColor(255, 255, 255);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(13);
+    doc.text('GRAND TOTAL (Vendor Side)', 17, y + 7.5);
+    doc.text(`₹ ${grandTotal.toFixed(0)}`, PW - 17, y + 7.5, { align: 'right' });
+
+    y += 14;
+    doc.setTextColor(0, 0, 0);
+    doc.setFont('helvetica', 'italic');
+    doc.setFontSize(7.5);
+    doc.text('Note: vendor-side cost — does not include labor, transport, GST adjustments, or markups.', 14, y);
+    y += 4;
+    doc.text('Customer-facing pricing is on the Customer Quotation PDF.', 14, y);
+
+    doc.save(`${project}_Master_Order_Summary.pdf`);
+}
+
 
 // Format an inch value as "Xmm (Y")" — used everywhere in the diagram PDFs
 function _fmtMmIn(inches) {
