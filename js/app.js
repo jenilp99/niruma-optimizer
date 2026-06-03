@@ -2084,14 +2084,19 @@ function addWindow(event) {
         return;
     }
 
+    const seriesVal = document.getElementById('series').value;
+    const msCount = parseInt(document.getElementById('mosquitoShutters')?.value || '0');
+
     const windowData = {
         configId: document.getElementById('configId').value,
         projectName: document.getElementById('projectName').value,
+        location: document.getElementById('windowLocation')?.value || '',
+        qty: parseInt(document.getElementById('windowQty')?.value) || 1,
         category: category,
         vendor: document.getElementById('windowVendor').value,
         width: convertToInches(widthRaw),
         height: convertToInches(heightRaw),
-        series: document.getElementById('series').value,
+        series: seriesVal,
         description: document.getElementById('description').value,
         glassUnit: document.getElementById('glassUnit')?.value || 'SGU',
         glassThickness: document.getElementById('glassThickness')?.value || '5',
@@ -2099,16 +2104,22 @@ function addWindow(event) {
         cornerJoint: document.getElementById('cornerJoint')?.value || '90'
     };
 
-    // Window-specific properties
+    // v1.32: only write fields when they actually apply. Avoids polluting
+    // the saved JSON with default values that don't belong on this window.
     if (category === 'Window') {
         windowData.tracks = tracks;
         windowData.shutters = shutters;
-        windowData.mosquitoShutters = parseInt(document.getElementById('mosquitoShutters')?.value || '0');
+        windowData.mosquitoShutters = msCount;
         windowData.interlockType = document.getElementById('interlockType')?.value || 'slim';
-        windowData.mosquitoType = document.getElementById('mosquitoType')?.value || 'V-2513';
-        windowData.mosquitoInterlock = document.getElementById('mosquitoInterlock')?.value || 'V-2516';
-        // v1.31: optional 1" middle bar for Domal mosquito shutters (splits net into 2)
-        windowData.mosquitoMiddle = document.getElementById('mosquitoMiddle')?.checked || false;
+        // Mosquito-only fields: only when MS > 0
+        if (msCount > 0) {
+            windowData.mosquitoType      = document.getElementById('mosquitoType')?.value || 'V-2513';
+            windowData.mosquitoInterlock = document.getElementById('mosquitoInterlock')?.value || 'V-2516';
+            // mosquitoMiddle: only for 27mm Domal AND MS > 0
+            if (seriesVal === '27mm Domal') {
+                windowData.mosquitoMiddle = document.getElementById('mosquitoMiddle')?.checked || false;
+            }
+        }
     }
 
     // Door-specific properties
@@ -2139,23 +2150,159 @@ function addWindow(event) {
         windowData.mosquitoShutters = 0;
     }
 
-    windows.push(windowData);
-    autoSaveWindows();
+    if (editingWindowIndex !== null && windows[editingWindowIndex]) {
+        // EDIT MODE — merge into existing window, preserve unspecified fields
+        // (componentThicknesses, accessories on doors that route here, etc.)
+        // v1.32: also strip fields that no longer apply (e.g. mosquitoMiddle when
+        // user changes series from Domal to something else, or disables MS).
+        const original = windows[editingWindowIndex];
+        const merged = { ...original, ...windowData };
+        if (category === 'Window') {
+            if (msCount === 0) {
+                delete merged.mosquitoType;
+                delete merged.mosquitoInterlock;
+                delete merged.mosquitoMiddle;
+            } else if (seriesVal !== '27mm Domal') {
+                delete merged.mosquitoMiddle;
+            }
+        }
+        windows[editingWindowIndex] = merged;
+        autoSaveWindows();
+        const editedId = windowData.configId;
+        exitWindowEditMode(/*resetForm=*/true);
+        showAlert(`✅ ${category} ${editedId} updated successfully!`);
+    } else {
+        // ADD MODE — push new window
+        windows.push(windowData);
+        autoSaveWindows();
+        incrementConfigCounter(category);
+        document.getElementById('configId').value = getNextConfigId(category);
+        showAlert(`✅ ${category} ${windowData.configId} added successfully!`);
+    }
 
-    // Increment counter and set next ID
-    incrementConfigCounter(category);
-    document.getElementById('configId').value = getNextConfigId(category);
-
-    showAlert(`✅ ${category} ${windowData.configId} added successfully!`);
     refreshProjectSelector();
-    displayWindows(); // Refresh the list
+    displayWindows();
 }
 
 function clearForm() {
+    // v1.32: also abort any in-progress edit
+    if (editingWindowIndex !== null) {
+        exitWindowEditMode(/*resetForm=*/false);
+    }
     document.getElementById('windowForm').reset();
-    document.getElementById('configId').value = 'W01';
+    document.getElementById('configId').value = getNextConfigId('Window');
     document.getElementById('projectName').value = 'check';
     initializeAddWindowVendorSelector();
+    // Re-fire conditional handlers after reset
+    if (typeof toggleMosquitoConfig === 'function') toggleMosquitoConfig();
+    if (typeof onSeriesChanged === 'function') onSeriesChanged();
+}
+
+// ============================================================================
+// WINDOW — IN-PLACE EDIT MODE (v1.32, mirrors door v1.21)
+// ============================================================================
+
+let editingWindowIndex = null;
+
+function editWindowInPlace(idx) {
+    const w = windows[idx];
+    if (!w || w.category === 'Door') {
+        showAlert('Use Edit on door cards for doors.', 'error');
+        return;
+    }
+    editingWindowIndex = idx;
+
+    // 1. Switch to Window tab + scroll to add section
+    if (typeof switchAddMode === 'function') switchAddMode('Window');
+    scrollToSection('section-add');
+
+    // 2. Populate every form field from the saved window
+    populateWindowFormFromObject(w);
+
+    // 3. Flip submit button + show cancel + show editing badge
+    setWindowFormEditingUI(true, w.configId);
+}
+
+function cancelWindowEdit() {
+    if (editingWindowIndex === null) return;
+    exitWindowEditMode(/*resetForm=*/true);
+    showAlert('✕ Edit cancelled');
+}
+
+function exitWindowEditMode(resetForm) {
+    editingWindowIndex = null;
+    setWindowFormEditingUI(false, null);
+    if (resetForm) {
+        document.getElementById('windowForm').reset();
+        document.getElementById('configId').value = getNextConfigId('Window');
+        document.getElementById('projectName').value = 'check';
+        initializeAddWindowVendorSelector();
+        if (typeof toggleMosquitoConfig === 'function') toggleMosquitoConfig();
+        if (typeof onSeriesChanged === 'function') onSeriesChanged();
+    }
+}
+
+function setWindowFormEditingUI(isEditing, configId) {
+    const submitBtn = document.getElementById('submitBtn');
+    const cancelBtn = document.getElementById('windowCancelEditBtn');
+    const badge     = document.getElementById('windowEditModeBadge');
+    const idInput   = document.getElementById('configId');
+
+    if (submitBtn) submitBtn.innerHTML = isEditing ? '💾 Update Window' : '✅ Add Window';
+    if (cancelBtn) cancelBtn.style.display = isEditing ? '' : 'none';
+    if (badge) {
+        badge.style.display = isEditing ? '' : 'none';
+        badge.textContent   = isEditing ? `✏️ Editing ${configId}` : '';
+    }
+    if (idInput) idInput.readOnly = !!isEditing;
+}
+
+function populateWindowFormFromObject(w) {
+    const setVal = (id, val) => { const el = document.getElementById(id); if (el != null && val != null) el.value = val; };
+    const setChk = (id, val) => { const el = document.getElementById(id); if (el != null) el.checked = !!val; };
+
+    // Identity / location / qty
+    setVal('configId',       w.configId);
+    setVal('projectName',    w.projectName);
+    setVal('windowLocation', w.location || '');
+    setVal('windowQty',      w.qty || 1);
+    setVal('description',    w.description || '');
+
+    // Dimensions — respect current unit mode for display
+    const displayW = unitMode === 'mm' ? Math.round((w.width  || 0) * 25.4) : w.width;
+    const displayH = unitMode === 'mm' ? Math.round((w.height || 0) * 25.4) : w.height;
+    setVal('width',  displayW);
+    setVal('height', displayH);
+
+    // Vendor + series (filter series by vendor first)
+    setVal('windowVendor', w.vendor || '');
+    if (typeof updateVendorOptionsForSeries === 'function') updateVendorOptionsForSeries(w.series);
+    // Trigger any vendor-change handlers to populate series dropdown
+    const venEl = document.getElementById('windowVendor');
+    if (venEl && venEl.onchange) try { venEl.onchange(); } catch (e) {}
+    setTimeout(() => {
+        setVal('series', w.series || '');
+        if (typeof onSeriesChanged === 'function') onSeriesChanged();
+    }, 0);
+
+    // Window-only fields
+    setVal('tracks',           String(w.tracks  != null ? w.tracks  : 2));
+    setVal('shutters',         String(w.shutters != null ? w.shutters : 2));
+    setVal('mosquitoShutters', String(w.mosquitoShutters || 0));
+    setVal('interlockType',    w.interlockType || 'slim');
+
+    // Glass
+    setVal('glassUnit',      w.glassUnit || 'SGU');
+    if (typeof updateGlassThicknessOptions === 'function') updateGlassThicknessOptions();
+    setVal('glassThickness', w.glassThickness || '5');
+    setChk('glassToughened', !!w.glassToughened);
+    setVal('cornerJoint',    w.cornerJoint || '90');
+
+    // Mosquito config (visible only when MS > 0)
+    setVal('mosquitoType',      w.mosquitoType || 'V-2513');
+    setVal('mosquitoInterlock', w.mosquitoInterlock || 'V-2516');
+    setChk('mosquitoMiddle',    !!w.mosquitoMiddle);
+    if (typeof toggleMosquitoConfig === 'function') toggleMosquitoConfig();
 }
 
 function displayWindows() {
@@ -2268,6 +2415,7 @@ function renderWindowCard(w, idx) {
             <h3>${w.configId} - ${w.description}</h3>
             <div class="window-details">
                 <div><strong>Project:</strong> ${w.projectName}</div>
+                ${w.location ? `<div><strong>Location:</strong> ${w.location}</div>` : ''}
                 <div><strong>Vendor:</strong> ${w.vendor || 'Not Set'}</div>
                 <div><strong>Size:</strong> ${w.width}" × ${w.height}"</div>
                 ${isDoor ? (() => {
@@ -2301,7 +2449,7 @@ function renderWindowCard(w, idx) {
                 <div><strong>Thickness:</strong> <span style="color: ${hasThickness ? '#2e7d32' : '#e67e22'};">${thicknessStatus} ${thicknessLabel}</span></div>
             </div>
             <div class="window-actions">
-                <button class="btn btn-warning btn-sm" onclick="${isDoor ? `editDoorInPlace(${idx})` : `editWindow(${idx})`}">✏️ Edit</button>
+                <button class="btn btn-warning btn-sm" onclick="${isDoor ? `editDoorInPlace(${idx})` : `editWindowInPlace(${idx})`}">✏️ Edit</button>
                 <button class="btn btn-danger btn-sm" onclick="deleteWindow(${idx})">🗑️ Delete</button>
                 <button class="btn btn-info btn-sm" onclick="openComponentThicknessModal(${idx})">🔗 Thickness</button>
             </div>

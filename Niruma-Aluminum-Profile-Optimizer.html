@@ -10,8 +10,8 @@
     <title>Niruma Aluminum Profile Optimizer</title>
 
     <!-- CSS -->
-    <link rel="stylesheet" href="css/styles.css?v=1.31">
-    <link rel="stylesheet" href="css/modal.css?v=1.31">
+    <link rel="stylesheet" href="css/styles.css?v=1.32">
+    <link rel="stylesheet" href="css/modal.css?v=1.32">
 
     <!-- External Libraries -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -61,7 +61,7 @@
                 <span><strong>mm</strong></span>
             </div>
             <!-- APP VERSION — bump this number on every push/update -->
-            <div class="navbar-version">Ver: 1.31</div>
+            <div class="navbar-version">Ver: 1.32</div>
         </div>
     </nav>
 
@@ -168,6 +168,14 @@
                                 <div class="form-group">
                                     <label>Project Name</label>
                                     <input type="text" id="projectName" value="check" required>
+                                </div>
+                                <div class="form-group">
+                                    <label>Location <span style="font-size:11px;color:#888;">(optional)</span></label>
+                                    <input type="text" id="windowLocation" placeholder="e.g. Living room">
+                                </div>
+                                <div class="form-group" style="max-width:90px;">
+                                    <label>Qty</label>
+                                    <input type="number" id="windowQty" value="1" min="1" step="1" required>
                                 </div>
                             </div>
                             <div class="form-row">
@@ -412,9 +420,15 @@
                                     </div>
                                 </div>
                             </div>
+                            <!-- Editing-mode banner (only visible while editing an existing window) -->
+                            <div id="windowEditModeBadge"
+                                style="display:none;margin:14px 0 6px;padding:8px 12px;background:#fff3cd;border:1px solid #ffeaa7;border-radius:6px;font-weight:600;color:#856404;font-size:13px;">
+                            </div>
                             <div class="wizard-actions">
                                 <button type="button" class="btn btn-secondary" onclick="prevStep(2)">⬅️ Back</button>
                                 <button type="button" class="btn btn-danger" onclick="clearForm()">🔄 Clear</button>
+                                <button type="button" id="windowCancelEditBtn" class="btn btn-secondary"
+                                    style="display:none;" onclick="cancelWindowEdit()">✕ Cancel Edit</button>
                                 <button type="submit" class="btn btn-success" id="submitBtn">✅ Add Window</button>
                             </div>
                         </div>
@@ -1782,18 +1796,18 @@
     </div>
 
     <!-- JavaScript Files - Load in Order -->
-    <script src="js/storage.js?v=1.31"></script>
-    <script src="js/supplier_master.js?v=1.31"></script>
+    <script src="js/storage.js?v=1.32"></script>
+    <script src="js/supplier_master.js?v=1.32"></script>
     <!-- Supplier Modules -->
-    <script src="js/suppliers/windalco.js?v=1.31"></script>
-    <script src="js/suppliers/jk_alu.js?v=1.31"></script>
-    <script src="js/suppliers/atlantis.js?v=1.31"></script>
-    <script src="js/suppliers/vitco.js?v=1.31"></script>
+    <script src="js/suppliers/windalco.js?v=1.32"></script>
+    <script src="js/suppliers/jk_alu.js?v=1.32"></script>
+    <script src="js/suppliers/atlantis.js?v=1.32"></script>
+    <script src="js/suppliers/vitco.js?v=1.32"></script>
 
-    <script src="js/app.js?v=1.31"></script>
-    <script src="js/optimization.js?v=1.31"></script>
-    <script src="js/exports.js?v=1.31"></script>
-    <script src="js/Quotation.js?v=1.31"></script>
+    <script src="js/app.js?v=1.32"></script>
+    <script src="js/optimization.js?v=1.32"></script>
+    <script src="js/exports.js?v=1.32"></script>
+    <script src="js/Quotation.js?v=1.32"></script>
 
 </body>
 
