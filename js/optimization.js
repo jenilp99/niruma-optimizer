@@ -469,6 +469,19 @@ function calculatePieces(selectedProject, preferredSupplier) {
             console.log(`   W=${win.width}" H=${win.height}" F=${win.frame||0} L=${win.leaves||1} bottomProfile=${win.bottomProfile}`);
         }
 
+        // v1.31: 27mm Domal with optional Mosquito Middle Bar
+        // Adds one 1" Middle profile per mosquito shutter, length = shutterW - 3.5"
+        if (seriesName === '27mm Domal' && MS > 0 && win.mosquitoMiddle) {
+            formulas = [...formulas, {
+                component: '1" Middle',
+                qty: 'MS',
+                length: '(W - 3 + 2.5*(S-1))/S - 3.5',
+                desc: 'Mosquito Middle Bar',
+                series: '1"'  // route to 1" series stock
+            }];
+            console.log(`%c🦟 Mosquito Middle enabled for ${id} | MS=${MS}`, 'background:#0288d1;color:white;padding:2px 6px;');
+        }
+
         console.log(`%c📐 Window ${id} | Vendor: ${win.vendor} | Series: ${seriesName} | MS: ${MS} | Formulas: ${formulas.length}`, 'background: #343a40; color: white; padding: 2px 6px; border-radius: 3px;');
 
         // ── Middle-rail position in inches (for door glazing clip vertical formulas) ──
@@ -906,8 +919,26 @@ function computeNetPieces(projectWindows) {
             shutterW = W / Math.max(1, S);
         }
 
-        const netW = Math.max(0, shutterW - deductionCfg.deductW);
-        const netH = Math.max(0, shutterH - deductionCfg.deductH);
+        // v1.31: If mosquito middle bar is enabled (Domal only), the net is split
+        // into 2 pieces per shutter with different dimensions.
+        let netW, netH, qtyPerShutter, midNote;
+        if (series === '27mm Domal' && win.mosquitoMiddle) {
+            // Width: (shutterW - 3.5") + 1.5" = shutterW - 2"  (same as without middle)
+            // Height: ((shutterH - 1" - 3.5") / 2) + 1.5"
+            // Qty:    2 nos per mosquito shutter
+            netW = (shutterW - 3.5) + 1.5;
+            netH = ((shutterH - 1 - 3.5) / 2) + 1.5;
+            qtyPerShutter = 2;
+            midNote = '  | with 1" middle bar (2 pieces/shutter)';
+        } else {
+            netW = shutterW - deductionCfg.deductW;
+            netH = shutterH - deductionCfg.deductH;
+            qtyPerShutter = 1;
+            midNote = '';
+        }
+
+        netW = Math.max(0, netW);
+        netH = Math.max(0, netH);
 
         if (netW <= 0 || netH <= 0) {
             console.warn(`⚠️ Net piece size ≤ 0 for window ${win.configId}: netW=${netW.toFixed(2)}" netH=${netH.toFixed(2)}"`);
@@ -917,14 +948,14 @@ function computeNetPieces(projectWindows) {
         console.log(
             `%c🕸️ Net ${win.configId} | Series: ${series} | MS=${MS} | ` +
             `shutterH=${shutterH.toFixed(2)}" shutterW=${shutterW.toFixed(2)}" | ` +
-            `net ${netW.toFixed(2)}"×${netH.toFixed(2)}"`,
+            `net ${netW.toFixed(2)}"×${netH.toFixed(2)}"${midNote}`,
             'background: #8e44ad; color: white; padding: 2px 6px;'
         );
 
         pieces.push({
             w: Math.round(netW * 100) / 100,
             h: Math.round(netH * 100) / 100,
-            qty: MS,
+            qty: MS * qtyPerShutter,
             label: `${win.configId} (${series})`,
             series
         });

@@ -1932,6 +1932,9 @@ function onSeriesChanged() {
     const series = document.getElementById('series').value;
     const display = document.getElementById('selectedSeriesDisplay');
     if (display) display.textContent = series || '...';
+    // v1.31: re-fire mosquito-config toggle so the "Mosquito Middle" option
+    // shows/hides based on the new series selection (Domal only).
+    if (typeof toggleMosquitoConfig === 'function') toggleMosquitoConfig();
 }
 
 function updateVendorOptionsForSeries(series) {
@@ -2104,6 +2107,8 @@ function addWindow(event) {
         windowData.interlockType = document.getElementById('interlockType')?.value || 'slim';
         windowData.mosquitoType = document.getElementById('mosquitoType')?.value || 'V-2513';
         windowData.mosquitoInterlock = document.getElementById('mosquitoInterlock')?.value || 'V-2516';
+        // v1.31: optional 1" middle bar for Domal mosquito shutters (splits net into 2)
+        windowData.mosquitoMiddle = document.getElementById('mosquitoMiddle')?.checked || false;
     }
 
     // Door-specific properties
@@ -2290,7 +2295,7 @@ function renderWindowCard(w, idx) {
                 })() :
             `<div><strong>Tracks:</strong> ${w.tracks}</div>
                 <div><strong>Shutters:</strong> ${w.shutters}</div>
-                <div><strong>Mosquito:</strong> ${w.mosquitoShutters}</div>`}
+                <div><strong>Mosquito:</strong> ${w.mosquitoShutters}${w.mosquitoMiddle ? ' <span style="color:#0288d1;font-size:11px;">(with 1" middle bar)</span>' : ''}</div>`}
                 <div><strong>Series:</strong> ${w.series}</div>
                 <div><strong>Qty:</strong> ${w.qty || 1}</div>
                 <div><strong>Thickness:</strong> <span style="color: ${hasThickness ? '#2e7d32' : '#e67e22'};">${thicknessStatus} ${thicknessLabel}</span></div>
@@ -2429,6 +2434,7 @@ function editWindow(idx) {
 
     if (document.getElementById('editMosquitoType')) document.getElementById('editMosquitoType').value = win.mosquitoType || 'V-2513';
     if (document.getElementById('editMosquitoInterlock')) document.getElementById('editMosquitoInterlock').value = win.mosquitoInterlock || 'V-2516';
+    if (document.getElementById('editMosquitoMiddle')) document.getElementById('editMosquitoMiddle').checked = !!win.mosquitoMiddle;
     toggleEditMosquitoConfig();
 
     // Toggle specific fields based on series/category
@@ -2461,6 +2467,13 @@ function toggleMosquitoConfig() {
     if (row) {
         row.style.display = msCount > 0 ? 'flex' : 'none';
     }
+    // Show "Mosquito Middle" only for 27mm Domal series (per v1.31 spec)
+    const mmGrp = document.getElementById('mosquitoMiddleGroup');
+    if (mmGrp) {
+        const seriesEl = document.getElementById('series');
+        const seriesVal = seriesEl ? seriesEl.value : '';
+        mmGrp.style.display = (msCount > 0 && seriesVal === '27mm Domal') ? '' : 'none';
+    }
 }
 
 function updateGlassThicknessOptions() {
@@ -2492,6 +2505,12 @@ function toggleEditMosquitoConfig() {
     const row = document.getElementById('editMosquitoConfigRow');
     if (row) {
         row.style.display = msCount > 0 ? 'flex' : 'none';
+    }
+    const mmGrp = document.getElementById('editMosquitoMiddleGroup');
+    if (mmGrp) {
+        const seriesEl = document.getElementById('editSeries');
+        const seriesVal = seriesEl ? seriesEl.value : '';
+        mmGrp.style.display = (msCount > 0 && seriesVal === '27mm Domal') ? '' : 'none';
     }
 }
 
@@ -2544,7 +2563,8 @@ function saveWindowEdit(event) {
         cornerJoint: document.getElementById('editCornerJoint')?.value || '90',
         interlockType: document.getElementById('editInterlockType')?.value || 'slim',
         mosquitoType: document.getElementById('editMosquitoType')?.value || 'V-2513',
-        mosquitoInterlock: document.getElementById('editMosquitoInterlock')?.value || 'V-2516'
+        mosquitoInterlock: document.getElementById('editMosquitoInterlock')?.value || 'V-2516',
+        mosquitoMiddle: document.getElementById('editMosquitoMiddle')?.checked || false
     };
 
     if (isDoor) {

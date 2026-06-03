@@ -10,8 +10,8 @@
     <title>Niruma Aluminum Profile Optimizer</title>
 
     <!-- CSS -->
-    <link rel="stylesheet" href="css/styles.css?v=1.30">
-    <link rel="stylesheet" href="css/modal.css?v=1.30">
+    <link rel="stylesheet" href="css/styles.css?v=1.31">
+    <link rel="stylesheet" href="css/modal.css?v=1.31">
 
     <!-- External Libraries -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -61,7 +61,7 @@
                 <span><strong>mm</strong></span>
             </div>
             <!-- APP VERSION — bump this number on every push/update -->
-            <div class="navbar-version">Ver: 1.30</div>
+            <div class="navbar-version">Ver: 1.31</div>
         </div>
     </nav>
 
@@ -311,6 +311,15 @@
                                         <option value="V-2516" selected>V-2516 (Slim)</option>
                                         <option value="V-2521">V-2521 (Universal)</option>
                                     </select>
+                                </div>
+                                <div class="form-group" id="mosquitoMiddleGroup" style="display:none;">
+                                    <label>Mosquito Middle Bar
+                                        <span style="font-size:11px;color:#666;font-weight:normal;">(splits net into 2)</span>
+                                    </label>
+                                    <label style="display:flex;align-items:center;gap:6px;padding:7px 0;font-size:13px;color:#1a5276;">
+                                        <input type="checkbox" id="mosquitoMiddle" style="width:16px;height:16px;cursor:pointer;">
+                                        Add 1" middle bar (Domal only)
+                                    </label>
                                 </div>
                             </div>
                             <!-- Door Configuration Row (Shown when Door category selected) -->
@@ -1451,7 +1460,7 @@
                         </div>
                         <div class="form-group">
                             <label>Series</label>
-                            <select id="editSeries" required>
+                            <select id="editSeries" onchange="toggleEditMosquitoConfig()" required>
                                 <option value="">-- Select Vendor First --</option>
                             </select>
                         </div>
@@ -1511,6 +1520,13 @@
                                 <option value="V-2516">V-2516</option>
                                 <option value="V-2521">V-2521</option>
                             </select>
+                        </div>
+                        <div class="form-group" id="editMosquitoMiddleGroup" style="display:none;">
+                            <label>Mosquito Middle Bar</label>
+                            <label style="display:flex;align-items:center;gap:6px;padding:7px 0;font-size:13px;color:#1a5276;">
+                                <input type="checkbox" id="editMosquitoMiddle" style="width:16px;height:16px;cursor:pointer;">
+                                Add 1" middle (Domal only)
+                            </label>
                         </div>
                     </div>
                     <div style="margin-top: 20px;">
@@ -1766,18 +1782,18 @@
     </div>
 
     <!-- JavaScript Files - Load in Order -->
-    <script src="js/storage.js?v=1.30"></script>
-    <script src="js/supplier_master.js?v=1.30"></script>
+    <script src="js/storage.js?v=1.31"></script>
+    <script src="js/supplier_master.js?v=1.31"></script>
     <!-- Supplier Modules -->
-    <script src="js/suppliers/windalco.js?v=1.30"></script>
-    <script src="js/suppliers/jk_alu.js?v=1.30"></script>
-    <script src="js/suppliers/atlantis.js?v=1.30"></script>
-    <script src="js/suppliers/vitco.js?v=1.30"></script>
+    <script src="js/suppliers/windalco.js?v=1.31"></script>
+    <script src="js/suppliers/jk_alu.js?v=1.31"></script>
+    <script src="js/suppliers/atlantis.js?v=1.31"></script>
+    <script src="js/suppliers/vitco.js?v=1.31"></script>
 
-    <script src="js/app.js?v=1.30"></script>
-    <script src="js/optimization.js?v=1.30"></script>
-    <script src="js/exports.js?v=1.30"></script>
-    <script src="js/Quotation.js?v=1.30"></script>
+    <script src="js/app.js?v=1.31"></script>
+    <script src="js/optimization.js?v=1.31"></script>
+    <script src="js/exports.js?v=1.31"></script>
+    <script src="js/Quotation.js?v=1.31"></script>
 
 </body>
 
