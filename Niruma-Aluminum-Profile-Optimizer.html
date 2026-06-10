@@ -10,8 +10,8 @@
     <title>Niruma Aluminum Profile Optimizer</title>
 
     <!-- CSS -->
-    <link rel="stylesheet" href="css/styles.css?v=1.40">
-    <link rel="stylesheet" href="css/modal.css?v=1.40">
+    <link rel="stylesheet" href="css/styles.css?v=1.41">
+    <link rel="stylesheet" href="css/modal.css?v=1.41">
 
     <!-- External Libraries -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -47,6 +47,10 @@
                     onclick="scrollToSection('section-supplier'); return false;">🏛️ Supplier</a>
                 <a href="#section-hardware" class="nav-link"
                     onclick="scrollToSection('section-hardware'); return false;">🔩 Hardware</a>
+                <a href="#section-rates" class="nav-link"
+                    onclick="scrollToSection('section-rates'); return false;">✨ Rates</a>
+                <a href="#section-project-inputs" class="nav-link"
+                    onclick="scrollToSection('section-project-inputs'); return false;">📋 Inputs</a>
                 <a href="#section-optimize" class="nav-link"
                     onclick="scrollToSection('section-optimize'); return false;">⚡ Optimize</a>
                 <a href="#section-results" class="nav-link"
@@ -61,7 +65,7 @@
                 <span><strong>mm</strong></span>
             </div>
             <!-- APP VERSION — bump this number on every push/update -->
-            <div class="navbar-version">Ver: 1.40</div>
+            <div class="navbar-version">Ver: 1.41</div>
         </div>
     </nav>
 
@@ -900,6 +904,20 @@
                     <button type="submit" class="btn btn-success">➕ Add Stock Material</button>
                 </form>
 
+                <!-- v1.41: Moved here from Rate Management — Sheet Availability is a catalog setting, not a rate -->
+                <details class="rate-group" id="sheetAvailabilityPanel" style="margin-top: 20px; margin-bottom: 10px; border: 1px solid #bf360c; border-radius: 8px; background: white;">
+                    <summary style="padding: 12px 15px; cursor: pointer; font-weight: bold; background: #fff3e0; border-radius: 8px; list-style: none; color:#bf360c;">
+                        📐 Partition Sheet Sizes Available <span style="font-weight:normal;font-size:12px;color:#666;">(filter optimizer to your stock)</span></summary>
+                    <div style="padding: 15px; border-top: 1px solid #ffe0b2;">
+                        <p style="font-size:12px;color:#666;margin:0 0 10px 0;">
+                            Uncheck sizes you don't keep in stock. The optimizer will only suggest sizes you have available.
+                            Default: all sizes enabled.
+                        </p>
+                        <div id="sheetAvailabilityList"></div>
+                        <button class="btn btn-sm" style="background:#bf360c;color:white;margin-top:10px;" onclick="saveSheetAvailability()">💾 Save Sheet Availability</button>
+                    </div>
+                </details>
+
             </div> <!-- end stock content -->
         </section>
 
@@ -982,6 +1000,23 @@
                 </div>
 
                 <div class="form-row" style="display: block;">
+                    <!-- v1.41: Aluminum Rates summary panel — consolidates the 3 sources of ₹/kg into one view -->
+                    <details class="rate-group" style="margin-bottom: 15px; border: 1px solid #607d8b; border-radius: 8px; background: white;" open>
+                        <summary style="padding: 12px 15px; cursor: pointer; font-weight: bold; background: #eceff1; border-radius: 8px; list-style: none; color: #455a64;">
+                            🏭 Aluminum Rates <span style="font-weight:normal;font-size:12px;color:#888;">(₹ per kg — per series)</span></summary>
+                        <div style="padding: 15px; border-top: 1px solid #cfd8dc;">
+                            <p style="font-size:12px;color:#666;margin:0 0 10px 0;">
+                                Per-series aluminum rates (₹ / kg). These multiply with each profile's piece weight to give the aluminum cost on the quotation.
+                                Per-stick costs are configured separately in
+                                <a href="#section-stock" onclick="scrollToSection('section-stock'); return false;" style="color:#1565c0;">📦 Stock Master</a>.
+                            </p>
+                            <div id="aluminumRatesSummary"></div>
+                            <p style="font-size:11px;color:#888;margin:8px 0 0;">
+                                💡 Edit any rate above — it autosaves and applies to all future quotations for that series.
+                            </p>
+                        </div>
+                    </details>
+
                     <details class="rate-group"
                         style="margin-bottom: 15px; border: 1px solid #ddd; border-radius: 8px; background: white;">
                         <summary
@@ -1034,19 +1069,6 @@
                         </div>
                     </details>
 
-                    <details class="rate-group" id="sheetAvailabilityPanel" style="margin-bottom: 20px; border: 1px solid #bf360c; border-radius: 8px; background: white;">
-                        <summary style="padding: 12px 15px; cursor: pointer; font-weight: bold; background: #fff3e0; border-radius: 8px; list-style: none; color:#bf360c;">
-                            📐 Partition Sheet Sizes Available <span style="font-weight:normal;font-size:12px;color:#666;">(filter optimizer to your stock)</span></summary>
-                        <div style="padding: 15px; border-top: 1px solid #ffe0b2;">
-                            <p style="font-size:12px;color:#666;margin:0 0 10px 0;">
-                                Uncheck sizes you don't keep in stock. The optimizer will only suggest sizes you have available.
-                                Default: all sizes enabled.
-                            </p>
-                            <div id="sheetAvailabilityList"></div>
-                            <button class="btn btn-sm" style="background:#bf360c;color:white;margin-top:10px;" onclick="saveSheetAvailability()">💾 Save Sheet Availability</button>
-                        </div>
-                    </details>
-
                     <details class="rate-group" id="netStockPanel" style="margin-bottom: 20px; border: 1px solid #8e44ad; border-radius: 8px; background: white;">
                         <summary style="padding: 12px 15px; cursor: pointer; font-weight: bold; background: #f3e5f5; border-radius: 8px; list-style: none; color:#6c3483;">
                             🕸️ SS Mosquito Net Roll Stock &amp; Prices</summary>
@@ -1060,40 +1082,6 @@
                             <button class="btn btn-sm" style="background:#8e44ad;color:white;margin-top:10px;" onclick="saveNetStock()">💾 Save Net Stock Prices</button>
                         </div>
                     </details>
-
-                    <details class="rate-group" id="netPartialRollsPanel" style="margin-bottom: 20px; border: 1px solid #27ae60; border-radius: 8px; background: white;">
-                        <summary style="padding: 12px 15px; cursor: pointer; font-weight: bold; background: #e8f5e9; border-radius: 8px; list-style: none; color:#1b5e20;">
-                            📦 Partial Rolls Available for This Project <span style="font-weight:normal;font-size:12px;color:#666;">(optional)</span></summary>
-                        <div style="padding: 15px; border-top: 1px solid #c8e6c9;">
-                            <p style="font-size:12px;color:#666;margin:0 0 10px 0;">
-                                Leftover rolls from previous projects? Enter them here to use up partials first.
-                                If left empty, the optimizer will assume only fresh 50ft rolls are available.
-                                <strong>This list resets when the page is reloaded</strong> — enter fresh each project.
-                            </p>
-                            <div id="netPartialRollsList"></div>
-                            <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap;">
-                                <button class="btn btn-sm" style="background:#27ae60;color:white;" onclick="addNetPartialRoll()">➕ Add Partial Roll</button>
-                                <button class="btn btn-sm" style="background:#e74c3c;color:white;" onclick="clearNetPartialRolls()">🗑️ Clear All</button>
-                            </div>
-                        </div>
-                    </details>
-
-                    <details class="rate-group" id="sheetPartialsPanel" style="margin-bottom: 20px; border: 1px solid #e67e22; border-radius: 8px; background: white;">
-                        <summary style="padding: 12px 15px; cursor: pointer; font-weight: bold; background: #fff3e0; border-radius: 8px; list-style: none; color:#bf360c;">
-                            📦 Partial Sheets Available for This Project <span style="font-weight:normal;font-size:12px;color:#666;">(ACP / Bakelite / Particle Board — optional)</span></summary>
-                        <div style="padding: 15px; border-top: 1px solid #ffe0b2;">
-                            <p style="font-size:12px;color:#666;margin:0 0 10px 0;">
-                                Leftover sheet pieces from previous projects? Enter them here to use up partials first.
-                                If left empty, the optimizer will open fresh full sheets only.
-                                <strong>This list resets when the page is reloaded</strong> — enter fresh each project.
-                            </p>
-                            <div id="sheetPartialsList"></div>
-                            <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap;">
-                                <button class="btn btn-sm" style="background:#e67e22;color:white;" onclick="addSheetPartial()">➕ Add Partial Sheet</button>
-                                <button class="btn btn-sm" style="background:#e74c3c;color:white;" onclick="clearSheetPartials()">🗑️ Clear All</button>
-                            </div>
-                        </div>
-                    </details>
                 </div>
 
                 <h3>✨ Powder Coating Rates (₹ / Running Foot)</h3>
@@ -1101,6 +1089,52 @@
                     <!-- Dynamic powder coating rates will be rendered here -->
                 </div>
                 <button class="btn btn-success" onclick="saveAllRates()">💾 Save All Rates</button>
+            </div>
+        </section>
+
+        <!-- v1.41: NEW section — Project Inputs (per-project transient data) -->
+        <section id="section-project-inputs" class="section collapsed-section">
+            <h2 class="collapsible-header collapsed" onclick="toggleSection(this)">
+                📋 Project Inputs <span style="font-size:12px;color:#888;font-weight:normal;">(partial rolls & sheets for current project)</span> <span class="toggle-indicator">▼</span>
+            </h2>
+            <div class="collapsible-content collapsed-content">
+                <div class="alert alert-info" style="background:#fff8e1;border-left:4px solid #ffa000;color:#7f4e00;">
+                    <strong>ℹ️ Per-project inputs:</strong> These are reset every time the page reloads. Enter leftover stock from previous projects to use up first before opening new rolls / sheets. Leave empty for normal full-stock optimization.
+                </div>
+
+                <details class="rate-group" id="netPartialRollsPanel" style="margin-bottom: 20px; border: 1px solid #27ae60; border-radius: 8px; background: white;">
+                    <summary style="padding: 12px 15px; cursor: pointer; font-weight: bold; background: #e8f5e9; border-radius: 8px; list-style: none; color:#1b5e20;">
+                        📦 Partial Mosquito Net Rolls <span style="font-weight:normal;font-size:12px;color:#666;">(leftover from previous projects)</span></summary>
+                    <div style="padding: 15px; border-top: 1px solid #c8e6c9;">
+                        <p style="font-size:12px;color:#666;margin:0 0 10px 0;">
+                            Leftover rolls from previous projects? Enter them here to use up partials first.
+                            If left empty, the optimizer will assume only fresh 50ft rolls are available.
+                            <strong>This list resets when the page is reloaded</strong> — enter fresh each project.
+                        </p>
+                        <div id="netPartialRollsList"></div>
+                        <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap;">
+                            <button class="btn btn-sm" style="background:#27ae60;color:white;" onclick="addNetPartialRoll()">➕ Add Partial Roll</button>
+                            <button class="btn btn-sm" style="background:#e74c3c;color:white;" onclick="clearNetPartialRolls()">🗑️ Clear All</button>
+                        </div>
+                    </div>
+                </details>
+
+                <details class="rate-group" id="sheetPartialsPanel" style="margin-bottom: 20px; border: 1px solid #e67e22; border-radius: 8px; background: white;">
+                    <summary style="padding: 12px 15px; cursor: pointer; font-weight: bold; background: #fff3e0; border-radius: 8px; list-style: none; color:#bf360c;">
+                        📦 Partial Partition Sheets <span style="font-weight:normal;font-size:12px;color:#666;">(ACP / Bakelite / Particle Board — leftover from previous projects)</span></summary>
+                    <div style="padding: 15px; border-top: 1px solid #ffe0b2;">
+                        <p style="font-size:12px;color:#666;margin:0 0 10px 0;">
+                            Leftover sheet pieces from previous projects? Enter them here to use up partials first.
+                            If left empty, the optimizer will open fresh full sheets only.
+                            <strong>This list resets when the page is reloaded</strong> — enter fresh each project.
+                        </p>
+                        <div id="sheetPartialsList"></div>
+                        <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap;">
+                            <button class="btn btn-sm" style="background:#e67e22;color:white;" onclick="addSheetPartial()">➕ Add Partial Sheet</button>
+                            <button class="btn btn-sm" style="background:#e74c3c;color:white;" onclick="clearSheetPartials()">🗑️ Clear All</button>
+                        </div>
+                    </div>
+                </details>
             </div>
         </section>
 
@@ -1798,18 +1832,18 @@
     </div>
 
     <!-- JavaScript Files - Load in Order -->
-    <script src="js/storage.js?v=1.40"></script>
-    <script src="js/supplier_master.js?v=1.40"></script>
+    <script src="js/storage.js?v=1.41"></script>
+    <script src="js/supplier_master.js?v=1.41"></script>
     <!-- Supplier Modules -->
-    <script src="js/suppliers/windalco.js?v=1.40"></script>
-    <script src="js/suppliers/jk_alu.js?v=1.40"></script>
-    <script src="js/suppliers/atlantis.js?v=1.40"></script>
-    <script src="js/suppliers/vitco.js?v=1.40"></script>
+    <script src="js/suppliers/windalco.js?v=1.41"></script>
+    <script src="js/suppliers/jk_alu.js?v=1.41"></script>
+    <script src="js/suppliers/atlantis.js?v=1.41"></script>
+    <script src="js/suppliers/vitco.js?v=1.41"></script>
 
-    <script src="js/app.js?v=1.40"></script>
-    <script src="js/optimization.js?v=1.40"></script>
-    <script src="js/exports.js?v=1.40"></script>
-    <script src="js/Quotation.js?v=1.40"></script>
+    <script src="js/app.js?v=1.41"></script>
+    <script src="js/optimization.js?v=1.41"></script>
+    <script src="js/exports.js?v=1.41"></script>
+    <script src="js/Quotation.js?v=1.41"></script>
 
 </body>
 

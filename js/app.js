@@ -1076,6 +1076,7 @@ function refreshAllUI() {
     initializeAddWindowSeriesSelector(); // New Wizard Flow
     initializeAddWindowVendorSelector(); // For Edit Modal (only)
     refreshRatesDisplay(); // New
+    if (typeof renderAluminumRatesSummary === 'function') renderAluminumRatesSummary(); // v1.41
     renderSupplierMaster(); // New
 }
 
@@ -4041,6 +4042,35 @@ function updateStockRate(series, val) {
     stockRates[series] = parseFloat(val);
     localStorage.setItem('stockRates', JSON.stringify(stockRates));
     refreshStockMaster();
+    renderAluminumRatesSummary();
+}
+
+// v1.41: Aluminum Rates summary panel in Rate Management — one place to scan
+// per-series ₹/kg without scrolling through Stock Master's full table.
+function renderAluminumRatesSummary() {
+    const container = document.getElementById('aluminumRatesSummary');
+    if (!container) return;
+    const seriesList = Object.keys(stockMaster || {}).sort();
+    if (seriesList.length === 0) {
+        container.innerHTML = '<p style="color:#888;font-style:italic;font-size:12px;">No series in Stock Master yet.</p>';
+        return;
+    }
+    const rowStyle = 'display:grid;grid-template-columns:180px 100px 1fr;gap:10px;align-items:center;padding:7px 8px;border-bottom:1px solid #eceff1;font-size:13px;';
+    let html = `<div style="${rowStyle.replace('border-bottom:1px solid #eceff1;','')}background:#cfd8dc;font-weight:600;color:#37474f;border-radius:4px 4px 0 0;">
+        <span>Series</span><span style="text-align:right;">₹ / kg</span><span style="font-size:11px;color:#546e7a;font-weight:500;">Stock items</span>
+    </div>`;
+    seriesList.forEach(series => {
+        const items = (stockMaster[series] || []).length;
+        const rate = stockRates[series] != null ? stockRates[series] : 250;
+        html += `<div style="${rowStyle}">
+            <span style="font-weight:600;color:#37474f;">${series}</span>
+            <input type="number" value="${rate}" min="0" step="1"
+                onchange="updateStockRate('${series.replace(/'/g, "\\'")}', this.value)"
+                style="width:100%;padding:4px 8px;border:1px solid #b0bec5;border-radius:4px;font-size:13px;text-align:right;">
+            <span style="font-size:11px;color:#78909c;">${items} item${items===1?'':'s'} in Stock Master</span>
+        </div>`;
+    });
+    container.innerHTML = html;
 }
 
 function updateStockThickness(series, idx, tStr) {
