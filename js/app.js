@@ -1310,7 +1310,9 @@ const DOOR_HARDWARE_DEFAULTS = [
         variants: [],   defaultVariant: null
     },
     {
-        hardware: 'Lock Body',       mechanism: 'both',        unit: 'Nos',  formula: '1 * L',      rate: 100,
+        // v1.35: 1 per door (single OR double) — was 1*L which over-counted double doors.
+        // Mortise Lock blocked for double doors (UI cascade in onLockVariantChange).
+        hardware: 'Lock Body',       mechanism: 'both',        unit: 'Nos',  formula: '1',          rate: 100,
         variants: [
             { label: 'Dead Lock (both side key)',     rate: 100 },
             { label: 'Dead Lock (key + knob)',        rate: 100 },
@@ -1322,19 +1324,28 @@ const DOOR_HARDWARE_DEFAULTS = [
         defaultVariant: 'Dead Lock (both side key)'
     },
     {
-        hardware: 'Cylinder',        mechanism: 'both',        unit: 'Nos',  formula: '1 * L',      rate: 100,
+        // v1.35: 1 per door. Auto-checked only with Dead Lock or Mortise Lock variants.
+        hardware: 'Cylinder',        mechanism: 'both',        unit: 'Nos',  formula: '1',          rate: 100,
         variants: [],   defaultVariant: null
     },
     {
-        hardware: 'Mortise Handle',  mechanism: 'both',        unit: 'Nos',  formula: '1 * L',      rate: 100,
+        // v1.35: 1 per door. Auto-checked ONLY with Mortise Lock variant.
+        hardware: 'Mortise Handle',  mechanism: 'both',        unit: 'Nos',  formula: '1',          rate: 100,
         variants: [],   defaultVariant: null
     },
     {
         hardware: 'Silicon Sealant', mechanism: 'both',        unit: 'R.Ft', formula: '(W+H)*2/12', rate: 10,
         variants: [],   defaultVariant: null
     },
+    // v1.35: Door Rod 12mm moved from hardware → profile cutting plan.
+    // Length = top rail + 3", cut from 2m stock. See generateDoorProfileFormulas.
+    // Auxiliary hardware (nuts + washers) below:
     {
-        hardware: 'Door Rod 12mm',   mechanism: 'both',        unit: 'Nos',  formula: '2 * L',      rate: 60,
+        hardware: 'Door Rod Nut',    mechanism: 'both',        unit: 'Nos',  formula: '4 * L',      rate: 5,
+        variants: [],   defaultVariant: null
+    },
+    {
+        hardware: 'Door Rod Washer', mechanism: 'both',        unit: 'Nos',  formula: '4 * L',      rate: 3,
         variants: [],   defaultVariant: null
     },
     {
@@ -1449,14 +1460,69 @@ function renderDoorAccessoriesChecklist(mechanism) {
 
 // When user changes variant dropdown on a door accessory row, auto-fill the rate
 // input from the variant's rate. User can still manually edit the rate after.
+//
+// v1.35: also runs the Lock Body cascade — picking Mortise/Dead Lock variants
+// auto-checks dependent accessories (Cylinder, Mortise Handle) and blocks
+// Mortise Lock when the door is double.
 function onAccessoryVariantChange(idx) {
     const sel = document.getElementById(`accVariant_${idx}`);
     const rateEl = document.getElementById(`accRate_${idx}`);
     if (!sel || !rateEl) return;
     const opt = sel.options[sel.selectedIndex];
-    if (!opt) return;
-    const r = parseFloat(opt.getAttribute('data-rate'));
-    if (!isNaN(r)) rateEl.value = r;
+    if (opt) {
+        const r = parseFloat(opt.getAttribute('data-rate'));
+        if (!isNaN(r)) rateEl.value = r;
+    }
+
+    // Lock Body cascade (only fires for the Lock Body row)
+    const items = getDoorHardwareList();
+    const master = items[idx];
+    if (!master || master.hardware !== 'Lock Body') return;
+    applyLockCascade(sel.value);
+}
+
+// Auto-check Cylinder / Mortise Handle based on the lock variant.
+// Block Mortise Lock when door is double (warn + revert to default).
+function applyLockCascade(lockVariant) {
+    const doorType = document.getElementById('doorType')?.value || 'single';
+    if (lockVariant === 'Mortise Lock' && doorType === 'double') {
+        showAlert('⚠️ Mortise Lock is not used on double doors. Please pick a Dead Lock or Pad Lock variant.', 'warning');
+        // Revert to default
+        const items = getDoorHardwareList();
+        const lockIdx = items.findIndex(it => it.hardware === 'Lock Body');
+        if (lockIdx >= 0) {
+            const sel = document.getElementById(`accVariant_${lockIdx}`);
+            if (sel) sel.value = items[lockIdx].defaultVariant || 'Dead Lock (both side key)';
+        }
+        return;
+    }
+
+    const items = getDoorHardwareList();
+    const findIdx = name => items.findIndex(it => it.hardware === name);
+    const cylIdx = findIdx('Cylinder');
+    const morIdx = findIdx('Mortise Handle');
+    const cylCb  = (cylIdx >= 0) ? document.getElementById(`accCheck_${cylIdx}`) : null;
+    const morCb  = (morIdx >= 0) ? document.getElementById(`accCheck_${morIdx}`) : null;
+
+    const v = (lockVariant || '').toLowerCase();
+    const isDead    = v.startsWith('dead lock');
+    const isMortise = v === 'mortise lock';
+
+    // Cylinder: required for Dead Lock or Mortise Lock
+    if (cylCb) cylCb.checked = (isDead || isMortise);
+    // Mortise Handle: required only for Mortise Lock
+    if (morCb) morCb.checked = isMortise;
+}
+
+// Called from the door form when Door Type (single/double) changes
+// — re-validates Lock Body variant.
+function onDoorTypeChangeForLock() {
+    const items = getDoorHardwareList();
+    const lockIdx = items.findIndex(it => it.hardware === 'Lock Body');
+    if (lockIdx < 0) return;
+    const sel = document.getElementById(`accVariant_${lockIdx}`);
+    if (!sel) return;
+    applyLockCascade(sel.value);
 }
 
 // When closing mechanism changes — only flip mechanism-specific rows, leave user edits alone
@@ -1522,12 +1588,18 @@ function addDoor(event) {
     const floorSpringHingeProfile = (closingMechanism === 'FloorSpring')
         ? (document.getElementById('doorHingeSideProfileFS')?.value || '')
         : '';
+    // v1.35: Hinge stile width (Hinge mechanism only — Floor Spring uses profile selector)
+    const hingeWidth = (closingMechanism === 'Hinge')
+        ? parseFloat(document.getElementById('doorHingeWidth')?.value || '114.5')
+        : null;
 
     // Middle rail position
+    // v1.35: input is "top edge of middle rail from floor" (mm).
+    // Convert to centre (= top edge − middleWidth/2) for storage so formulas stay unchanged.
     const customPos = document.getElementById('doorMiddleCustomPos').checked;
-    const middleRailPositionMM = customPos
-        ? (parseFloat(document.getElementById('doorMiddlePosition').value) || null)
-        : null; // null = center
+    const middleWidthMM = parseFloat(document.getElementById('doorMiddleWidthNew')?.value) || 47.5;
+    const userTopEdgeMM = customPos ? (parseFloat(document.getElementById('doorMiddlePosition').value) || null) : null;
+    const middleRailPositionMM = (userTopEdgeMM != null) ? (userTopEdgeMM - middleWidthMM / 2) : null;
 
     // Upper partition
     const upperMat    = document.getElementById('doorUpperMaterial').value;
@@ -1577,6 +1649,7 @@ function addDoor(event) {
         leaves,                 // 1 | 2
         closingMechanism,       // 'Hinge' | 'FloorSpring'
         floorSpringHingeProfile, // '' | 'Door Vertical' | 'Door Middle Single' | 'Door Tips Vertical'
+        hingeWidth,              // v1.35: 47.5 | 85 | 114.5 (Hinge mechanism only; null for Floor Spring)
         middleRailPositionMM,
         upperPartition,
         lowerPartition,
@@ -1733,7 +1806,11 @@ function populateDoorFormFromObject(w) {
     setVal('doorMiddleWidthNew',          String(w.middleWidth || 47.5));
     setVal('doorTopWidthNew',             String(w.topWidth || 47.5));
 
+    // v1.35: Hinge stile width (Hinge mechanism)
+    if (w.hingeWidth != null) setVal('doorHingeWidth', String(w.hingeWidth));
+
     // Middle rail position: checkbox + value pair
+    // v1.35: input is top-edge from floor; stored value is centre. Convert back.
     const mrCustom = document.getElementById('doorMiddleCustomPos');
     const mrPos    = document.getElementById('doorMiddlePosition');
     const hasCustom = w.middleRailPositionMM != null;
@@ -1742,7 +1819,12 @@ function populateDoorFormFromObject(w) {
         // Fire change handler if there is one so the position input enables/disables
         try { mrCustom.dispatchEvent(new Event('change', { bubbles: true })); } catch (e) {}
     }
-    if (mrPos && hasCustom) mrPos.value = w.middleRailPositionMM;
+    if (mrPos && hasCustom) {
+        const mwMM = parseFloat(w.middleWidth) || 47.5;
+        // centre → top edge (top edge = centre + width/2)
+        const topEdge = w.middleRailPositionMM + mwMM / 2;
+        mrPos.value = Math.round(topEdge);
+    }
 
     // Partitions
     const up = w.upperPartition || {};
@@ -1832,6 +1914,8 @@ function toggleDoubleDoorOptions() {
     const isDouble = document.getElementById('doorType')?.value === 'double';
     const opts = document.getElementById('doubleDoorOptions');
     if (opts) opts.style.display = isDouble ? 'block' : 'none';
+    // v1.35: re-validate Lock Body variant (Mortise Lock not allowed for double)
+    if (typeof onDoorTypeChangeForLock === 'function') onDoorTypeChangeForLock();
 }
 
 // Show/hide Handle Width dropdown — Tips Vertical is always 47.5mm (fixed), others need user selection

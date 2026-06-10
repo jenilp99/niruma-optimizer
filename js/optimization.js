@@ -263,13 +263,16 @@ function estimatePiecesKg(pieces, stockItems, weightPer144) {
 //  2. Compare total kg for Option A (Door Top separate + Door Bottom for bottom+hinge)
 //     vs Option B (Door Bottom for top+bottom+hinge merged)
 //  3. Use Door Bottom only if it strictly reduces total kg; tie → Door Top
+//
+// v1.35: Smarter candidate set:
+//   - Door Top (matches topWidth)
+//   - Door Bottom (matches if topWidth ≈ 114.5)
+//   - Door Middle Single (matches if middleWidth == topWidth)
+// Filter by matching width first, then pick cheapest in kg.
 function selectTopRailProfile(win, supplierData, handleVW, hingeVW) {
     const topWidthMM    = win.topWidth    || 47.5;
-    const bottomWidthMM = win.bottomWidth || 114.3;
-
-    // Rule 1: widths must match
-    if (Math.abs(topWidthMM - bottomWidthMM) > 0.1) return 'Door Top';
-
+    const bottomWidthMM = win.bottomWidth || 114.5;
+    const middleWidthMM = win.middleWidth || 47.5;
     const L        = win.leaves || 1;
     const F        = win.frame  || 0;
     const stileLen = win.height - (F * (40/25.4));
@@ -277,28 +280,58 @@ function selectTopRailProfile(win, supplierData, handleVW, hingeVW) {
 
     if (railLen <= 0 || stileLen <= 0) return 'Door Top';
 
-    const doorStock   = (supplierData && supplierData.stock && supplierData.stock['Door']) || [];
-    const topStock    = doorStock.filter(s => s.material === 'Door Top');
-    const bottomStock = doorStock.filter(s => s.material === 'Door Bottom');
+    const doorStock = (supplierData && supplierData.stock && supplierData.stock['Door']) || [];
 
-    if (!topStock.length || !bottomStock.length) return 'Door Top';
+    // Build candidates that MATCH the topWidth
+    const candidates = [];
 
-    const wTop    = getDoorProfileWeight('Door Top',    supplierData);
-    const wBottom = getDoorProfileWeight('Door Bottom', supplierData);
+    // Door Top — always considered (its width is topWidthMM by definition)
+    const topStock = doorStock.filter(s => s.material === 'Door Top');
+    const wTop     = getDoorProfileWeight('Door Top', supplierData);
+    if (topStock.length && wTop) {
+        const kg = estimatePiecesKg([{ length: railLen, qty: L }], topStock, wTop);
+        candidates.push({ profile: 'Door Top', kg, mergedKg: null });
+    }
 
-    if (!wTop || !wBottom) return 'Door Top';
+    // Door Bottom — only if width matches (~114.5mm) AND bottom rail also uses Door Bottom
+    if (Math.abs(topWidthMM - 114.5) < 1 && Math.abs(topWidthMM - bottomWidthMM) < 1) {
+        const bottomStock = doorStock.filter(s => s.material === 'Door Bottom');
+        const wBottom     = getDoorProfileWeight('Door Bottom', supplierData);
+        if (bottomStock.length && wBottom) {
+            // Merged: top + bottom + hinge stile all from Door Bottom stock
+            const mergedKg = estimatePiecesKg([{ length: railLen, qty: L * 2 }, { length: stileLen, qty: L }], bottomStock, wBottom);
+            // Separate: just charge top rail's portion
+            const kg = estimatePiecesKg([{ length: railLen, qty: L }], bottomStock, wBottom);
+            candidates.push({ profile: 'Door Bottom', kg, mergedKg });
+        }
+    }
 
-    // Option A: Door Top for top rail + Door Bottom for bottom rail + hinge stile
-    const kgA = estimatePiecesKg([{ length: railLen, qty: L }], topStock, wTop)
-              + estimatePiecesKg([{ length: railLen, qty: L }, { length: stileLen, qty: L }], bottomStock, wBottom);
+    // Door Middle Single (DMS) — if middleWidth matches topWidth
+    if (Math.abs(middleWidthMM - topWidthMM) < 0.5) {
+        const dmsStock = doorStock.filter(s => s.material === 'Door Middle Single');
+        const wDms     = getDoorProfileWeight('Door Middle Single', supplierData);
+        if (dmsStock.length && wDms) {
+            const kg = estimatePiecesKg([{ length: railLen, qty: L }], dmsStock, wDms);
+            candidates.push({ profile: 'Door Middle Single', kg, mergedKg: null });
+        }
+    }
 
-    // Option B: Door Bottom for top rail + bottom rail + hinge stile (all merged)
-    const kgB = estimatePiecesKg([{ length: railLen, qty: L * 2 }, { length: stileLen, qty: L }], bottomStock, wBottom);
+    if (candidates.length === 0) return 'Door Top';
 
-    console.log(`%c🔄 Top Rail selection | topW=${topWidthMM}mm == bottomW=${bottomWidthMM}mm | kgA(separate)=${kgA.toFixed(2)} kgB(merged)=${kgB.toFixed(2)} → ${kgB < kgA ? 'Door Bottom (merged saves kg)' : 'Door Top (lighter wins)'}`, 'background:#6610f2;color:white;padding:2px 6px;');
+    // If any candidate offers a merged-kg saving (currently only Door Bottom)
+    // that beats all separate-kg options, prefer it.
+    const sepKgSum = candidates.reduce((s, c) => Math.min(s, c.kg), Infinity);
+    const mergedCand = candidates.find(c => c.mergedKg != null);
+    if (mergedCand && mergedCand.mergedKg < sepKgSum) {
+        console.log(`%c🔄 Top Rail: ${mergedCand.profile} (merged ${mergedCand.mergedKg.toFixed(2)} kg < sep ${sepKgSum.toFixed(2)})`, 'background:#6610f2;color:white;padding:2px 6px;');
+        return mergedCand.profile;
+    }
 
-    // Rule 2: strictly less kg wins; tie → prefer Door Top
-    return kgB < kgA ? 'Door Bottom' : 'Door Top';
+    // Otherwise pick cheapest by separate kg
+    candidates.sort((a, b) => a.kg - b.kg);
+    const winner = candidates[0];
+    console.log(`%c🔄 Top Rail: ${winner.profile} (${winner.kg.toFixed(2)} kg, candidates: ${candidates.map(c => c.profile + '/' + c.kg.toFixed(1)).join(', ')})`, 'background:#6610f2;color:white;padding:2px 6px;');
+    return winner.profile;
 }
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -325,43 +358,39 @@ function computeDoorStileWidths(win, supplierData) {
     };
     const handleComp = HANDLE_COMP[win.handleProfile] || 'Door Vertical';
 
-    let hingeComp;
-    if ((win.closingMechanism || 'Hinge') === 'Hinge') {
-        // Hinge mechanism — auto-pick Door Bottom or Door Top for least waste.
-        // If supplierData missing (e.g. called from quotation context), assume
-        // Door Bottom (widest, conservative for cost — won't undercharge customer).
-        if (typeof selectHingeSideProfile === 'function' && supplierData) {
-            hingeComp = selectHingeSideProfile(win, supplierData);
-        } else {
-            hingeComp = 'Door Bottom';
-        }
-    } else {
-        // Floor Spring — user-selectable hinge side (defaults to handle side)
-        hingeComp = HANDLE_COMP[win.floorSpringHingeProfile] || handleComp;
-    }
-
-    // Handle stile width
+    // Handle stile width (computed first since Floor Spring "same as handle" needs it)
     let handleWidthMM;
     if      (handleComp === 'Door Tips Vertical')  handleWidthMM = 47.5;
     else if (handleComp === 'Door Middle Single')  handleWidthMM = win.middleWidth || 47.5;
     else                                           handleWidthMM = win.handleWidth || win.verticalWidth || 47.5;
 
-    // Hinge stile width — depends on what profile is on the hinge side
-    let hingeWidthMM;
-    if (hingeComp === 'Door Bottom') {
-        const dbSections = supplierData && supplierData.sections &&
-                           supplierData.sections['Door'] &&
-                           supplierData.sections['Door']['Door Bottom'];
-        hingeWidthMM = (dbSections && dbSections[0] && dbSections[0].w) || 114.5;
-    } else if (hingeComp === 'Door Top') {
-        hingeWidthMM = win.topWidth || 47.5;
-    } else if (hingeComp === 'Door Middle Single') {
-        hingeWidthMM = win.middleWidth || 47.5;
-    } else if (hingeComp === 'Door Tips Vertical') {
-        hingeWidthMM = 47.5;
+    // v1.35: Hinge stile selection
+    // - Hinge mechanism: user picks `hingeWidth` (47.5 / 85 / 114.5). Code maps width → profile:
+    //     47.5 or 85 → Door Top (only profile besides Door Bottom that exists at these widths)
+    //     114.5 → Door Bottom
+    //   Door Vertical NOT allowed for Hinge mechanism (per business rule).
+    // - Floor Spring: user picks profile via `floorSpringHingeProfile`. Door Vertical allowed.
+    let hingeComp, hingeWidthMM;
+    if ((win.closingMechanism || 'Hinge') === 'Hinge') {
+        const userHingeW = parseFloat(win.hingeWidth);
+        // Default: preferred Door Bottom (114.5mm) if not set
+        const w = (userHingeW > 0) ? userHingeW : 114.5;
+        if (w >= 110) {
+            hingeComp = 'Door Bottom';
+            const dbSections = supplierData && supplierData.sections &&
+                               supplierData.sections['Door'] &&
+                               supplierData.sections['Door']['Door Bottom'];
+            hingeWidthMM = (dbSections && dbSections[0] && dbSections[0].w) || 114.5;
+        } else {
+            hingeComp = 'Door Top';
+            hingeWidthMM = w;
+        }
     } else {
-        // Door Vertical → same as handle width
-        hingeWidthMM = win.handleWidth || win.verticalWidth || 47.5;
+        // Floor Spring — user picks profile; "" = same as handle
+        hingeComp = HANDLE_COMP[win.floorSpringHingeProfile] || handleComp;
+        if (hingeComp === 'Door Tips Vertical')      hingeWidthMM = 47.5;
+        else if (hingeComp === 'Door Middle Single') hingeWidthMM = win.middleWidth || 47.5;
+        else /* Door Vertical */                     hingeWidthMM = win.handleWidth || win.verticalWidth || 47.5;
     }
 
     return {
@@ -381,37 +410,47 @@ function generateDoorProfileFormulas(win, supplierData) {
 
     const handleComp = HANDLE_COMP[win.handleProfile] || 'Door Vertical';
 
+    // v1.35: delegate to shared helper for consistent stile widths everywhere
+    // (cutting plan, quotation cost, spec sheets all agree).
+    // The helper handles new Hinge Width selector AND Floor Spring profile choice.
+    // We re-do the hinge profile determination here to know `hingeComp` for the formula
+    // table (which needs a component name, not just a width).
     let hingeComp;
     if ((win.closingMechanism || 'Hinge') === 'Hinge') {
-        // Hinge side is always Door Bottom (preferred) or Door Top (by least wastage)
-        // — regardless of which handle profile is selected
-        hingeComp = selectHingeSideProfile(win, supplierData);
+        const userHingeW = parseFloat(win.hingeWidth);
+        const w = (userHingeW > 0) ? userHingeW : 114.5;
+        hingeComp = (w >= 110) ? 'Door Bottom' : 'Door Top';
     } else {
-        // Floor Spring: user-selectable hinge side (default = same as handle side)
         hingeComp = HANDLE_COMP[win.floorSpringHingeProfile] || handleComp;
     }
 
-    // ── Compute actual profile widths (mm → inches) ──────────────────────────
-    // Handle side width
+    // Handle stile width (still needed for top rail kg comparison)
     let handleWidthMM;
     if      (handleComp === 'Door Tips Vertical')  handleWidthMM = 47.5;
     else if (handleComp === 'Door Middle Single')  handleWidthMM = win.middleWidth || 47.5;
-    else                                           handleWidthMM = win.handleWidth || win.verticalWidth || 47.5; // Door Vertical
+    else                                           handleWidthMM = win.handleWidth || win.verticalWidth || 47.5;
 
-    // Hinge side width — use the ACTUAL hinge profile's width, NOT win.bottomWidth
-    // (win.bottomWidth = bottom RAIL profile choice; hingeComp = auto-selected hinge profile)
-    // Door Bottom profile is always 114.5mm wide; Door Top width comes from win.topWidth
+    // Hinge stile width
     let hingeWidthMM;
     if (hingeComp === 'Door Bottom') {
-        // Read from supplier sections if available, else use 114.5mm (JK ALU standard)
         const dbSections = supplierData && supplierData.sections &&
                            supplierData.sections['Door'] &&
                            supplierData.sections['Door']['Door Bottom'];
         hingeWidthMM = (dbSections && dbSections[0] && dbSections[0].w) || 114.5;
     } else if (hingeComp === 'Door Top') {
-        hingeWidthMM = win.topWidth || 47.5;
-    } else {
+        // For Hinge mech: width = user's hingeWidth selection; for Floor Spring: win.topWidth
+        if ((win.closingMechanism || 'Hinge') === 'Hinge') {
+            hingeWidthMM = parseFloat(win.hingeWidth) || 47.5;
+        } else {
+            hingeWidthMM = win.topWidth || 47.5;
+        }
+    } else if (hingeComp === 'Door Tips Vertical') {
+        hingeWidthMM = 47.5;
+    } else if (hingeComp === 'Door Middle Single') {
         hingeWidthMM = win.middleWidth || 47.5;
+    } else {
+        // Door Vertical (Floor Spring only) — matches handle width
+        hingeWidthMM = win.handleWidth || win.verticalWidth || 47.5;
     }
 
     // Store on win so calculatePieces can inject into safeEval context
@@ -435,9 +474,16 @@ function generateDoorProfileFormulas(win, supplierData) {
         // produces the correct independent lengths for each zone. MRPI (middle-rail position
         // in inches from floor) is injected into context by calculatePieces; for a centred
         // rail it equals exactly half, so both lengths remain equal.
-        { component: 'Door Glazing Clip',  qty: '4*L', length: 'H - F*(20/25.4) - TW - MW/2 - MRPI',        desc: 'Glazing Clip Vertical Top' },
-        { component: 'Door Glazing Clip',  qty: '4*L', length: 'MRPI - F*(20/25.4) - BW - MW/2',            desc: 'Glazing Clip Vertical Bottom' },
-        { component: 'Door Glazing Clip',  qty: '8*L', length: '(W - (F*(80/25.4))) / L - HandleVW - HingeVW', desc: 'Glazing Clip Horizontal' }
+        // v1.35 FIX: previously used F*(20/25.4) — half of the 40mm top frame, which made
+        // upper too long and lower too short by 20mm each. 3-side frame has NO bottom frame,
+        // so vertical lower clip never gets a frame deduction.
+        { component: 'Door Glazing Clip',  qty: '4*L', length: 'H - F*(40/25.4) - TW - MW/2 - MRPI',        desc: 'Glazing Clip Vertical Top' },
+        { component: 'Door Glazing Clip',  qty: '4*L', length: 'MRPI - BW - MW/2',                          desc: 'Glazing Clip Vertical Bottom' },
+        { component: 'Door Glazing Clip',  qty: '8*L', length: '(W - (F*(80/25.4))) / L - HandleVW - HingeVW', desc: 'Glazing Clip Horizontal' },
+        // v1.35: Door Rod 12mm — 2 rods per leaf (one in top rail + one in bottom rail).
+        // Length = top rail length + 3" (1.5" stick-out each side for nut/washer mounting).
+        // Stock = 2 metres (78.74") — should be added to door supplier stock data.
+        { component: 'Door Rod 12mm',      qty: '2*L', length: '(W - (F*(80/25.4))) / L - HandleVW - HingeVW + 3', desc: 'Door Rod (top rail + 3\")' }
     ];
 }
 

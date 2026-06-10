@@ -10,8 +10,8 @@
     <title>Niruma Aluminum Profile Optimizer</title>
 
     <!-- CSS -->
-    <link rel="stylesheet" href="css/styles.css?v=1.34">
-    <link rel="stylesheet" href="css/modal.css?v=1.34">
+    <link rel="stylesheet" href="css/styles.css?v=1.35">
+    <link rel="stylesheet" href="css/modal.css?v=1.35">
 
     <!-- External Libraries -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -61,7 +61,7 @@
                 <span><strong>mm</strong></span>
             </div>
             <!-- APP VERSION — bump this number on every push/update -->
-            <div class="navbar-version">Ver: 1.34</div>
+            <div class="navbar-version">Ver: 1.35</div>
         </div>
     </nav>
 
@@ -510,10 +510,10 @@
                                         Custom position (not center)
                                     </label>
                                     <div id="doorMiddlePosGroup" style="display:none;align-items:center;gap:8px;">
-                                        <label style="font-weight:normal;font-size:13px;">Height from bottom:</label>
+                                        <label style="font-weight:normal;font-size:13px;">Height from bottom to TOP edge of middle rail:</label>
                                         <input type="number" id="doorMiddlePosition" value="" placeholder="mm" min="0" step="1"
-                                            style="width:90px;padding:5px 8px;border:1px solid #ddd;border-radius:4px;font-size:13px;">
-                                        <span style="font-size:12px;color:#888;">mm from floor</span>
+                                            style="width:100px;padding:5px 8px;border:1px solid #ddd;border-radius:4px;font-size:13px;">
+                                        <span id="doorMiddlePosUnit" style="font-size:12px;color:#888;">mm from floor (top edge)</span>
                                     </div>
                                 </div>
                             </div>
@@ -643,10 +643,12 @@
                                     </select>
                                 </div>
                                 <div class="form-group" id="doorHingeSideHingeInfo" style="">
-                                    <label>Hinge Side Profile <span style="font-size:11px;color:#888;">(auto-selected)</span></label>
-                                    <div style="padding:7px 10px;background:#f0f4f8;border:1px solid #cdd;border-radius:4px;font-size:13px;color:#555;">
-                                        Door Bottom / Door Top — auto-selected by least wastage
-                                    </div>
+                                    <label>Hinge Stile Width <span style="font-size:11px;color:#888;">(profile auto-matched)</span></label>
+                                    <select id="doorHingeWidth">
+                                        <option value="47.5">47.5mm → Door Top</option>
+                                        <option value="85">85mm → Door Top</option>
+                                        <option value="114.5" selected>114.5mm → Door Bottom (preferred)</option>
+                                    </select>
                                 </div>
                                 <div class="form-group">
                                     <label>Bottom Rail Profile</label>
@@ -1796,18 +1798,18 @@
     </div>
 
     <!-- JavaScript Files - Load in Order -->
-    <script src="js/storage.js?v=1.34"></script>
-    <script src="js/supplier_master.js?v=1.34"></script>
+    <script src="js/storage.js?v=1.35"></script>
+    <script src="js/supplier_master.js?v=1.35"></script>
     <!-- Supplier Modules -->
-    <script src="js/suppliers/windalco.js?v=1.34"></script>
-    <script src="js/suppliers/jk_alu.js?v=1.34"></script>
-    <script src="js/suppliers/atlantis.js?v=1.34"></script>
-    <script src="js/suppliers/vitco.js?v=1.34"></script>
+    <script src="js/suppliers/windalco.js?v=1.35"></script>
+    <script src="js/suppliers/jk_alu.js?v=1.35"></script>
+    <script src="js/suppliers/atlantis.js?v=1.35"></script>
+    <script src="js/suppliers/vitco.js?v=1.35"></script>
 
-    <script src="js/app.js?v=1.34"></script>
-    <script src="js/optimization.js?v=1.34"></script>
-    <script src="js/exports.js?v=1.34"></script>
-    <script src="js/Quotation.js?v=1.34"></script>
+    <script src="js/app.js?v=1.35"></script>
+    <script src="js/optimization.js?v=1.35"></script>
+    <script src="js/exports.js?v=1.35"></script>
+    <script src="js/Quotation.js?v=1.35"></script>
 
 </body>
 
