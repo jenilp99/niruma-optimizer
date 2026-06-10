@@ -2022,6 +2022,20 @@ function onSeriesChanged() {
     // v1.31: re-fire mosquito-config toggle so the "Mosquito Middle" option
     // shows/hides based on the new series selection (Domal only).
     if (typeof toggleMosquitoConfig === 'function') toggleMosquitoConfig();
+    // v1.42: hide Corner Joint + Interlock Design for series that don't use them.
+    // CJ/IT are only referenced in '25mm Shutter (Shared)' formulas — every other
+    // series ignores them, so showing the dropdowns is misleading.
+    if (typeof updateCJITVisibility === 'function') updateCJITVisibility(series);
+}
+
+// v1.42: Show Corner Joint + Interlock Design only for series whose formulas
+// reference CJ or IT. Currently that's just '25mm Shutter (Shared)'.
+function updateCJITVisibility(series) {
+    const cjGroup  = document.getElementById('cornerJointGroup');
+    const itGroup  = document.getElementById('interlockTypeGroup');
+    const useCJIT = !!series && /25mm Shutter/i.test(series);
+    if (cjGroup) cjGroup.style.display = useCJIT ? '' : 'none';
+    if (itGroup) itGroup.style.display = useCJIT ? '' : 'none';
 }
 
 function updateVendorOptionsForSeries(series) {
