@@ -14,6 +14,11 @@ function generateQuotation() {
         return;
     }
 
+    // v1.38: top "Generate Quotation" button → full PDF (internal + cost breakup +
+    // hardware detail + material purchase + stock sheets). Customer Quotation flow
+    // sets _qtCustomerMode = true to trim everything after Detailed Cost Breakup.
+    window._qtCustomerMode = false;
+
     // Show confirmation if optimization hasn't been run for current project
     if (!optimizationResults || !optimizationResults.results || optimizationResults.project !== selectedProject) {
         showConfirm('⚠️ Users can generate quotations anytime, but quantities will be more accurate after running Smart Optimization!\n\nDo you want to proceed with estimated quantities?', () => {
@@ -331,7 +336,11 @@ function showReportPreview(type) {
 
     if (type === 'quotation') {
         html = generateQuotationHTML(projectWindows, selectedProject);
-        document.getElementById('downloadExportBtn').onclick = () => showQuotationInputDialog(projectWindows, selectedProject);
+        // v1.38: bottom "Customer Quotation" button → trimmed PDF (ends at Cost Breakup)
+        document.getElementById('downloadExportBtn').onclick = () => {
+            window._qtCustomerMode = true;
+            showQuotationInputDialog(projectWindows, selectedProject);
+        };
     } else if (type === 'purchase_material') {
         html = generateMaterialPurchaseHTML(projectWindows, selectedProject);
         document.getElementById('downloadExportBtn').onclick = () => generateMaterialPurchaseListPDF(projectWindows, selectedProject);
@@ -1119,13 +1128,10 @@ function generateQuotationPDF(projectWindows, selectedProject, formData) {
 
         drawFooter(1);
 
-        // v1.38: Customer Quotation now ENDS at Detailed Cost Breakup.
-        // Sections after this (Hardware Detail, Material Purchase, Stock Sheets,
-        // etc.) are internal-only — they remain in the codebase but are gated by
-        // INCLUDE_INTERNAL_PAGES below for future re-enable. Customer doesn't
-        // need that level of detail.
-        const INCLUDE_INTERNAL_PAGES = false;
-        if (INCLUDE_INTERNAL_PAGES) {
+        // v1.38: Customer Quotation flow → stop here. Internal "Generate Quotation"
+        // continues with Hardware Detail / Material Purchase / Stock Sheets pages.
+        const customerMode = !!window._qtCustomerMode;
+        if (!customerMode) {
 
         // Helper: round inches up to nearest stock-foot (e.g. 141→12', 177→15', 189→16')
         const formatStockFeet = (inches) => {
@@ -1494,7 +1500,10 @@ function generateQuotationPDF(projectWindows, selectedProject, formData) {
 
         drawFooter(5);
 
-        } // end if (INCLUDE_INTERNAL_PAGES)
+        } // end if (!customerMode) — Customer Quotation skips internal pages
+
+        // Reset the customer-mode flag so the next quotation starts clean
+        window._qtCustomerMode = false;
 
         // Re-apply footer to every page (in case intra-section page breaks were inserted)
         const totalPages = doc.internal.getNumberOfPages();
