@@ -232,6 +232,11 @@ window.registerSupplier("JK ALU EXTRUSION", {
                 { sectionNo: "4051", t: 1.30, weight: 3.000, w: 47.5 },
                 { sectionNo: "4052", t: 1.50, weight: 3.400, w: 47.5 }
             ],
+            // v1.40: Door Rod 12mm — Ø12mm solid aluminum rod, ~0.31 kg/m
+            // (weight per 144" = 0.31 × 3.6576 ≈ 1.13 kg per 144" stick)
+            "Door Rod 12mm": [
+                { sectionNo: "DR12", t: 12.0, weight: 1.13, w: 12 }
+            ],
             // Door Bottom (L=25mm or 15mm)
             "Door Bottom": [
                 { sectionNo: "4101", t: 1.16, weight: 4.400, l: 25, w: 114.5 },
@@ -408,7 +413,9 @@ window.registerSupplier("JK ALU EXTRUSION", {
             { material: 'Door Bottom', stock1: 141, stock1Cost: 0, stock2: 177, stock2Cost: 0 },
             { material: 'Door Glazing Clip', stock1: 141, stock1Cost: 0, stock2: 177, stock2Cost: 0 },
             { material: 'Door Leg Partition', stock1: 141, stock1Cost: 0, stock2: 177, stock2Cost: 0 },
-            { material: 'Door Tips Vertical', stock1: 141, stock1Cost: 0, stock2: 177, stock2Cost: 0 }
+            { material: 'Door Tips Vertical', stock1: 141, stock1Cost: 0, stock2: 177, stock2Cost: 0 },
+            // v1.40: Door Rod 12mm — 2 metre stock (78.74")
+            { material: 'Door Rod 12mm', stock1: 78.74, stock1Cost: 40, stock2: 0, stock2Cost: 0 }
         ]
     },
 

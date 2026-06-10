@@ -163,6 +163,11 @@ window.registerSupplier("Windalco Aluminium", {
             "Door Tips Vertical": [
                 { sectionNo: "20177", t: 1.20, weight: 3.350, w: 47.5, h: 44.45 }
             ],
+            // v1.40: Door Rod 12mm — Ø12mm solid aluminum rod, ~0.31 kg/m
+            // (weight per 144" = 0.31 × 3.6576 ≈ 1.13 kg)
+            "Door Rod 12mm": [
+                { sectionNo: "DR12", t: 12.0, weight: 1.13, w: 12 }
+            ],
             // Corner Section
             "Door Corner Section": [
                 { sectionNo: "20206", t: 1.00, weight: 3.800 }
@@ -291,7 +296,9 @@ window.registerSupplier("Windalco Aluminium", {
             { material: 'Door Middle Single', stock1: 141, stock1Cost: 100, stock2: 177, stock2Cost: 125 },
             { material: 'Door Tips Vertical', stock1: 141, stock1Cost: 100, stock2: 177, stock2Cost: 125 },
             { material: 'Door Corner Section', stock1: 141, stock1Cost: 100, stock2: 177, stock2Cost: 125 },
-            { material: 'Door Glazing Clip', stock1: 141, stock1Cost: 100, stock2: 177, stock2Cost: 125 }
+            { material: 'Door Glazing Clip', stock1: 141, stock1Cost: 100, stock2: 177, stock2Cost: 125 },
+            // v1.40: Door Rod 12mm sold in 2-metre lengths (78.74"). Single stock option.
+            { material: 'Door Rod 12mm', stock1: 78.74, stock1Cost: 40, stock2: 0, stock2Cost: 0 }
         ]
     }
 });
