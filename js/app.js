@@ -1080,7 +1080,7 @@ function refreshSeriesDropdown() {
     if (select) {
         select.innerHTML = '';
         Object.keys(seriesFormulas).forEach(series => {
-            select.innerHTML += `<option value="${series}">${series} Series</option>`;
+            select.innerHTML += `<option value="${escapeAttr(series)}">${escapeAttr(series)} Series</option>`;
         });
     }
 }
@@ -1092,7 +1092,7 @@ function initializeAddWindowVendorSelector() {
         const suppliers = Object.keys(supplierMaster);
         editSelector.innerHTML = '<option value="">-- Select Vendor --</option>';
         suppliers.forEach(s => {
-            editSelector.innerHTML += `<option value="${s}">${s}</option>`;
+            editSelector.innerHTML += `<option value="${escapeAttr(s)}">${escapeAttr(s)}</option>`;
         });
     }
 }
@@ -1924,7 +1924,7 @@ function initializeAddWindowSeriesSelector() {
     const allSeries = getAllUniqueSeries();
     selector.innerHTML = '<option value="">-- Select Series First --</option>';
     allSeries.forEach(s => {
-        selector.innerHTML += `<option value="${s}">${s}</option>`;
+        selector.innerHTML += `<option value="${escapeAttr(s)}">${escapeAttr(s)}</option>`;
     });
 }
 
@@ -1952,7 +1952,7 @@ function updateVendorOptionsForSeries(series) {
         selector.innerHTML = '<option value="">❌ No Suppliers Found</option>';
     } else {
         validSuppliers.forEach(s => {
-            selector.innerHTML += `<option value="${s}">${s}</option>`;
+            selector.innerHTML += `<option value="${escapeAttr(s)}">${escapeAttr(s)}</option>`;
         });
 
         // Auto-select if only one supplier
@@ -1989,7 +1989,7 @@ function filterEditSeriesByVendor() {
     }
 
     availableSeries.forEach(s => {
-        seriesSelect.innerHTML += `<option value="${s}">${s}</option>`;
+        seriesSelect.innerHTML += `<option value="${escapeAttr(s)}">${escapeAttr(s)}</option>`;
     });
 }
 
@@ -2397,6 +2397,20 @@ function escapeHtml(str) {
     const div = document.createElement('div');
     div.textContent = str;
     return div.innerHTML.replace(/'/g, "\\'");
+}
+
+// v1.33: proper HTML attribute escape — escapes the double quote `"` which
+// escapeHtml (textContent-based) does NOT. Critical for series names like
+// `1"` or `3/4"` which would otherwise break <option value="..."> attributes
+// and corrupt the selected value to just `1` / `3/4`.
+function escapeAttr(str) {
+    if (str == null) return '';
+    return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;');
 }
 
 // Helper function to render a window/door card

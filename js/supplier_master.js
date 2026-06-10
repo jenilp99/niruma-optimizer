@@ -127,7 +127,9 @@ function initializeProjectSupplierSelector() {
     const suppliers = Object.keys(supplierMaster);
     selector.innerHTML = '<option value="">-- Generic (Automatic) --</option>';
     suppliers.forEach(s => {
-        selector.innerHTML += `<option value="${s}">${s}</option>`;
+        // v1.33: use escapeAttr (defined in app.js) to handle supplier names with quotes/specials
+        const safe = (typeof escapeAttr === 'function') ? escapeAttr(s) : s;
+        selector.innerHTML += `<option value="${safe}">${safe}</option>`;
     });
 }
 
