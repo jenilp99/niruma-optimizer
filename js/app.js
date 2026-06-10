@@ -1922,7 +1922,9 @@ function toggleDoubleDoorOptions() {
     if (typeof onDoorTypeChangeForLock === 'function') onDoorTypeChangeForLock();
 }
 
-// Show/hide Handle Width dropdown — Tips Vertical is always 47.5mm (fixed), others need user selection
+// Show/hide Handle Width dropdown — Tips Vertical is always 47.5mm (fixed),
+// Door Vertical AND DMS both let user pick 47.5 or 85.
+// v1.38: DMS now gets its own handle width selector (was hidden — used middleWidth).
 function updateHandleWidthOptions() {
     const profile   = document.getElementById('doorHandleProfileNew')?.value;
     const widthGrp  = document.getElementById('doorHandleWidthGroup');
@@ -1933,12 +1935,8 @@ function updateHandleWidthOptions() {
         // Fixed width — hide selector, force 47.5
         widthGrp.style.display = 'none';
         widthSel.value = '47.5';
-    } else if (profile === 'Door Middle Single') {
-        // DMS uses middleWidth, not a separate handle width — hide selector
-        widthGrp.style.display = 'none';
-        widthSel.value = '47.5';
     } else {
-        // Door Vertical — user picks 47.5mm or 85mm
+        // Door Vertical OR Door Middle Single — user picks 47.5mm or 85mm
         widthGrp.style.display = '';
     }
 }

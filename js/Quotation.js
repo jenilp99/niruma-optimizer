@@ -1039,7 +1039,7 @@ function generateQuotationPDF(projectWindows, selectedProject, formData) {
 
         doc.autoTable({
             startY: y + 2,
-            margin: { left: mg, right: mg },
+            margin: { left: mg, right: mg, bottom: 22 },  // v1.38: reserve space for footer
             head: [[
                 'Type', 'Qty',
                 'Net Wt\n(kg)', 'Waste Wt\n(kg)',
@@ -1053,7 +1053,12 @@ function generateQuotationPDF(projectWindows, selectedProject, formData) {
             theme: 'grid',
             headStyles: { fillColor: [30, 60, 114], textColor: [255, 255, 255], fontSize: 7, fontStyle: 'bold', halign: 'center', valign: 'middle' },
             bodyStyles: { fontSize: 7, halign: 'right', valign: 'middle' },
-            columnStyles: { 0: { halign: 'center' }, 1: { halign: 'center' }, 12: { halign: 'center' } }
+            columnStyles: { 0: { halign: 'center' }, 1: { halign: 'center' }, 12: { halign: 'center' } },
+            // v1.38: prevent row from splitting across pages (no half-row at top
+            // of next page). If a row doesn't fit, the WHOLE row moves to next page.
+            rowPageBreak: 'avoid',
+            // Repeat the header on every continuation page so customer sees column titles
+            showHead: 'everyPage'
         });
 
         y = doc.lastAutoTable.finalY + 5;
@@ -1113,6 +1118,14 @@ function generateQuotationPDF(projectWindows, selectedProject, formData) {
         doc.text(`* Lead Time: ${leadTime} from order confirmation & advance payment.`, mg, y);
 
         drawFooter(1);
+
+        // v1.38: Customer Quotation now ENDS at Detailed Cost Breakup.
+        // Sections after this (Hardware Detail, Material Purchase, Stock Sheets,
+        // etc.) are internal-only — they remain in the codebase but are gated by
+        // INCLUDE_INTERNAL_PAGES below for future re-enable. Customer doesn't
+        // need that level of detail.
+        const INCLUDE_INTERNAL_PAGES = false;
+        if (INCLUDE_INTERNAL_PAGES) {
 
         // Helper: round inches up to nearest stock-foot (e.g. 141→12', 177→15', 189→16')
         const formatStockFeet = (inches) => {
@@ -1480,6 +1493,8 @@ function generateQuotationPDF(projectWindows, selectedProject, formData) {
         doc.text('Niruma Aluminum Sections', mg, y);
 
         drawFooter(5);
+
+        } // end if (INCLUDE_INTERNAL_PAGES)
 
         // Re-apply footer to every page (in case intra-section page breaks were inserted)
         const totalPages = doc.internal.getNumberOfPages();

@@ -359,9 +359,10 @@ function computeDoorStileWidths(win, supplierData) {
     const handleComp = HANDLE_COMP[win.handleProfile] || 'Door Vertical';
 
     // Handle stile width (computed first since Floor Spring "same as handle" needs it)
+    // v1.38: DMS now has its own handle width — prefer handleWidth, fall back to middleWidth.
     let handleWidthMM;
     if      (handleComp === 'Door Tips Vertical')  handleWidthMM = 47.5;
-    else if (handleComp === 'Door Middle Single')  handleWidthMM = win.middleWidth || 47.5;
+    else if (handleComp === 'Door Middle Single')  handleWidthMM = win.handleWidth || win.middleWidth || 47.5;
     else                                           handleWidthMM = win.handleWidth || win.verticalWidth || 47.5;
 
     // v1.35: Hinge stile selection
@@ -425,9 +426,10 @@ function generateDoorProfileFormulas(win, supplierData) {
     }
 
     // Handle stile width (still needed for top rail kg comparison)
+    // v1.38: DMS now has its own handle width (prefer handleWidth over middleWidth)
     let handleWidthMM;
     if      (handleComp === 'Door Tips Vertical')  handleWidthMM = 47.5;
-    else if (handleComp === 'Door Middle Single')  handleWidthMM = win.middleWidth || 47.5;
+    else if (handleComp === 'Door Middle Single')  handleWidthMM = win.handleWidth || win.middleWidth || 47.5;
     else                                           handleWidthMM = win.handleWidth || win.verticalWidth || 47.5;
 
     // Hinge stile width
