@@ -1584,11 +1584,14 @@ function exportFullResultsExcel() {
         } else {
             const F = win.frame || 0;
             const L = win.leaves || 1;
-            const VW = (win.handleWidth || win.verticalWidth || 47.5) / 25.4;
+            // v1.34: use actual handle + hinge stile widths (not 2 × assumed)
+            const stiles = (typeof computeDoorStileWidths === 'function')
+                ? computeDoorStileWidths(win, null)
+                : { handleVW: 47.5/25.4, hingeVW: 47.5/25.4 };
             const TW = (win.topWidth || 47.5) / 25.4;
             const BW = (win.bottomWidth || 114.5) / 25.4;
             const MW = (win.middleWidth || 47.5) / 25.4;
-            const innerW = Math.max(0, (win.width - F * (80/25.4)) / L - 2 * VW);
+            const innerW = Math.max(0, (win.width - F * (80/25.4)) / L - stiles.handleVW - stiles.hingeVW);
             const innerH = win.height - F * (40/25.4);
             const midMM = win.middleRailPositionMM;
             let upperH, lowerH;
@@ -2134,11 +2137,14 @@ function exportGlassOrderPDF() {
             // Door: upper + lower partitions, each if glass
             const F  = win.frame || 0;
             const L  = win.leaves || 1;
-            const VW = (win.handleWidth || win.verticalWidth || 47.5) / 25.4;
+            // v1.34: use actual handle + hinge stile widths
+            const stiles = (typeof computeDoorStileWidths === 'function')
+                ? computeDoorStileWidths(win, null)
+                : { handleVW: 47.5/25.4, hingeVW: 47.5/25.4 };
             const TW = (win.topWidth    || 47.5) / 25.4;
             const BW = (win.bottomWidth || 114.5)/ 25.4;
             const MW = (win.middleWidth || 47.5) / 25.4;
-            const leafW = (win.width - (F * (80/25.4))) / L - 2 * VW;
+            const leafW = (win.width - (F * (80/25.4))) / L - stiles.handleVW - stiles.hingeVW;
             const innerW = Math.max(0, leafW);
             const innerH = win.height - (F * (40/25.4));
             const midMM = win.middleRailPositionMM;

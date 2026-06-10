@@ -302,6 +302,74 @@ function selectTopRailProfile(win, supplierData, handleVW, hingeVW) {
 }
 // ─────────────────────────────────────────────────────────────────────────────
 
+// v1.34: Single source of truth for door stile widths.
+// Used by cutting plan, quotation cost, spec sheets, exports — everything
+// that needs to know "how wide is the handle stile" and "how wide is the
+// hinge stile" for THIS door. Returns inches.
+//
+// If generateDoorProfileFormulas has already run (and cached _handleVW/
+// _hingeVW on the win object), uses the cache. Otherwise computes inline
+// using the same rules as that function.
+function computeDoorStileWidths(win, supplierData) {
+    if (!win) return { handleVW: 47.5/25.4, hingeVW: 47.5/25.4 };
+
+    // Use cached values if generateDoorProfileFormulas already ran for this win
+    if (win._handleVW != null && win._hingeVW != null) {
+        return { handleVW: win._handleVW, hingeVW: win._hingeVW };
+    }
+
+    const HANDLE_COMP = {
+        'Door Vertical':      'Door Vertical',
+        'Door Tips Vertical': 'Door Tips Vertical',
+        'Door Middle Single': 'Door Middle Single'
+    };
+    const handleComp = HANDLE_COMP[win.handleProfile] || 'Door Vertical';
+
+    let hingeComp;
+    if ((win.closingMechanism || 'Hinge') === 'Hinge') {
+        // Hinge mechanism — auto-pick Door Bottom or Door Top for least waste.
+        // If supplierData missing (e.g. called from quotation context), assume
+        // Door Bottom (widest, conservative for cost — won't undercharge customer).
+        if (typeof selectHingeSideProfile === 'function' && supplierData) {
+            hingeComp = selectHingeSideProfile(win, supplierData);
+        } else {
+            hingeComp = 'Door Bottom';
+        }
+    } else {
+        // Floor Spring — user-selectable hinge side (defaults to handle side)
+        hingeComp = HANDLE_COMP[win.floorSpringHingeProfile] || handleComp;
+    }
+
+    // Handle stile width
+    let handleWidthMM;
+    if      (handleComp === 'Door Tips Vertical')  handleWidthMM = 47.5;
+    else if (handleComp === 'Door Middle Single')  handleWidthMM = win.middleWidth || 47.5;
+    else                                           handleWidthMM = win.handleWidth || win.verticalWidth || 47.5;
+
+    // Hinge stile width — depends on what profile is on the hinge side
+    let hingeWidthMM;
+    if (hingeComp === 'Door Bottom') {
+        const dbSections = supplierData && supplierData.sections &&
+                           supplierData.sections['Door'] &&
+                           supplierData.sections['Door']['Door Bottom'];
+        hingeWidthMM = (dbSections && dbSections[0] && dbSections[0].w) || 114.5;
+    } else if (hingeComp === 'Door Top') {
+        hingeWidthMM = win.topWidth || 47.5;
+    } else if (hingeComp === 'Door Middle Single') {
+        hingeWidthMM = win.middleWidth || 47.5;
+    } else if (hingeComp === 'Door Tips Vertical') {
+        hingeWidthMM = 47.5;
+    } else {
+        // Door Vertical → same as handle width
+        hingeWidthMM = win.handleWidth || win.verticalWidth || 47.5;
+    }
+
+    return {
+        handleVW: handleWidthMM / 25.4,
+        hingeVW:  hingeWidthMM  / 25.4
+    };
+}
+
 // Generate door profile formulas dynamically based on window properties.
 // Replaces the static formula array for Door series.
 function generateDoorProfileFormulas(win, supplierData) {
@@ -1003,8 +1071,10 @@ function collectPartitionPanels(windows) {
         const TW  = (win.topWidth    || 47.5)  / 25.4;
         const MW  = (win.middleWidth || 47.5)  / 25.4;
         const BW  = (win.bottomWidth || 114.3) / 25.4;
-        const HVW = win._handleVW || (win.handleWidth || win.verticalWidth || 47.5) / 25.4;
-        const GVW = win._hingeVW  || (win.bottomWidth || 114.3) / 25.4;
+        // v1.34: use centralized stile width helper (fixes the bottomWidth fallback bug)
+        const stiles = computeDoorStileWidths(win, null);
+        const HVW = stiles.handleVW;
+        const GVW = stiles.hingeVW;
 
         const totalPanelH = H - F*(40/25.4) - TW - BW - MW;
         const MRPI = (win.middleRailPositionMM != null)

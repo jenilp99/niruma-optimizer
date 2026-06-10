@@ -1937,8 +1937,19 @@ function calculateWindowHardware(window, optimizationResults = null) {
         MS: window.mosquitoShutters || 0,
         T: window.tracks,
         F: window.frame || 0, // Frame for doors (1=YES, 0=NO)
-        // Profile widths for doors (stored in mm, convert to inches)
-        VW: (window.verticalWidth || 47.5) / 25.4,
+        // v1.34: provide actual stile widths (handle + hinge) to formulas.
+        // VW = average of handle + hinge (backward compat for old formulas
+        // that used `VW`); HandleVW + HingeVW exposed for accuracy.
+        ...(function(){
+            const stiles = (typeof computeDoorStileWidths === 'function')
+                ? computeDoorStileWidths(window, null)
+                : { handleVW: (window.verticalWidth || 47.5)/25.4, hingeVW: (window.verticalWidth || 47.5)/25.4 };
+            return {
+                VW:       (stiles.handleVW + stiles.hingeVW) / 2,  // legacy alias
+                HandleVW: stiles.handleVW,
+                HingeVW:  stiles.hingeVW
+            };
+        })(),
         TW: (window.topWidth || 47.5) / 25.4,
         MW: (window.middleWidth || 47.5) / 25.4,
         BW: (window.bottomWidth || 85) / 25.4,
@@ -2000,8 +2011,9 @@ function doorCompWithSize(compName, win) {
     if (c === 'door top')           return `Door Top ${sizeLabel(win.topWidth    || 47.5)}`;
     if (c === 'door bottom')        return `Door Bottom ${sizeLabel(win.bottomWidth || 114.5)}`;
     if (c === 'door middle double') return `Door Middle Double ${sizeLabel(win.middleWidth || 47.5)}`;
-    if (c === 'door middle single') return `Door Middle Single ${sizeLabel(win.verticalWidth || 47.5)}`;
-    if (c === 'door vertical')      return `Door Vertical ${sizeLabel(win.verticalWidth || 47.5)}`;
+    // v1.34: use handleWidth (the user's selection) not verticalWidth (hardcoded 47.5)
+    if (c === 'door middle single') return `Door Middle Single ${sizeLabel(win.middleWidth || win.handleWidth || win.verticalWidth || 47.5)}`;
+    if (c === 'door vertical')      return `Door Vertical ${sizeLabel(win.handleWidth || win.verticalWidth || 47.5)}`;
     // Tips Vertical, Door Glazing Clip, Door Leg Partition have no size variant
     return compName;
 }
@@ -2055,7 +2067,13 @@ function lookupPowderCoatingRate(series, compName) {
 function calculateDoorGlassCost(win) {
     if (!win || win.category !== 'Door') return 0;
 
-    const VW = (win.verticalWidth || 47.5) / 25.4;    // inches
+    // v1.34: use centralized stile widths (FIXES the 47.5mm hardcode bug
+    // that was billing customers wrong when Handle Width = 85mm or hinge
+    // auto-selected Door Bottom 114.5mm). Replaces the old `2 * VW` shortcut.
+    const stiles = (typeof computeDoorStileWidths === 'function')
+        ? computeDoorStileWidths(win, null)
+        : { handleVW: 47.5/25.4, hingeVW: 47.5/25.4 };
+
     const TW = (win.topWidth    || 47.5) / 25.4;
     const BW = (win.bottomWidth || 114.5)/ 25.4;
     const MW = (win.middleWidth || 47.5) / 25.4;
@@ -2063,7 +2081,7 @@ function calculateDoorGlassCost(win) {
     const L  = win.leaves || 1;
 
     // For double doors each leaf is narrower; glass width = per-leaf interior width
-    const leafW   = (win.width - (F * (80/25.4))) / L - 2 * VW;  // exact 80mm = 2 × 40mm frame
+    const leafW   = (win.width - (F * (80/25.4))) / L - stiles.handleVW - stiles.hingeVW;
     const innerW  = Math.max(0, leafW);                          // per-leaf glass width
     const innerH  = win.height - (F * (40/25.4));                // exact 40mm frame
     const midMM   = win.middleRailPositionMM;
