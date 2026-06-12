@@ -44,7 +44,7 @@ function incrementConfigCounter(category) {
     localStorage.setItem('doorCounter', doorCounter);
 }
 
-let aluminumRate = 280;
+let aluminumRate = 520;   // v1.43: global default ₹/kg (was 280)
 let unitMode = 'inch';
 
 // New: Rate & Price configuration
@@ -3140,7 +3140,7 @@ function refreshStockMaster() {
                     </div>
                     <div style="display:flex; align-items:center; gap:10px;">
                         <span style="font-size: 0.75em; color: #666;">(${stocks.length} items)</span>
-                        <input type="number" value="${stockRates[series] || 250}" onchange="updateStockRate('${series}', this.value)" style="width: 65px; padding: 3px; border: 1px solid #ddd; border-radius: 4px; font-size: 0.8em;" title="Rate ₹/kg">
+                        <input type="number" value="${stockRates[series] || 520}" onchange="updateStockRate('${series}', this.value)" style="width: 65px; padding: 3px; border: 1px solid #ddd; border-radius: 4px; font-size: 0.8em;" title="Rate ₹/kg">
                     </div>
                 </summary>
                 <div style="padding: 10px; overflow-x: auto;">
@@ -3164,7 +3164,7 @@ function refreshStockMaster() {
             `;
 
             const tbody = seriesDetails.querySelector('tbody');
-            const rate = parseFloat(stockRates[series] || 250);
+            const rate = parseFloat(stockRates[series] || 520);
 
             stocks.forEach((stock) => {
                 const row = tbody.insertRow();
@@ -4075,7 +4075,7 @@ function renderAluminumRatesSummary() {
     </div>`;
     seriesList.forEach(series => {
         const items = (stockMaster[series] || []).length;
-        const rate = stockRates[series] != null ? stockRates[series] : 250;
+        const rate = stockRates[series] != null ? stockRates[series] : 520;
         html += `<div style="${rowStyle}">
             <span style="font-weight:600;color:#37474f;">${series}</span>
             <input type="number" value="${rate}" min="0" step="1"
@@ -4124,6 +4124,17 @@ window.addEventListener('load', function () {
         const stored = localStorage.getItem('stockRates');
         if (stored) stockRates = JSON.parse(stored);
     } catch (e) { console.error('Error loading stockRates', e); }
+
+    // v1.43: one-time migration — set ALL series rates to ₹520/kg (user request).
+    // Runs once per browser (flagged); afterwards user edits stick as usual.
+    try {
+        if (!localStorage.getItem('stockRates520Migration')) {
+            Object.keys(stockRates).forEach(series => { stockRates[series] = 520; });
+            localStorage.setItem('stockRates', JSON.stringify(stockRates));
+            localStorage.setItem('stockRates520Migration', '1');
+            console.log('🏭 Migrated all series aluminum rates to ₹520/kg');
+        }
+    } catch (e) { console.error('Rate migration error', e); }
 
     // Ensure refresh happens after load
     setTimeout(() => {

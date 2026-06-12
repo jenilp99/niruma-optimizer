@@ -691,7 +691,7 @@ function calculateWindowTotalCost(win, opts) {
 
     const efficiency = totalPurchasedLenIn > 0 ? (totalPieceLenIn / totalPurchasedLenIn * 100) : 0;
 
-    const rate = (stockRates && stockRates[win.series]) ? stockRates[win.series] : (aluminumRate || 280);
+    const rate = (stockRates && stockRates[win.series]) ? stockRates[win.series] : (aluminumRate || 520);
     const profileCost = pieceWeightKg * rate;
     const wastageWeightKg = Math.max(0, purchasedWeightKg - pieceWeightKg);
     const wastageCost = wastageWeightKg * rate;
@@ -1275,7 +1275,7 @@ function generateQuotationPDF(projectWindows, selectedProject, formData) {
                     const stockInfo = findStockInfo(key, parseFloat(len));
                     const sectionNo = stockInfo ? (stockInfo.sectionNo || '-') : '-';
                     const wtPerStick = info.qty > 0 ? info.weight / info.qty : 0;
-                    const seriesRate = (stockRates && stockRates[seriesName]) ? stockRates[seriesName] : (aluminumRate || 280);
+                    const seriesRate = (stockRates && stockRates[seriesName]) ? stockRates[seriesName] : (aluminumRate || 520);
                     const cost = info.weight * seriesRate;
                     seriesGroups[seriesName].push({
                         sectionNo,
@@ -2315,7 +2315,7 @@ function generateQuotationHTML(projectWindows, selectedProject) {
             }
         }
 
-        const _seriesRate = (typeof stockRates !== 'undefined' && stockRates[win.series]) ? stockRates[win.series] : (typeof aluminumRate !== 'undefined' ? aluminumRate : 280);
+        const _seriesRate = (typeof stockRates !== 'undefined' && stockRates[win.series]) ? stockRates[win.series] : (typeof aluminumRate !== 'undefined' ? aluminumRate : 520);
         const profileCost = weightTotal * _seriesRate;
         // v1.24: pro-rata share of ACP/Bakelite/PB sheet + mosquito net roll wastage
         const partitionWastageCost = _computeDoorPartitionWastageCost(win);

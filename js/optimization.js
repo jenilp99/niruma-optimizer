@@ -127,7 +127,7 @@ function runOptimization() {
 
         let effectiveStock1Cost = stockInfo.stock1Cost || 100;
         let effectiveStock2Cost = stockInfo.stock2Cost || 125;
-        const currentRate = (typeof aluminumRate !== 'undefined') ? aluminumRate : 280;
+        const currentRate = (typeof aluminumRate !== 'undefined') ? aluminumRate : 520;
 
         if (weight) {
             // weight is for 12' (144")
