@@ -734,7 +734,7 @@ function generateQuotationPDF(projectWindows, selectedProject, formData) {
     } = formData;
 
     const quoteDate = new Date().toLocaleDateString('en-IN', { day: '2-digit', month: '2-digit', year: 'numeric' });
-    const validUntil = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toLocaleDateString('en-IN', { day: '2-digit', month: '2-digit', year: 'numeric' });
+    const validUntil = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toLocaleDateString('en-IN', { day: '2-digit', month: '2-digit', year: 'numeric' }); // v1.45: 30 → 7 days
 
     // Pre-calculate all window costs (labor included per window)
     const costData = projectWindows.map(win => ({ win, c: calculateWindowTotalCost(win, { laborPerSqft }) }));
@@ -1075,12 +1075,12 @@ function generateQuotationPDF(projectWindows, selectedProject, formData) {
         // ── Additional Charges ────────────────────────────
         if (y > PH - 60) { doc.addPage(); y = drawHeader() + 8; }
 
-        // All prices are inclusive of GST — no separate GST line
+        // v1.45: GST removed — no GST wording on customer-facing total
         const grandTotal = subtotal;
 
         const chargesBody = [
             [
-                { content: 'Total Amount (Incl. GST)', styles: { fontStyle: 'bold' } },
+                { content: 'Total Amount', styles: { fontStyle: 'bold' } },
                 { content: grandTotal.toFixed(2), styles: { fontStyle: 'bold', halign: 'right', fillColor: [235, 235, 235] } }
             ]
         ];
@@ -1153,10 +1153,20 @@ function generateQuotationPDF(projectWindows, selectedProject, formData) {
 
         let hwGrandTotal = 0;
         projectWindows.forEach((win, idx) => {
-            if (y > PH - 40) { doc.addPage(); y = drawHeader() + 4; }
             const hw = calculateWindowHardware(win, optimizationResults);
             const q = win.qty || 1;
             const winLabel = `${win.configId} (Qty ${q})  —  ${win.tracks}T ${win.shutters}S${(win.mosquitoShutters||0)>0 ? ' + '+win.mosquitoShutters+'MS':''}`;
+
+            // v1.45: prevent the window title from being orphaned at the bottom of a
+            // page (title prints, then its table jumps to the next page). Estimate the
+            // height of the title + header + a few rows; if it won't fit above the
+            // footer, break to a new page BEFORE drawing the title.
+            const estBlockH = 8 /*title*/ + 7 /*head*/ + (hw.length + 1) * 6 /*rows*/;
+            const minRoomNeeded = 8 + 7 + 6 * 4; // title + head + at least ~4 rows
+            if (y + Math.min(estBlockH, minRoomNeeded) > PH - 24) {
+                doc.addPage(); y = drawHeader() + 4;
+            }
+
             doc.setFont('helvetica', 'bold');
             doc.setFontSize(9);
             doc.setTextColor(30, 60, 114);
@@ -1183,13 +1193,15 @@ function generateQuotationPDF(projectWindows, selectedProject, formData) {
 
             doc.autoTable({
                 startY: y + 2,
-                margin: { left: mg, right: mg },
+                margin: { left: mg, right: mg, bottom: 22 },  // v1.45: reserve footer space so rows don't overlap it
                 head: [['Hardware Item', 'Qty', 'Unit', 'Rate', 'Cost']],
                 body: rows,
                 theme: 'grid',
                 headStyles: { fillColor: [30,60,114], textColor: [255,255,255], fontSize: 8, halign: 'center' },
                 bodyStyles: { fontSize: 8 },
-                columnStyles: { 0: { cellWidth: 80 }, 1: { halign: 'right' }, 2: { halign: 'center' }, 3: { halign: 'right' }, 4: { halign: 'right' } }
+                columnStyles: { 0: { cellWidth: 80 }, 1: { halign: 'right' }, 2: { halign: 'center' }, 3: { halign: 'right' }, 4: { halign: 'right' } },
+                rowPageBreak: 'avoid',     // v1.45: whole row moves to next page rather than splitting
+                showHead: 'everyPage'      // v1.45: repeat column header on continuation pages
             });
             y = doc.lastAutoTable.finalY + 4;
         });
@@ -1469,28 +1481,15 @@ function generateQuotationPDF(projectWindows, selectedProject, formData) {
         y += 7;
         doc.setFont('helvetica', 'normal');
         doc.setFontSize(9);
+        // v1.45: removed GST line + Payment Terms section; validity 30 → 7 days
         [
-            '1. GST Extra on Applicable charges.',
-            '2. Transportation Charges will be Extra on actual basis.',
-            '3. Goods rates will be subject to market fluctuation & government policies.',
-            '4. Facilities to be provided to our contractor at site free of cost:',
+            '1. Transportation Charges will be Extra on actual basis.',
+            '2. Goods rates will be subject to market fluctuation & government policies.',
+            '3. Facilities to be provided to our contractor at site free of cost:',
             '      a) Scaffolding, electricity & water',
             '      b) Safe storage for material',
-            `5. Validity: This offer is valid for 30 Days from the date of this offer.`,
-            `6. Lead Time: ${leadTime} from date of order confirmation & advance payment.`
-        ].forEach(t => { doc.text(t, mg, y); y += 5.5; });
-
-        y += 5;
-        doc.setFont('helvetica', 'bold');
-        doc.setFontSize(10);
-        doc.text('Payment Terms :', mg, y);
-        y += 7;
-        doc.setFont('helvetica', 'normal');
-        doc.setFontSize(9);
-        [
-            '1. 25% Payment Advance.',
-            '2. 50% After Delivery of Material.',
-            '3. 25% After Completion of Work.'
+            `4. Validity: This offer is valid for 7 Days from the date of this offer.`,
+            `5. Lead Time: ${leadTime} from date of order confirmation & advance payment.`
         ].forEach(t => { doc.text(t, mg, y); y += 5.5; });
 
         y += 10;
