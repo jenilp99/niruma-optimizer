@@ -243,6 +243,23 @@ function initializeDefaults() {
     // Seed Door series if missing (first-ever load, or older save predates this feature)
     if (typeof getDoorHardwareList === 'function') getDoorHardwareList();
 
+    // v1.44: fix saved Wool Pile (Domal) formula that computed INCHES while the
+    // rate is per FOOT (cost was 12× too high). Patches the exact old default
+    // formula in the localStorage-restored copy; custom user formulas untouched.
+    try {
+        const OLD_WP = '(((H * 3) + (W * 2)) * S) + (((H * 3) + (W * 2)) * MS)';
+        const NEW_WP = '((((H * 3) + (W * 2)) * S) + (((H * 3) + (W * 2)) * MS)) / 12';
+        const domalHw = hardwareMaster['27mm Domal'];
+        if (Array.isArray(domalHw)) {
+            const wp = domalHw.find(h => h && h.hardware === 'Wool Pile (Domal)');
+            if (wp && wp.formula === OLD_WP) {
+                wp.formula = NEW_WP;
+                if (typeof autoSaveHardwareMaster === 'function') autoSaveHardwareMaster();
+                console.log('🧵 Migrated Wool Pile (Domal) formula: inches → feet (/12)');
+            }
+        }
+    } catch (e) { console.warn('Wool Pile migration error:', e); }
+
     // ── Migrate existing saved doors (one-shot, silent) ────────────────────────
     // (a) Doors saved before v1.20 lack an explicit accessories array → seed defaults.
     // (b) Doors with ACP partitions before v1.20 lack acpFacing → default to 'single'.

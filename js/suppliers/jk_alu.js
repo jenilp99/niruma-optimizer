@@ -439,7 +439,8 @@ window.registerSupplier("JK ALU EXTRUSION", {
         '27mm Domal': [
             { hardware: 'Domal Bearing',                         unit: 'Nos',  formula: '2 * S + (MS*2)',                                                                         rate: 47 },
             { hardware: 'Concealed Lock',                        unit: 'Nos',  formula: '2 * (S/S) + (MS*1)',                                                                     rate: 118 },
-            { hardware: 'Wool Pile (Domal)',                     unit: 'R.Ft', formula: '(((H * 3) + (W * 2)) * S) + (((H * 3) + (W * 2)) * MS)',                                rate: 7 },
+            // v1.44 FIX: formula computed INCHES but unit/rate are per FOOT → cost was 12× too high. Added /12.
+            { hardware: 'Wool Pile (Domal)',                     unit: 'R.Ft', formula: '((((H * 3) + (W * 2)) * S) + (((H * 3) + (W * 2)) * MS)) / 12',                         rate: 7 },
             { hardware: 'Silicon Sealant',                       unit: 'R.Ft', formula: '(W + H) * 2 / 12',                                                                       rate: 8 },
             { hardware: 'Anti-Lift Plug',                        unit: 'Nos',  formula: '2 * S',                                                                                  rate: 2 },
             { hardware: 'Domal Cleat',                           unit: 'Nos',  formula: '4*S + (MS*4)',                                                                           rate: 18 },
