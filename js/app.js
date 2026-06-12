@@ -145,10 +145,11 @@ let ratesConfig = {
     // SS Mosquito Net Roll Stock — 4 standard widths × 50' (600") rolls
     // costPerRoll: ₹ per full roll (update to current market price)
     netStock: [
-        { name: "2' (24\")",  width: 24, length: 600, costPerRoll: 0 },
-        { name: "3' (36\")",  width: 36, length: 600, costPerRoll: 0 },
-        { name: "4' (48\")",  width: 48, length: 600, costPerRoll: 0 },
-        { name: "5' (60\")",  width: 60, length: 600, costPerRoll: 0 }
+        // v1.46: current market prices per 50ft roll
+        { name: "2' (24\")",  width: 24, length: 600, costPerRoll: 3100 },
+        { name: "3' (36\")",  width: 36, length: 600, costPerRoll: 4650 },
+        { name: "4' (48\")",  width: 48, length: 600, costPerRoll: 6200 },
+        { name: "5' (60\")",  width: 60, length: 600, costPerRoll: 7750 }
     ],
     // Net deductions per series: subtract from shutter frame piece dimensions
     // to get the net piece size (both width and height, in inches)
