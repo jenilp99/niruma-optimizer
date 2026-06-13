@@ -1320,14 +1320,14 @@ const DOOR_HARDWARE_DEFAULTS = [
         defaultVariant: '90 kg'
     },
     {
-        hardware: 'Door Handle',     mechanism: 'both',        unit: 'Nos',  formula: '2 * L',      rate: 100,
+        hardware: 'Door Handle',     mechanism: 'both',        unit: 'Nos',  formula: '2 * L',      rate: 502,
         variants: [
             { label: 'None',             rate: 0   },
             { label: 'American Handle',  rate: 100 },
-            { label: 'H-Handle',         rate: 100 },
+            { label: 'H-Handle',         rate: 502 },
             { label: 'D-Handle',         rate: 100 }
         ],
-        defaultVariant: 'American Handle'
+        defaultVariant: 'H-Handle'
     },
     {
         hardware: 'Door Closer',     mechanism: 'Hinge',       unit: 'Nos',  formula: '1 * L',      rate: 100,
@@ -1336,9 +1336,9 @@ const DOOR_HARDWARE_DEFAULTS = [
     {
         // v1.35: 1 per door (single OR double) — was 1*L which over-counted double doors.
         // Mortise Lock blocked for double doors (UI cascade in onLockVariantChange).
-        hardware: 'Lock Body',       mechanism: 'both',        unit: 'Nos',  formula: '1',          rate: 100,
+        hardware: 'Lock Body',       mechanism: 'both',        unit: 'Nos',  formula: '1',          rate: 266,
         variants: [
-            { label: 'Dead Lock (both side key)',     rate: 100 },
+            { label: 'Dead Lock (both side key)',     rate: 266 },
             { label: 'Dead Lock (key + knob)',        rate: 100 },
             { label: 'Dead Lock (both side knob)',    rate: 100 },
             { label: 'Mortise Lock',                  rate: 100 },
@@ -1349,7 +1349,7 @@ const DOOR_HARDWARE_DEFAULTS = [
     },
     {
         // v1.35: 1 per door. Auto-checked only with Dead Lock or Mortise Lock variants.
-        hardware: 'Cylinder',        mechanism: 'both',        unit: 'Nos',  formula: '1',          rate: 100,
+        hardware: 'Cylinder',        mechanism: 'both',        unit: 'Nos',  formula: '1',          rate: 489,
         variants: [],   defaultVariant: null
     },
     {
@@ -1383,7 +1383,7 @@ const DOOR_HARDWARE_DEFAULTS = [
             { label: '18"', rate: 100 },
             { label: '24"', rate: 100 }
         ],
-        defaultVariant: '6"'
+        defaultVariant: '10"'
     },
     {
         hardware: 'Door Leg Stopper', mechanism: 'both',       unit: 'Nos',  formula: '1 * L',      rate: 100,
@@ -4167,6 +4167,33 @@ window.addEventListener('load', function () {
             console.log('🟧 Migrated ACP 3mm partition rate to ₹90/sqft');
         }
     } catch (e) { console.error('ACP rate migration error', e); }
+
+    // v1.51: one-time migration — update door hardware default rates to market prices
+    try {
+        if (!localStorage.getItem('doorHwRatesV51')) {
+            const list = getDoorHardwareList();
+            const updates = {
+                'Door Handle':  { rate: 502, variants: { 'H-Handle': 502 }, defaultVariant: 'H-Handle' },
+                'Lock Body':    { rate: 266, variants: { 'Dead Lock (both side key)': 266 } },
+                'Cylinder':     { rate: 489 },
+                'Door Stopper': { defaultVariant: '10"' }
+            };
+            list.forEach(item => {
+                const upd = updates[item.hardware];
+                if (!upd) return;
+                if (upd.rate != null) item.rate = upd.rate;
+                if (upd.defaultVariant) item.defaultVariant = upd.defaultVariant;
+                if (upd.variants && Array.isArray(item.variants)) {
+                    item.variants.forEach(v => {
+                        if (upd.variants[v.label] != null) v.rate = upd.variants[v.label];
+                    });
+                }
+            });
+            if (typeof autoSaveHardwareMaster === 'function') autoSaveHardwareMaster();
+            localStorage.setItem('doorHwRatesV51', '1');
+            console.log('🔧 Migrated door hardware rates to v1.51 market prices');
+        }
+    } catch (e) { console.error('Door HW rate migration error', e); }
 
     // Ensure refresh happens after load
     setTimeout(() => {

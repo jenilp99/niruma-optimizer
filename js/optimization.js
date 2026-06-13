@@ -1758,6 +1758,18 @@ function packNetFFDH(allPieces, availableRolls, partialRolls) {
         console.warn('⚠️ No valid layout found — some pieces are too wide for any available roll');
     }
 
+    // ── Assign per-bin cost so quotation summary can read b.cost ─────────────
+    if (best) {
+        best.bins.forEach(b => {
+            if (b.kind === 'new') {
+                const spec = availableRolls.find(r => r.width === b.width);
+                b.cost = spec ? (spec.costPerRoll || 0) : 0;
+            } else {
+                b.cost = 0;
+            }
+        });
+    }
+
     // ── Compute leftover suggestion (informational only) ─────────────────────
     if (best) {
         best.leftover = best.bins
