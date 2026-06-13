@@ -104,7 +104,7 @@ const StorageManager = {
         return {
             kerf: this.load(this.KEYS.KERF, 0.125),
             unit: this.load(this.KEYS.UNIT, 'inch'),
-            aluminumRate: this.load(this.KEYS.ALUMINUM_RATE, 280)
+            aluminumRate: this.load(this.KEYS.ALUMINUM_RATE, 520)
         };
     },
 

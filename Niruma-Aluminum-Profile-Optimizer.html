@@ -10,8 +10,8 @@
     <title>Niruma Aluminum Profile Optimizer</title>
 
     <!-- CSS -->
-    <link rel="stylesheet" href="css/styles.css?v=1.46">
-    <link rel="stylesheet" href="css/modal.css?v=1.46">
+    <link rel="stylesheet" href="css/styles.css?v=1.47">
+    <link rel="stylesheet" href="css/modal.css?v=1.47">
 
     <!-- External Libraries -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -65,7 +65,7 @@
                 <span><strong>mm</strong></span>
             </div>
             <!-- APP VERSION — bump this number on every push/update -->
-            <div class="navbar-version">Ver: 1.46</div>
+            <div class="navbar-version">Ver: 1.47</div>
         </div>
     </nav>
 
@@ -1776,11 +1776,11 @@
 
                 <div style="display:flex; flex-direction:column; min-width:0;">
                     <label style="font-weight:600; font-size:13px; margin-bottom:4px;">GST (%)</label>
-                    <input type="number" id="qtModalGST" value="18" min="0" max="100" step="0.1" style="padding:8px; border:1px solid #ddd; border-radius:6px; font-size:13px; width:100%; box-sizing:border-box;">
+                    <input type="number" id="qtModalGST" value="0" min="0" max="100" step="0.1" style="padding:8px; border:1px solid #ddd; border-radius:6px; font-size:13px; width:100%; box-sizing:border-box;">
                 </div>
                 <div style="display:flex; flex-direction:column; min-width:0;">
                     <label style="font-weight:600; font-size:13px; margin-bottom:4px;">Labor Rate (₹/sqft)</label>
-                    <input type="number" id="qtModalLabor" value="0" min="0" step="1" style="padding:8px; border:1px solid #ddd; border-radius:6px; font-size:13px; width:100%; box-sizing:border-box;">
+                    <input type="number" id="qtModalLabor" value="45" min="0" step="1" style="padding:8px; border:1px solid #ddd; border-radius:6px; font-size:13px; width:100%; box-sizing:border-box;">
                 </div>
 
                 <div style="display:flex; flex-direction:column; grid-column: 1 / -1; min-width:0;">
@@ -1791,8 +1791,29 @@
                     </select>
                 </div>
 
-                <div style="grid-column: 1 / -1; background:#f0f7ff; border:1px solid #cce0ff; border-radius:8px; padding:10px; font-size:12px; color:#1e3c72; line-height:1.5;">
-                    <strong>Transparency Mode:</strong> Full cost breakup (profile, powder coating, glass, hardware, wastage, labor) will be shown in the PDF. Transportation charges as per actual.
+                <div style="grid-column: 1 / -1; border:1px solid #cce0ff; border-radius:8px; padding:12px 14px; background:#f7fbff;">
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+                        <label style="font-weight:700; font-size:13px; color:#1e3c72;">📑 Sections to include in PDF</label>
+                        <span style="font-size:12px;">
+                            <a href="#" onclick="qtToggleAllSections(true);return false;" style="color:#2a5298; text-decoration:none;">Select all</a>
+                            &nbsp;|&nbsp;
+                            <a href="#" onclick="qtToggleAllSections(false);return false;" style="color:#2a5298; text-decoration:none;">Clear</a>
+                        </span>
+                    </div>
+                    <div style="display:grid; grid-template-columns:1fr 1fr; gap:6px 16px; font-size:12.5px; color:#243b53;">
+                        <label style="display:flex; gap:7px; align-items:flex-start;"><input type="checkbox" class="qtSecChk" id="qtSecQuotation"><span>Quotation <span style="color:#888;">(window table + totals)</span></span></label>
+                        <label style="display:flex; gap:7px; align-items:flex-start;"><input type="checkbox" class="qtSecChk" id="qtSecCostBreakup"><span>Detailed Cost Breakup <span style="color:#888;">(per window)</span></span></label>
+                        <label style="display:flex; gap:7px; align-items:flex-start;"><input type="checkbox" class="qtSecChk" id="qtSecHardware"><span>Hardware Detail <span style="color:#888;">(per window + total)</span></span></label>
+                        <label style="display:flex; gap:7px; align-items:flex-start;"><input type="checkbox" class="qtSecChk" id="qtSecProfile"><span>Profile / Section Purchase List</span></label>
+                        <label style="display:flex; gap:7px; align-items:flex-start;"><input type="checkbox" class="qtSecChk" id="qtSecPowder"><span>Powder Coating Calculation</span></label>
+                        <label style="display:flex; gap:7px; align-items:flex-start;"><input type="checkbox" class="qtSecChk" id="qtSecGlass"><span>Glass Purchase Summary</span></label>
+                        <label style="display:flex; gap:7px; align-items:flex-start;"><input type="checkbox" class="qtSecChk" id="qtSecSheets"><span>ACP / Partition Sheet Summary</span></label>
+                        <label style="display:flex; gap:7px; align-items:flex-start;"><input type="checkbox" class="qtSecChk" id="qtSecMosquito"><span>Mosquito Net Roll Summary</span></label>
+                        <label style="display:flex; gap:7px; align-items:flex-start;"><input type="checkbox" class="qtSecChk" id="qtSecTerms"><span>Terms &amp; Conditions</span></label>
+                    </div>
+                    <div style="margin-top:9px; font-size:11.5px; color:#5a6b80; line-height:1.5;">
+                        A section only prints if its data exists (e.g. ACP/Glass/Net appear only when used). Rates entered are treated as <strong>GST-inclusive</strong>.
+                    </div>
                 </div>
             </div>
             <div class="modal-footer" style="display:flex; justify-content:space-between; padding:15px 20px; border-top:1px solid #eee;">
@@ -1832,18 +1853,18 @@
     </div>
 
     <!-- JavaScript Files - Load in Order -->
-    <script src="js/storage.js?v=1.46"></script>
-    <script src="js/supplier_master.js?v=1.46"></script>
+    <script src="js/storage.js?v=1.47"></script>
+    <script src="js/supplier_master.js?v=1.47"></script>
     <!-- Supplier Modules -->
-    <script src="js/suppliers/windalco.js?v=1.46"></script>
-    <script src="js/suppliers/jk_alu.js?v=1.46"></script>
-    <script src="js/suppliers/atlantis.js?v=1.46"></script>
-    <script src="js/suppliers/vitco.js?v=1.46"></script>
+    <script src="js/suppliers/windalco.js?v=1.47"></script>
+    <script src="js/suppliers/jk_alu.js?v=1.47"></script>
+    <script src="js/suppliers/atlantis.js?v=1.47"></script>
+    <script src="js/suppliers/vitco.js?v=1.47"></script>
 
-    <script src="js/app.js?v=1.46"></script>
-    <script src="js/optimization.js?v=1.46"></script>
-    <script src="js/exports.js?v=1.46"></script>
-    <script src="js/Quotation.js?v=1.46"></script>
+    <script src="js/app.js?v=1.47"></script>
+    <script src="js/optimization.js?v=1.47"></script>
+    <script src="js/exports.js?v=1.47"></script>
+    <script src="js/Quotation.js?v=1.47"></script>
 
 </body>
 

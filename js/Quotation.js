@@ -14,9 +14,9 @@ function generateQuotation() {
         return;
     }
 
-    // v1.38: top "Generate Quotation" button → full PDF (internal + cost breakup +
-    // hardware detail + material purchase + stock sheets). Customer Quotation flow
-    // sets _qtCustomerMode = true to trim everything after Detailed Cost Breakup.
+    // v1.47: which heads appear in the PDF is now chosen via the section checklist
+    // in the quotation dialog (defaults to customer-facing). _qtCustomerMode is kept
+    // only as a harmless legacy flag.
     window._qtCustomerMode = false;
 
     // Show confirmation if optimization hasn't been run for current project
@@ -52,15 +52,30 @@ function showQuotationInputDialog(projectWindows, selectedProject) {
         (projectSettings && projectSettings.clientName) ? projectSettings.clientName : '';
     document.getElementById('qtModalClientAddress').value = '';
     document.getElementById('qtModalDeliveryAddress').value = '';
-    document.getElementById('qtModalGST').value = '18';
-    document.getElementById('qtModalLabor').value = '0';
+    document.getElementById('qtModalGST').value = '0';
+    document.getElementById('qtModalLabor').value = '45';
     document.getElementById('qtModalLeadTime').value = '21 Working Days';
     document.getElementById('qtModalUnit').value = 'mm';
+
+    // Default section selection: customer-facing only. User ticks internal lists as needed.
+    const _secDefaults = {
+        qtSecQuotation: true, qtSecCostBreakup: true, qtSecTerms: true,
+        qtSecHardware: false, qtSecProfile: false, qtSecPowder: false,
+        qtSecGlass: false, qtSecSheets: false, qtSecMosquito: false
+    };
+    Object.entries(_secDefaults).forEach(([id, on]) => {
+        const el = document.getElementById(id);
+        if (el) el.checked = on;
+    });
 
     window._qtWindows = projectWindows;
     window._qtProject = selectedProject;
 
     document.getElementById('quotationInputModal').classList.add('active');
+}
+
+function qtToggleAllSections(on) {
+    document.querySelectorAll('.qtSecChk').forEach(chk => { chk.checked = !!on; });
 }
 
 function closeQuotationModal() {
@@ -73,11 +88,26 @@ function confirmGenerateQuotation() {
         clientName:      document.getElementById('qtModalClientName').value.trim() || '',
         clientAddress:   document.getElementById('qtModalClientAddress').value.trim(),
         deliveryAddress: document.getElementById('qtModalDeliveryAddress').value.trim(),
-        gstPct:          parseFloat(document.getElementById('qtModalGST').value) || 18,
+        gstPct:          parseFloat(document.getElementById('qtModalGST').value) || 0,
         laborPerSqft:    parseFloat(document.getElementById('qtModalLabor').value) || 0,
         leadTime:        document.getElementById('qtModalLeadTime').value.trim() || '21 Working Days',
         displayUnit:     document.getElementById('qtModalUnit').value || 'mm',
+        sections: {
+            quotation:    document.getElementById('qtSecQuotation').checked,
+            costBreakup:  document.getElementById('qtSecCostBreakup').checked,
+            hardware:     document.getElementById('qtSecHardware').checked,
+            profileList:  document.getElementById('qtSecProfile').checked,
+            powderCoating:document.getElementById('qtSecPowder').checked,
+            glass:        document.getElementById('qtSecGlass').checked,
+            sheets:       document.getElementById('qtSecSheets').checked,
+            mosquito:     document.getElementById('qtSecMosquito').checked,
+            terms:        document.getElementById('qtSecTerms').checked
+        }
     };
+    if (!Object.values(formData.sections).some(Boolean)) {
+        showAlert('⚠️ Please select at least one section to include in the PDF.');
+        return;
+    }
     closeQuotationModal();
     generateQuotationPDF(window._qtWindows, window._qtProject, formData);
 }
@@ -727,17 +757,28 @@ function generateQuotationPDF(projectWindows, selectedProject, formData) {
         clientName      = '',
         clientAddress   = '',
         deliveryAddress = '',
-        gstPct          = 18,
+        gstPct          = 0,
         laborPerSqft    = 0,
         leadTime        = '21 Working Days',
         displayUnit     = 'mm'
     } = formData;
+
+    // Section selection — which heads to render. Missing → render all (legacy callers).
+    const sec = Object.assign({
+        quotation: true, costBreakup: true, hardware: true, profileList: true,
+        powderCoating: true, glass: true, sheets: true, mosquito: true, terms: true
+    }, formData.sections || {});
 
     const quoteDate = new Date().toLocaleDateString('en-IN', { day: '2-digit', month: '2-digit', year: 'numeric' });
     const validUntil = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toLocaleDateString('en-IN', { day: '2-digit', month: '2-digit', year: 'numeric' }); // v1.45: 30 → 7 days
 
     // Pre-calculate all window costs (labor included per window)
     const costData = projectWindows.map(win => ({ win, c: calculateWindowTotalCost(win, { laborPerSqft }) }));
+
+    // Project-level totals — hoisted so both Quotation sub-blocks (table + total box) can use them.
+    const totalQty  = costData.reduce((s, { win }) => s + (win.qty || 1), 0);
+    const totalArea = costData.reduce((s, { win, c }) => s + c.windowAreaSqft * (win.qty || 1), 0);
+    const subtotal  = costData.reduce((s, { win, c }) => s + c.totalCost * (win.qty || 1), 0);
 
     // Generate diagram PNGs
     const diagPromises = projectWindows.map(win =>
@@ -811,10 +852,23 @@ function generateQuotationPDF(projectWindows, selectedProject, formData) {
             doc.text(`Page No ${curPage}`, PW - mg, PH - 8, { align: 'right' });
         };
 
+        // ── Page manager: first selected section uses the pre-created page 1;
+        //    each subsequent section starts a fresh page. Prevents blank pages
+        //    when leading sections are unticked. ──
+        let _sectionStarted = false;
+        const beginSection = () => {
+            if (_sectionStarted) doc.addPage();
+            _sectionStarted = true;
+            return drawHeader();
+        };
+
+        let y;
+
         // ══════════════════════════════════════════════════════════════════════
-        // PAGE 1
+        // SECTION — Quotation (window table + totals + amount in words)
         // ══════════════════════════════════════════════════════════════════════
-        let y = drawHeader();
+        if (sec.quotation) {
+        y = beginSection();
 
         // "Quotation" title bar
         y += 2;
@@ -928,10 +982,6 @@ function generateQuotationPDF(projectWindows, selectedProject, formData) {
             ];
         });
 
-        const totalQty  = costData.reduce((s, { win }) => s + (win.qty || 1), 0);
-        const totalArea = costData.reduce((s, { win, c }) => s + c.windowAreaSqft * (win.qty || 1), 0);
-        const subtotal  = costData.reduce((s, { win, c }) => s + c.totalCost * (win.qty || 1), 0);
-
         // Totals footer row with colSpan
         tableRows.push([
             { content: 'Total :', colSpan: 5, styles: { fontStyle: 'bold', halign: 'right', fillColor: [245, 245, 245] } },
@@ -987,9 +1037,15 @@ function generateQuotationPDF(projectWindows, selectedProject, formData) {
         });
 
         y = doc.lastAutoTable.finalY + 5;
+        } // end if (sec.quotation) — window table
 
-        // ── DETAILED COST BREAKUP per window (full transparency – seva work, no privacy) ──
-        if (y > PH - 60) { doc.addPage(); y = drawHeader() + 6; }
+        // ══════════════════════════════════════════════════════════════════════
+        // SECTION — Detailed Cost Breakup (Per Window)
+        // ══════════════════════════════════════════════════════════════════════
+        if (sec.costBreakup) {
+        // Continue on the Quotation page when it was rendered; otherwise open fresh.
+        if (!_sectionStarted) { y = beginSection(); }
+        else if (y > PH - 60) { doc.addPage(); y = drawHeader() + 6; }
 
         doc.setFont('helvetica', 'bold');
         doc.setFontSize(9);
@@ -1071,8 +1127,12 @@ function generateQuotationPDF(projectWindows, selectedProject, formData) {
         });
 
         y = doc.lastAutoTable.finalY + 5;
+        } // end if (sec.costBreakup)
 
-        // ── Additional Charges ────────────────────────────
+        // ══════════════════════════════════════════════════════════════════════
+        // SECTION — Total Amount + notes (tail of Quotation)
+        // ══════════════════════════════════════════════════════════════════════
+        if (sec.quotation) {
         if (y > PH - 60) { doc.addPage(); y = drawHeader() + 8; }
 
         // v1.45: GST removed — no GST wording on customer-facing total
@@ -1127,11 +1187,7 @@ function generateQuotationPDF(projectWindows, selectedProject, formData) {
         doc.text(`* Lead Time: ${leadTime} from order confirmation & advance payment.`, mg, y);
 
         drawFooter(1);
-
-        // v1.38: Customer Quotation flow → stop here. Internal "Generate Quotation"
-        // continues with Hardware Detail / Material Purchase / Stock Sheets pages.
-        const customerMode = !!window._qtCustomerMode;
-        if (!customerMode) {
+        } // end if (sec.quotation) — total amount + notes
 
         // Helper: round inches up to nearest stock-foot (e.g. 141→12', 177→15', 189→16')
         const formatStockFeet = (inches) => {
@@ -1140,10 +1196,10 @@ function generateQuotationPDF(projectWindows, selectedProject, formData) {
         };
 
         // ══════════════════════════════════════════════════════════════════════
-        // PAGE 2 — Hardware Detail (Per Window + Aggregated)
+        // SECTION — Hardware Detail (Per Window + Aggregated)
         // ══════════════════════════════════════════════════════════════════════
-        doc.addPage();
-        y = drawHeader();
+        if (sec.hardware) {
+        y = beginSection();
         y += 4;
         doc.setFont('helvetica', 'bold');
         doc.setFontSize(12);
@@ -1246,12 +1302,13 @@ function generateQuotationPDF(projectWindows, selectedProject, formData) {
         });
 
         drawFooter(2);
+        } // end if (sec.hardware)
 
         // ══════════════════════════════════════════════════════════════════════
-        // PAGE 3 — Profile / Section Purchase List (grouped by series)
+        // SECTION — Profile / Section Purchase List (grouped by series)
         // ══════════════════════════════════════════════════════════════════════
-        doc.addPage();
-        y = drawHeader();
+        if (sec.profileList) {
+        y = beginSection();
         y += 4;
         doc.setFont('helvetica', 'bold');
         doc.setFontSize(12);
@@ -1279,7 +1336,9 @@ function generateQuotationPDF(projectWindows, selectedProject, formData) {
                     if (!byLen[len]) byLen[len] = { qty: 0, weight: 0 };
                     byLen[len].qty += 1;
                     const stockInfo = findStockInfo(key, len);
-                    const wt = stockInfo ? (stockInfo.weight || 0) : 0;
+                    // section weight is kg/12ft (144") — scale to this stick's actual
+                    // stock length so 15'/16' sticks aren't under-weighed (v1.47 fix).
+                    const wt = stockInfo ? (stockInfo.weight || 0) * (len / 144) : 0;
                     byLen[len].weight += wt;
                 });
 
@@ -1366,12 +1425,13 @@ function generateQuotationPDF(projectWindows, selectedProject, formData) {
         });
 
         drawFooter(3);
+        } // end if (sec.profileList)
 
         // ══════════════════════════════════════════════════════════════════════
-        // PAGE 4 — Powder Coating Breakdown
+        // SECTION — Powder Coating Calculation
         // ══════════════════════════════════════════════════════════════════════
-        doc.addPage();
-        y = drawHeader();
+        if (sec.powderCoating) {
+        y = beginSection();
         y += 4;
         doc.setFont('helvetica', 'bold');
         doc.setFontSize(12);
@@ -1466,12 +1526,148 @@ function generateQuotationPDF(projectWindows, selectedProject, formData) {
         });
 
         drawFooter(4);
+        } // end if (sec.powderCoating)
 
         // ══════════════════════════════════════════════════════════════════════
-        // PAGE 5 — Terms & Conditions
+        // SECTION — Glass Purchase Summary
         // ══════════════════════════════════════════════════════════════════════
-        doc.addPage();
-        y = drawHeader();
+        if (sec.glass) {
+            const glassRows = [];
+            let gTotArea = 0, gTotCost = 0;
+            costData.forEach(({ win, c }) => {
+                if (!c.glassCost || c.glassCost <= 0) return;
+                const q = win.qty || 1;
+                const area = (c.glass && c.glass.totalArea) ? c.glass.totalArea * q : null;
+                const cost = c.glassCost * q;
+                const spec = (c.glassInfo && c.glassInfo.label) ? c.glassInfo.label
+                           : (win.category === 'Door' ? 'Door glass' : '-');
+                if (area != null) gTotArea += area;
+                gTotCost += cost;
+                glassRows.push([
+                    win.configId, q, String(spec).replace(/\n/g, ' '),
+                    area != null ? area.toFixed(2) : '-',
+                    area ? (cost / area).toFixed(2) : '-',
+                    `Rs. ${cost.toFixed(2)}`
+                ]);
+            });
+            if (glassRows.length) {
+                y = beginSection(); y += 4;
+                doc.setFont('helvetica', 'bold'); doc.setFontSize(12); doc.setTextColor(30, 60, 114);
+                doc.text('Glass Purchase Summary', PW / 2, y, { align: 'center' }); y += 6;
+                glassRows.push([
+                    { content: 'Total', colSpan: 3, styles: { fontStyle: 'bold', halign: 'right', fillColor: [245, 245, 245] } },
+                    { content: gTotArea.toFixed(2), styles: { fontStyle: 'bold', halign: 'right', fillColor: [245, 245, 245] } },
+                    { content: '', styles: { fillColor: [245, 245, 245] } },
+                    { content: `Rs. ${gTotCost.toFixed(2)}`, styles: { fontStyle: 'bold', halign: 'right', fillColor: [245, 245, 245] } }
+                ]);
+                doc.autoTable({
+                    startY: y + 2, margin: { left: mg, right: mg },
+                    head: [['Window', 'Qty', 'Glass Spec', 'Area (sqft)', 'Rate/sqft', 'Cost']],
+                    body: glassRows, theme: 'grid',
+                    headStyles: { fillColor: [30, 60, 114], textColor: [255, 255, 255], fontSize: 8, halign: 'center' },
+                    bodyStyles: { fontSize: 8 },
+                    columnStyles: { 0: { halign: 'center' }, 1: { halign: 'center' }, 2: { cellWidth: 70 }, 3: { halign: 'right' }, 4: { halign: 'right' }, 5: { halign: 'right' } }
+                });
+                drawFooter(0);
+            }
+        }
+
+        // ══════════════════════════════════════════════════════════════════════
+        // SECTION — ACP / Partition Sheet Summary
+        // ══════════════════════════════════════════════════════════════════════
+        if (sec.sheets) {
+            const sr = optimizationResults && optimizationResults.sheetResults;
+            const groups = (sr && sr.byGroup) ? Object.values(sr.byGroup) : [];
+            if (groups.length) {
+                y = beginSection(); y += 4;
+                doc.setFont('helvetica', 'bold'); doc.setFontSize(12); doc.setTextColor(30, 60, 114);
+                doc.text('ACP / Partition Sheet Summary', PW / 2, y, { align: 'center' }); y += 4;
+                doc.setFont('helvetica', 'normal'); doc.setFontSize(8); doc.setTextColor(100, 100, 100);
+                doc.text('(Sheets bought, panel area used, GST-inclusive rate)', PW / 2, y, { align: 'center' }); y += 4;
+                const rows = []; let tSheets = 0, tArea = 0, tCost = 0;
+                groups.forEach(gr => {
+                    const sheets = (gr.newSheetsUsed || 0) + (gr.storeSheetsUsed || 0);
+                    const areaSqft = (gr.piecesArea || 0) / 144;
+                    const cost = gr.cost || 0;
+                    tSheets += sheets; tArea += areaSqft; tCost += cost;
+                    rows.push([
+                        gr.material || '-', gr.thickness || '-', gr.sheetName || '-', String(sheets),
+                        areaSqft.toFixed(2),
+                        (gr.ratePerSqft != null ? gr.ratePerSqft.toFixed(2) : '-'),
+                        `Rs. ${cost.toFixed(2)}`
+                    ]);
+                });
+                rows.push([
+                    { content: 'Total', colSpan: 3, styles: { fontStyle: 'bold', halign: 'right', fillColor: [245, 245, 245] } },
+                    { content: String(tSheets), styles: { fontStyle: 'bold', halign: 'right', fillColor: [245, 245, 245] } },
+                    { content: tArea.toFixed(2), styles: { fontStyle: 'bold', halign: 'right', fillColor: [245, 245, 245] } },
+                    { content: '', styles: { fillColor: [245, 245, 245] } },
+                    { content: `Rs. ${tCost.toFixed(2)}`, styles: { fontStyle: 'bold', halign: 'right', fillColor: [245, 245, 245] } }
+                ]);
+                doc.autoTable({
+                    startY: y + 2, margin: { left: mg, right: mg },
+                    head: [['Material', 'Thk', 'Sheet Size', 'Sheets', 'Panel Area (sqft)', 'Rate/sqft', 'Cost']],
+                    body: rows, theme: 'grid',
+                    headStyles: { fillColor: [30, 60, 114], textColor: [255, 255, 255], fontSize: 8, halign: 'center' },
+                    bodyStyles: { fontSize: 8 },
+                    columnStyles: { 3: { halign: 'right' }, 4: { halign: 'right' }, 5: { halign: 'right' }, 6: { halign: 'right' } }
+                });
+                drawFooter(0);
+            }
+        }
+
+        // ══════════════════════════════════════════════════════════════════════
+        // SECTION — Mosquito Net Roll Summary
+        // ══════════════════════════════════════════════════════════════════════
+        if (sec.mosquito) {
+            const nr = optimizationResults && optimizationResults.netResults;
+            const bins = (nr && nr.bins) ? nr.bins : [];
+            if (bins.length) {
+                const byW = {};
+                bins.forEach(b => {
+                    const w = b.width;
+                    if (!byW[w]) byW[w] = { neu: 0, store: 0, pieces: 0, usedIn: 0, cost: 0 };
+                    if (b.kind === 'store') byW[w].store++; else byW[w].neu++;
+                    (b.shelves || []).forEach(sh => { byW[w].pieces += (sh.pieces ? sh.pieces.length : 0); });
+                    byW[w].usedIn += (b.usedLength || 0);
+                    byW[w].cost += (b.cost || 0);
+                });
+                y = beginSection(); y += 4;
+                doc.setFont('helvetica', 'bold'); doc.setFontSize(12); doc.setTextColor(30, 60, 114);
+                doc.text('Mosquito Net Roll Summary', PW / 2, y, { align: 'center' }); y += 6;
+                const rows = []; let tNew = 0, tStore = 0, tPieces = 0, tCost = 0;
+                Object.keys(byW).map(Number).sort((a, b) => a - b).forEach(w => {
+                    const d = byW[w];
+                    const ftLabel = (w % 12 === 0) ? `${w / 12}'` : `${w}"`;
+                    tNew += d.neu; tStore += d.store; tPieces += d.pieces; tCost += d.cost;
+                    rows.push([ ftLabel, String(d.neu), String(d.store), String(d.pieces),
+                        (d.usedIn / 12).toFixed(1) + "'", d.cost > 0 ? `Rs. ${d.cost.toFixed(2)}` : '-' ]);
+                });
+                rows.push([
+                    { content: 'Total', styles: { fontStyle: 'bold', halign: 'right', fillColor: [245, 245, 245] } },
+                    { content: String(tNew), styles: { fontStyle: 'bold', halign: 'right', fillColor: [245, 245, 245] } },
+                    { content: String(tStore), styles: { fontStyle: 'bold', halign: 'right', fillColor: [245, 245, 245] } },
+                    { content: String(tPieces), styles: { fontStyle: 'bold', halign: 'right', fillColor: [245, 245, 245] } },
+                    { content: '', styles: { fillColor: [245, 245, 245] } },
+                    { content: tCost > 0 ? `Rs. ${tCost.toFixed(2)}` : '-', styles: { fontStyle: 'bold', halign: 'right', fillColor: [245, 245, 245] } }
+                ]);
+                doc.autoTable({
+                    startY: y + 2, margin: { left: mg, right: mg },
+                    head: [['Roll Width', 'New Rolls', 'From Stock', 'Pieces', 'Used Length', 'Cost']],
+                    body: rows, theme: 'grid',
+                    headStyles: { fillColor: [30, 60, 114], textColor: [255, 255, 255], fontSize: 8, halign: 'center' },
+                    bodyStyles: { fontSize: 8 },
+                    columnStyles: { 0: { halign: 'center' }, 1: { halign: 'right' }, 2: { halign: 'right' }, 3: { halign: 'right' }, 4: { halign: 'right' }, 5: { halign: 'right' } }
+                });
+                drawFooter(0);
+            }
+        }
+
+        // ══════════════════════════════════════════════════════════════════════
+        // SECTION — Terms & Conditions
+        // ══════════════════════════════════════════════════════════════════════
+        if (sec.terms) {
+        y = beginSection();
         y += 10;
 
         doc.setFont('helvetica', 'bold');
@@ -1498,11 +1694,17 @@ function generateQuotationPDF(projectWindows, selectedProject, formData) {
         doc.text('Niruma Aluminum Sections', mg, y);
 
         drawFooter(5);
-
-        } // end if (!customerMode) — Customer Quotation skips internal pages
+        } // end if (sec.terms)
 
         // Reset the customer-mode flag so the next quotation starts clean
         window._qtCustomerMode = false;
+
+        // Guard: if every section produced no page (e.g. internal-only ticked but no
+        // optimization data), abort cleanly instead of saving a blank PDF.
+        if (!_sectionStarted) {
+            showAlert('⚠️ Nothing to export — the selected sections have no data for this project.');
+            return;
+        }
 
         // Re-apply footer to every page (in case intra-section page breaks were inserted)
         const totalPages = doc.internal.getNumberOfPages();

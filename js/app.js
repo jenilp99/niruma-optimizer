@@ -128,7 +128,7 @@ let ratesConfig = {
     // Keys are "<Material>_<thickness>mm" or just "<Material>" for materials
     // without thickness variants (MosquitoNet, SSMosquito, Louvers).
     partitionRates: {
-        'ACP_3mm':            0,
+        'ACP_3mm':            70,
         'ACP_4mm':            0,
         'ACP_6mm':            0,
         'Bakelite_2.5mm':     0,
