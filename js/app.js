@@ -102,6 +102,7 @@ let ratesConfig = {
         'Door Vertical 45mm':       14.89,
         'Door Vertical 85mm':       19.26,
         'Door Middle Single 45mm':  14.89,
+        'Door Middle Single 85mm':  19.26,
         'Door Middle Double 45mm':  14.89,
         'Door Middle Double 85mm':  19.26,
         'Door Top 45mm':            14.95,

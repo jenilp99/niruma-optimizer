@@ -1532,41 +1532,49 @@ function generateQuotationPDF(projectWindows, selectedProject, formData) {
         // SECTION — Glass Purchase Summary
         // ══════════════════════════════════════════════════════════════════════
         if (sec.glass) {
+            const fmtGlassSize = (w, h) => {
+                if (!w || !h) return '-';
+                return displayUnit === 'mm'
+                    ? `${Math.round(w * 25.4)} x ${Math.round(h * 25.4)}`
+                    : `${w.toFixed(1)}" x ${h.toFixed(1)}"`;
+            };
             const glassRows = [];
             let gTotArea = 0, gTotCost = 0;
-            costData.forEach(({ win, c }) => {
-                if (!c.glassCost || c.glassCost <= 0) return;
-                const q = win.qty || 1;
-                const area = (c.glass && c.glass.totalArea) ? c.glass.totalArea * q : null;
-                const cost = c.glassCost * q;
-                const spec = (c.glassInfo && c.glassInfo.label) ? c.glassInfo.label
-                           : (win.category === 'Door' ? 'Door glass' : '-');
-                if (area != null) gTotArea += area;
-                gTotCost += cost;
-                glassRows.push([
-                    win.configId, q, String(spec).replace(/\n/g, ' '),
-                    area != null ? area.toFixed(2) : '-',
-                    area ? (cost / area).toFixed(2) : '-',
-                    `Rs. ${cost.toFixed(2)}`
-                ]);
+            costData.forEach(({ win }) => {
+                getGlassPanels(win).forEach(p => {
+                    const totArea = p.area * p.qty;
+                    gTotArea += totArea;
+                    gTotCost += p.cost;
+                    glassRows.push([
+                        p.zone ? `${p.winId} ${p.zone}` : p.winId,
+                        p.qty,
+                        p.spec,
+                        fmtGlassSize(p.w, p.h),
+                        totArea.toFixed(2),
+                        p.rate ? p.rate.toFixed(2) : '-',
+                        `Rs. ${p.cost.toFixed(2)}`
+                    ]);
+                });
             });
             if (glassRows.length) {
                 y = beginSection(); y += 4;
                 doc.setFont('helvetica', 'bold'); doc.setFontSize(12); doc.setTextColor(30, 60, 114);
-                doc.text('Glass Purchase Summary', PW / 2, y, { align: 'center' }); y += 6;
+                doc.text('Glass Purchase Summary', PW / 2, y, { align: 'center' }); y += 4;
+                doc.setFont('helvetica', 'normal'); doc.setFontSize(8); doc.setTextColor(100, 100, 100);
+                doc.text(`(Size = glass pane W x H in ${displayUnit === 'mm' ? 'mm' : 'inches'}; area is total for the qty)`, PW / 2, y, { align: 'center' }); y += 4;
                 glassRows.push([
-                    { content: 'Total', colSpan: 3, styles: { fontStyle: 'bold', halign: 'right', fillColor: [245, 245, 245] } },
+                    { content: 'Total', colSpan: 4, styles: { fontStyle: 'bold', halign: 'right', fillColor: [245, 245, 245] } },
                     { content: gTotArea.toFixed(2), styles: { fontStyle: 'bold', halign: 'right', fillColor: [245, 245, 245] } },
                     { content: '', styles: { fillColor: [245, 245, 245] } },
                     { content: `Rs. ${gTotCost.toFixed(2)}`, styles: { fontStyle: 'bold', halign: 'right', fillColor: [245, 245, 245] } }
                 ]);
                 doc.autoTable({
                     startY: y + 2, margin: { left: mg, right: mg },
-                    head: [['Window', 'Qty', 'Glass Spec', 'Area (sqft)', 'Rate/sqft', 'Cost']],
+                    head: [['Window', 'Qty', 'Glass Spec', 'Size (WxH)', 'Area (sqft)', 'Rate/sqft', 'Cost']],
                     body: glassRows, theme: 'grid',
                     headStyles: { fillColor: [30, 60, 114], textColor: [255, 255, 255], fontSize: 8, halign: 'center' },
                     bodyStyles: { fontSize: 8 },
-                    columnStyles: { 0: { halign: 'center' }, 1: { halign: 'center' }, 2: { cellWidth: 70 }, 3: { halign: 'right' }, 4: { halign: 'right' }, 5: { halign: 'right' } }
+                    columnStyles: { 0: { halign: 'center' }, 1: { halign: 'center' }, 2: { cellWidth: 42 }, 3: { halign: 'center' }, 4: { halign: 'right' }, 5: { halign: 'right' }, 6: { halign: 'right' } }
                 });
                 drawFooter(0);
             }
@@ -2366,6 +2374,73 @@ function calculateDoorGlassCost(win) {
     const lowerArea = (lowerDim.w * lowerDim.h) / 144;
 
     return (upperArea * upperRate + lowerArea * lowerRate) * qty * L;
+}
+
+// Returns the individual GLASS panels (size + spec + rate + cost) for a window or door,
+// used by the Glass Purchase Summary so the quotation shows glass size & details.
+// Sizes are returned in inches (w, h); the caller formats per displayUnit.
+function getGlassPanels(win) {
+    const panels = [];
+    const qty = win.qty || 1;
+
+    if (win.category === 'Door') {
+        const stiles = (typeof computeDoorStileWidths === 'function')
+            ? computeDoorStileWidths(win, null) : { handleVW: 47.5/25.4, hingeVW: 47.5/25.4 };
+        const TW = (win.topWidth || 47.5) / 25.4;
+        const BW = (win.bottomWidth || 114.5) / 25.4;
+        const MW = (win.middleWidth || 47.5) / 25.4;
+        const F  = win.frame || 0;
+        const L  = win.leaves || 1;
+        const innerW = Math.max(0, (win.width - (F * (80/25.4))) / L - stiles.handleVW - stiles.hingeVW);
+        const innerH = win.height - (F * (40/25.4));
+        const midMM  = win.middleRailPositionMM;
+        let lowerZoneH, upperZoneH;
+        if (midMM != null) {
+            const midIn = midMM / 25.4;
+            lowerZoneH = Math.max(0, midIn - BW - MW / 2);
+            upperZoneH = Math.max(0, innerH - midIn - TW - MW / 2);
+        } else {
+            const halfH = (innerH - TW - BW - MW) / 2;
+            lowerZoneH = upperZoneH = Math.max(0, halfH);
+        }
+        const GLASS_DEDUCT = 0.3125;
+        const up = win.upperPartition || (win.partitionMaterial
+            ? { material: win.partitionMaterial, thickness: win.partitionThickness, glassType: win.glassUnit || 'SGU', glassToughened: win.glassToughened } : null);
+        const lo = win.lowerPartition || null;
+        [{ label: 'Top', p: up, zh: upperZoneH }, { label: 'Bottom', p: lo, zh: lowerZoneH }].forEach(z => {
+            if (!z.p || z.p.material !== 'Glass') return;
+            const w = Math.max(0, innerW - GLASS_DEDUCT);
+            const h = Math.max(0, z.zh - GLASS_DEDUCT);
+            const area = (w * h) / 144;
+            const thk = z.p.thickness || '6';
+            const tough = !!z.p.glassToughened;
+            const gtype = z.p.glassType || 'SGU';
+            const prefix = (gtype === 'DGU') ? 'DGU_' : '';
+            const key = `${prefix}${tough ? 'toughened' : 'non_toughened'}_${thk}mm`;
+            const fb  = `${tough ? 'toughened' : 'non_toughened'}_5mm`;
+            let rate = ratesConfig.glass[key];
+            if (rate == null) rate = ratesConfig.glass[fb] || 0;
+            const pq = qty * L;
+            panels.push({ winId: win.configId, zone: z.label,
+                spec: `${thk}mm ${tough ? 'Tgh' : 'Non-Tgh'} ${gtype}`,
+                w, h, area, rate, qty: pq, cost: area * rate * pq });
+        });
+    } else {
+        const g = calculateGlassDimensions(win);
+        if (!g) return panels;
+        const gi = resolveGlassInfo(win);
+        let rate = gi.rateKey ? (ratesConfig.glass[gi.rateKey] != null ? ratesConfig.glass[gi.rateKey] : (ratesConfig.glass[gi.fallbackKey] || 0)) : 0;
+        const spec = (gi.label || '').replace(/\n/g, ' ');
+        if (g.qty > 0 && g.area > 0) {
+            const pq = g.qty * qty;
+            panels.push({ winId: win.configId, zone: '', spec, w: g.width, h: g.height, area: g.area, rate, qty: pq, cost: g.area * rate * pq });
+        }
+        if (g.msQty > 0 && g.msArea > 0) {
+            const pq = g.msQty * qty;
+            panels.push({ winId: win.configId, zone: 'Mosquito', spec, w: 0, h: 0, area: g.msArea, rate, qty: pq, cost: g.msArea * rate * pq });
+        }
+    }
+    return panels;
 }
 
 // Helper: resolve glass info from window (supports new glassUnit/glassThickness and legacy glassType)
