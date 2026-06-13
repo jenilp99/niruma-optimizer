@@ -127,7 +127,10 @@ function runOptimization() {
 
         let effectiveStock1Cost = stockInfo.stock1Cost || 100;
         let effectiveStock2Cost = stockInfo.stock2Cost || 125;
-        const currentRate = (typeof aluminumRate !== 'undefined') ? aluminumRate : 520;
+        // v1.48: use the per-series rate (default ₹520/kg) instead of the global aluminumRate,
+        // so the optimizer's cost matches the quotation and the Aluminum Rates panel.
+        const currentRate = (typeof stockRates !== 'undefined' && stockRates[materialSeries] != null)
+            ? stockRates[materialSeries] : 520;
 
         if (weight) {
             // weight is for 12' (144")
@@ -481,11 +484,9 @@ function generateDoorProfileFormulas(win, supplierData) {
         // so vertical lower clip never gets a frame deduction.
         { component: 'Door Glazing Clip',  qty: '4*L', length: 'H - F*(40/25.4) - TW - MW/2 - MRPI',        desc: 'Glazing Clip Vertical Top' },
         { component: 'Door Glazing Clip',  qty: '4*L', length: 'MRPI - BW - MW/2',                          desc: 'Glazing Clip Vertical Bottom' },
-        { component: 'Door Glazing Clip',  qty: '8*L', length: '(W - (F*(80/25.4))) / L - HandleVW - HingeVW', desc: 'Glazing Clip Horizontal' },
-        // v1.35: Door Rod 12mm — 2 rods per leaf (one in top rail + one in bottom rail).
-        // Length = top rail length + 3" (1.5" stick-out each side for nut/washer mounting).
-        // Stock = 2 metres (78.74") — should be added to door supplier stock data.
-        { component: 'Door Rod 12mm',      qty: '2*L', length: '(W - (F*(80/25.4))) / L - HandleVW - HingeVW + 3', desc: 'Door Rod (top rail + 3\")' }
+        { component: 'Door Glazing Clip',  qty: '8*L', length: '(W - (F*(80/25.4))) / L - HandleVW - HingeVW', desc: 'Glazing Clip Horizontal' }
+        // v1.48: Door Rod 12mm removed from the profile cut plan — it is now costed as
+        // hardware (per nos @ Rs.115), not aluminium by weight. See generateDoorHardware().
     ];
 }
 

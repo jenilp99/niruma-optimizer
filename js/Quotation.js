@@ -721,7 +721,9 @@ function calculateWindowTotalCost(win, opts) {
 
     const efficiency = totalPurchasedLenIn > 0 ? (totalPieceLenIn / totalPurchasedLenIn * 100) : 0;
 
-    const rate = (stockRates && stockRates[win.series]) ? stockRates[win.series] : (aluminumRate || 520);
+    // v1.48: default to ₹520/kg when a series has no explicit rate — matches the Aluminum
+    // Rates panel display. (Previously fell back to aluminumRate, which could be a stale 280.)
+    const rate = (stockRates && stockRates[win.series] != null) ? stockRates[win.series] : 520;
     const profileCost = pieceWeightKg * rate;
     const wastageWeightKg = Math.max(0, purchasedWeightKg - pieceWeightKg);
     const wastageCost = wastageWeightKg * rate;
@@ -1346,7 +1348,7 @@ function generateQuotationPDF(projectWindows, selectedProject, formData) {
                     const stockInfo = findStockInfo(key, parseFloat(len));
                     const sectionNo = stockInfo ? (stockInfo.sectionNo || '-') : '-';
                     const wtPerStick = info.qty > 0 ? info.weight / info.qty : 0;
-                    const seriesRate = (stockRates && stockRates[seriesName]) ? stockRates[seriesName] : (aluminumRate || 520);
+                    const seriesRate = (stockRates && stockRates[seriesName] != null) ? stockRates[seriesName] : 520;
                     const cost = info.weight * seriesRate;
                     seriesGroups[seriesName].push({
                         sectionNo,
@@ -2087,7 +2089,14 @@ function generateDoorHardware(win) {
     // Empty array = user explicitly unchecked all items → honor that, return [].
     // Only fall through to defaults when the field is truly missing (legacy doors).
     if (Array.isArray(win.accessories)) {
-        return win.accessories;
+        // v1.48: Door Rod 12mm is mandatory hardware (per nos @ Rs.115). Older doors saved it
+        // as a profile cut, so their accessories lack it — append if missing so it's always
+        // costed as hardware. (Empty accessories = user cleared everything → respected.)
+        const acc = win.accessories.slice();
+        if (acc.length && !acc.some(h => /door\s*rod\s*12/i.test(h.hardware || ''))) {
+            acc.push({ hardware: 'Door Rod 12mm', unit: 'Nos', formula: '2 * L', rate: 115 });
+        }
+        return acc;
     }
 
     // Fallback for older saved doors that don't have accessories stored
@@ -2106,7 +2115,7 @@ function generateDoorHardware(win) {
         { hardware: 'Lock Body',               unit: 'Nos',  formula: '1 * L',            rate: 850  },
         { hardware: 'Cylinder',                unit: 'Nos',  formula: '1 * L',            rate: 450  },
         { hardware: 'Silicon Sealant',         unit: 'R.Ft', formula: '(W+H)*2/12',       rate: 10   },
-        { hardware: 'Door Rod 12mm',           unit: 'Nos',  formula: '2 * L',            rate: 60   }
+        { hardware: 'Door Rod 12mm',           unit: 'Nos',  formula: '2 * L',            rate: 115  }
     );
     return items;
 }
@@ -2591,7 +2600,7 @@ function generateQuotationHTML(projectWindows, selectedProject) {
             }
         }
 
-        const _seriesRate = (typeof stockRates !== 'undefined' && stockRates[win.series]) ? stockRates[win.series] : (typeof aluminumRate !== 'undefined' ? aluminumRate : 520);
+        const _seriesRate = (typeof stockRates !== 'undefined' && stockRates[win.series] != null) ? stockRates[win.series] : 520;
         const profileCost = weightTotal * _seriesRate;
         // v1.24: pro-rata share of ACP/Bakelite/PB sheet + mosquito net roll wastage
         const partitionWastageCost = _computeDoorPartitionWastageCost(win);
