@@ -1595,15 +1595,21 @@ function generateQuotationPDF(projectWindows, selectedProject, formData) {
                 doc.setFont('helvetica', 'normal'); doc.setFontSize(8); doc.setTextColor(100, 100, 100);
                 doc.text('(Sheets bought, panel area used, GST-inclusive rate)', PW / 2, y, { align: 'center' }); y += 4;
                 const rows = []; let tSheets = 0, tArea = 0, tCost = 0;
+                const _pr = (ratesConfig && ratesConfig.partitionRates) || {};
                 groups.forEach(gr => {
                     const sheets = (gr.newSheetsUsed || 0) + (gr.storeSheetsUsed || 0);
                     const areaSqft = (gr.piecesArea || 0) / 144;
-                    const cost = gr.cost || 0;
+                    // v1.50: use the LIVE partition rate (key e.g. "ACP_3mm"), not the rate
+                    // baked into sheetResults at optimization time — so rate edits show without
+                    // re-optimizing. Cost = panel area (sqft) × ₹/sqft.
+                    const rateKey = `${gr.material}_${gr.thickness}`;
+                    const rate = (_pr[rateKey] != null ? _pr[rateKey] : (gr.ratePerSqft || 0));
+                    const cost = areaSqft * rate;
                     tSheets += sheets; tArea += areaSqft; tCost += cost;
                     rows.push([
                         gr.material || '-', gr.thickness || '-', gr.sheetName || '-', String(sheets),
                         areaSqft.toFixed(2),
-                        (gr.ratePerSqft != null ? gr.ratePerSqft.toFixed(2) : '-'),
+                        rate ? rate.toFixed(2) : '-',
                         `Rs. ${cost.toFixed(2)}`
                     ]);
                 });
