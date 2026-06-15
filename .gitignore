@@ -18,3 +18,8 @@ node_modules/
 
 # Claude Code local dev settings (should not be committed)
 .claude/
+
+# Excel temp/lock files + scratch survey artifacts
+~$*
+Site_Survey_Form_Sample.xlsx
+tools/
