@@ -68,11 +68,15 @@ function generateSurveyForm() {
             [],
             SURVEY_WIN_COLS.slice()
         ];
+        // Guide row (no Code → the importer skips it). Sizes scaled to the chosen units.
+        aoa.push(meta.units === 'inch'
+            ? ['Living room', '', 60, 48, 3, 2, 1, 'EXAMPLE — leave Code blank; this row is skipped on import']
+            : ['Living room', '', 1524, 1219, 3, 2, 1, 'EXAMPLE — leave Code blank; this row is skipped on import']);
         for (let i = 1; i <= meta.nWin; i++) aoa.push(['', 'W' + String(i).padStart(2, '0')]);
         const ws = XLSX.utils.aoa_to_sheet(aoa);
-        ws['!cols'] = [{ wch: 14 }, { wch: 9 }, { wch: 9 }, { wch: 9 }, { wch: 8 }, { wch: 6 }, { wch: 6 }, { wch: 26 }];
+        ws['!cols'] = [{ wch: 14 }, { wch: 9 }, { wch: 9 }, { wch: 9 }, { wch: 8 }, { wch: 6 }, { wch: 6 }, { wch: 40 }];
         ws['!merges'] = [{ s: { r: 2, c: 6 }, e: { r: 2, c: 7 } }];
-        ws['!autofilter'] = { ref: `A${SURVEY_HEADER_ROW}:H${SURVEY_HEADER_ROW + meta.nWin}` };
+        ws['!autofilter'] = { ref: `A${SURVEY_HEADER_ROW}:H${SURVEY_HEADER_ROW + 1 + meta.nWin}` };
         XLSX.utils.book_append_sheet(wb, ws, 'Windows');
     }
 
@@ -84,6 +88,10 @@ function generateSurveyForm() {
             [],
             SURVEY_DOOR_COLS.slice()
         ];
+        // Guide row (no Code → skipped on import). Sizes scaled to the chosen units.
+        aoa.push(meta.units === 'inch'
+            ? ['Main gate', '', 42, 84, 'Y', 1, 22, '1,5', 'EXAMPLE — leave Code blank; this row is skipped on import']
+            : ['Main gate', '', 1067, 2134, 'Y', 1, 22, '1,5', 'EXAMPLE — leave Code blank; this row is skipped on import']);
         for (let i = 1; i <= meta.nDoor; i++) aoa.push(['', 'D' + String(i).padStart(2, '0')]);
         // legend block (a few rows below the table)
         const legStart = aoa.length + 3;
@@ -96,9 +104,9 @@ function generateSurveyForm() {
         }
         aoa.push(['', '', '', '', '', 'Fixture: combine codes with commas, e.g. 1,4,5']);
         const ws = XLSX.utils.aoa_to_sheet(aoa);
-        ws['!cols'] = [{ wch: 14 }, { wch: 9 }, { wch: 9 }, { wch: 9 }, { wch: 8 }, { wch: 14 }, { wch: 14 }, { wch: 12 }, { wch: 24 }];
+        ws['!cols'] = [{ wch: 14 }, { wch: 9 }, { wch: 9 }, { wch: 9 }, { wch: 8 }, { wch: 14 }, { wch: 14 }, { wch: 12 }, { wch: 40 }];
         ws['!merges'] = [{ s: { r: 2, c: 6 }, e: { r: 2, c: 7 } }];
-        ws['!autofilter'] = { ref: `A${SURVEY_HEADER_ROW}:I${SURVEY_HEADER_ROW + meta.nDoor}` };
+        ws['!autofilter'] = { ref: `A${SURVEY_HEADER_ROW}:I${SURVEY_HEADER_ROW + 1 + meta.nDoor}` };
         XLSX.utils.book_append_sheet(wb, ws, 'Doors');
     }
 

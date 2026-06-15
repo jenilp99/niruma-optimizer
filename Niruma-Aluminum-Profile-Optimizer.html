@@ -10,8 +10,8 @@
     <title>Niruma Aluminum Profile Optimizer</title>
 
     <!-- CSS -->
-    <link rel="stylesheet" href="css/styles.css?v=1.61">
-    <link rel="stylesheet" href="css/modal.css?v=1.61">
+    <link rel="stylesheet" href="css/styles.css?v=1.62">
+    <link rel="stylesheet" href="css/modal.css?v=1.62">
 
     <!-- External Libraries -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -65,7 +65,7 @@
                 <span><strong>mm</strong></span>
             </div>
             <!-- APP VERSION — bump this number on every push/update -->
-            <div class="navbar-version">Ver: 1.61</div>
+            <div class="navbar-version">Ver: 1.62</div>
         </div>
     </nav>
 
@@ -144,7 +144,7 @@
                         Door</button>
                 </div>
 
-                <!-- v1.61: Site survey form — generate a printable .xlsx, fill on site, import back -->
+                <!-- v1.62: Site survey form — generate a printable .xlsx, fill on site, import back -->
                 <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:18px;padding:10px 12px;background:#eef6fb;border:1px solid #cfe3f0;border-radius:8px;">
                     <strong style="color:#2c5f86;">📋 Site Survey:</strong>
                     <button type="button" class="btn btn-info btn-sm" onclick="openSurveyGenerateDialog()">⬇️ Generate Blank Form (Excel)</button>
@@ -202,7 +202,7 @@
                                 </div>
                             </div>
 
-                            <!-- v1.61: Bulk add — set the spec once, add many sizes (shared supplier/hardware) -->
+                            <!-- v1.62: Bulk add — set the spec once, add many sizes (shared supplier/hardware) -->
                             <div id="windowBulkAddWrap" style="margin: 0 0 10px;">
                                 <div id="windowExtraSizes"></div>
                                 <button type="button" class="btn btn-outline btn-sm" onclick="addSizeRow('window')"
@@ -488,7 +488,7 @@
                                 </div>
                             </div>
 
-                            <!-- v1.61: Bulk add — set the spec once, add many sizes (shared accessories/profiles) -->
+                            <!-- v1.62: Bulk add — set the spec once, add many sizes (shared accessories/profiles) -->
                             <div id="doorBulkAddWrap" style="margin: 4px 0 10px;">
                                 <div id="doorExtraSizes"></div>
                                 <button type="button" class="btn btn-outline btn-sm" onclick="addSizeRow('door')"
@@ -1690,7 +1690,7 @@
                 <button class="close-btn" onclick="closeProjectThicknessModal()">&times;</button>
             </div>
             <div class="modal-body" style="display: block; overflow-y: auto; max-height: calc(90vh - 120px);">
-                <!-- v1.61: force block layout — the global .modal-body{display:flex}
+                <!-- v1.62: force block layout — the global .modal-body{display:flex}
                      rule (styles.css) otherwise crams the banner/info/list into columns -->
                 <!-- Pre-run gate banner (shown only when RUN is gated on door review) -->
                 <div id="doorThkGateBanner" style="display:none; background:#fff3e0; border:2px solid #fb8c00; border-radius:8px; padding:12px 15px; margin-bottom:15px;">
@@ -1709,7 +1709,7 @@
                     Thicker profiles are recommended for larger windows.
                 </div>
 
-                <!-- v1.61: Quick Apply (Bulk Selection) removed — it flattened the
+                <!-- v1.62: Quick Apply (Bulk Selection) removed — it flattened the
                      role-based per-profile door suggestions to one uniform gauge. -->
 
                 <!-- Individual Window/Door List -->
@@ -1864,15 +1864,15 @@
     </div>
 
     <!-- JavaScript Files - Load in Order -->
-    <script src="js/storage.js?v=1.61"></script>
-    <script src="js/supplier_master.js?v=1.61"></script>
+    <script src="js/storage.js?v=1.62"></script>
+    <script src="js/supplier_master.js?v=1.62"></script>
     <!-- Supplier Modules -->
-    <script src="js/suppliers/windalco.js?v=1.61"></script>
-    <script src="js/suppliers/jk_alu.js?v=1.61"></script>
-    <script src="js/suppliers/atlantis.js?v=1.61"></script>
-    <script src="js/suppliers/vitco.js?v=1.61"></script>
+    <script src="js/suppliers/windalco.js?v=1.62"></script>
+    <script src="js/suppliers/jk_alu.js?v=1.62"></script>
+    <script src="js/suppliers/atlantis.js?v=1.62"></script>
+    <script src="js/suppliers/vitco.js?v=1.62"></script>
 
-    <!-- v1.61: Survey form — Generate dialog -->
+    <!-- v1.62: Survey form — Generate dialog -->
     <div id="surveyGenModal" class="modal">
         <div class="modal-content" style="max-width: 560px;">
             <div class="modal-header">
@@ -1897,7 +1897,7 @@
         </div>
     </div>
 
-    <!-- v1.61: Survey form — Import preview -->
+    <!-- v1.62: Survey form — Import preview -->
     <div id="surveyImportModal" class="modal">
         <div class="modal-content" style="max-width: 620px; max-height: 90vh;">
             <div class="modal-header">
@@ -1918,11 +1918,11 @@
         </div>
     </div>
 
-    <script src="js/app.js?v=1.61"></script>
-    <script src="js/optimization.js?v=1.61"></script>
-    <script src="js/exports.js?v=1.61"></script>
-    <script src="js/Quotation.js?v=1.61"></script>
-    <script src="js/survey.js?v=1.61"></script>
+    <script src="js/app.js?v=1.62"></script>
+    <script src="js/optimization.js?v=1.62"></script>
+    <script src="js/exports.js?v=1.62"></script>
+    <script src="js/Quotation.js?v=1.62"></script>
+    <script src="js/survey.js?v=1.62"></script>
 
 </body>
 
