@@ -4670,7 +4670,7 @@ function renderProjectThicknessItems(projectWindows) {
             <div style="flex: 2;">
                 <div style="font-weight: bold;">${icon} ${w.configId} - ${w.description}</div>
                 <div style="font-size: 0.85em; color: #666;">
-                    ${w.width}" × ${w.height}" | ${w.vendor} | ${w.series}
+                    ${Math.round(w.width)}" × ${Math.round(w.height)}" | ${w.vendor} | ${w.series}
                 </div>
                 <div style="font-size: 0.8em; color: #3498db; margin-top: 3px;">
                     💡 Suggested: ${suggestText}

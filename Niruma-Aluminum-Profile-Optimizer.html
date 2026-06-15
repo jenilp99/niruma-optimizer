@@ -10,8 +10,8 @@
     <title>Niruma Aluminum Profile Optimizer</title>
 
     <!-- CSS -->
-    <link rel="stylesheet" href="css/styles.css?v=1.58">
-    <link rel="stylesheet" href="css/modal.css?v=1.58">
+    <link rel="stylesheet" href="css/styles.css?v=1.59">
+    <link rel="stylesheet" href="css/modal.css?v=1.59">
 
     <!-- External Libraries -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -65,7 +65,7 @@
                 <span><strong>mm</strong></span>
             </div>
             <!-- APP VERSION — bump this number on every push/update -->
-            <div class="navbar-version">Ver: 1.58</div>
+            <div class="navbar-version">Ver: 1.59</div>
         </div>
     </nav>
 
@@ -1664,8 +1664,10 @@
                 <h3>🔗 Configure Thickness for Project</h3>
                 <button class="close-btn" onclick="closeProjectThicknessModal()">&times;</button>
             </div>
-            <div class="modal-body" style="overflow-y: auto; max-height: calc(90vh - 120px);">
-                <!-- v1.58: Pre-run gate banner (shown only when RUN is gated on door review) -->
+            <div class="modal-body" style="display: block; overflow-y: auto; max-height: calc(90vh - 120px);">
+                <!-- v1.59: force block layout — the global .modal-body{display:flex}
+                     rule (styles.css) otherwise crams the banner/info/list into columns -->
+                <!-- Pre-run gate banner (shown only when RUN is gated on door review) -->
                 <div id="doorThkGateBanner" style="display:none; background:#fff3e0; border:2px solid #fb8c00; border-radius:8px; padding:12px 15px; margin-bottom:15px;">
                     <strong style="color:#e65100;">🚪 Review door thicknesses before optimizing.</strong>
                     <div style="font-size:0.9em; color:#5d4037; margin-top:4px;">
@@ -1682,7 +1684,7 @@
                     Thicker profiles are recommended for larger windows.
                 </div>
 
-                <!-- v1.58: Quick Apply (Bulk Selection) removed — it flattened the
+                <!-- v1.59: Quick Apply (Bulk Selection) removed — it flattened the
                      role-based per-profile door suggestions to one uniform gauge. -->
 
                 <!-- Individual Window/Door List -->
@@ -1710,7 +1712,7 @@
                 <h3>🔧 Edit Component Thickness</h3>
                 <button class="close-btn" onclick="closeComponentThicknessModal()">&times;</button>
             </div>
-            <div class="modal-body">
+            <div class="modal-body" style="display: block;">
                 <div class="alert alert-info" style="margin-bottom: 15px;">
                     Editing thickness for: <strong><span id="editComponentWindowName"></span></strong>
                 </div>
@@ -1837,18 +1839,18 @@
     </div>
 
     <!-- JavaScript Files - Load in Order -->
-    <script src="js/storage.js?v=1.58"></script>
-    <script src="js/supplier_master.js?v=1.58"></script>
+    <script src="js/storage.js?v=1.59"></script>
+    <script src="js/supplier_master.js?v=1.59"></script>
     <!-- Supplier Modules -->
-    <script src="js/suppliers/windalco.js?v=1.58"></script>
-    <script src="js/suppliers/jk_alu.js?v=1.58"></script>
-    <script src="js/suppliers/atlantis.js?v=1.58"></script>
-    <script src="js/suppliers/vitco.js?v=1.58"></script>
+    <script src="js/suppliers/windalco.js?v=1.59"></script>
+    <script src="js/suppliers/jk_alu.js?v=1.59"></script>
+    <script src="js/suppliers/atlantis.js?v=1.59"></script>
+    <script src="js/suppliers/vitco.js?v=1.59"></script>
 
-    <script src="js/app.js?v=1.58"></script>
-    <script src="js/optimization.js?v=1.58"></script>
-    <script src="js/exports.js?v=1.58"></script>
-    <script src="js/Quotation.js?v=1.58"></script>
+    <script src="js/app.js?v=1.59"></script>
+    <script src="js/optimization.js?v=1.59"></script>
+    <script src="js/exports.js?v=1.59"></script>
+    <script src="js/Quotation.js?v=1.59"></script>
 
 </body>
 
