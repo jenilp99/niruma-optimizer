@@ -1303,34 +1303,34 @@ function switchAddMode(mode) {
 // Placeholder rate ₹100 — user updates rates via Hardware Master UI.
 const DOOR_HARDWARE_DEFAULTS = [
     {
-        hardware: 'Door Hinge',      mechanism: 'Hinge',       unit: 'Nos',  formula: '4 * L',      rate: 100,
+        hardware: 'Door Hinge',      mechanism: 'Hinge',       unit: 'Nos',  formula: '4 * L',      rate: 52,
         variants: [
-            { label: '5"×1.25"', rate: 100 },
-            { label: '4"×1.25"', rate: 100 }
+            { label: '5"×1.25"', rate: 65 },
+            { label: '4"×1.25"', rate: 52 }
         ],
         defaultVariant: '4"×1.25"'
     },
     {
-        hardware: 'Floor Spring',    mechanism: 'FloorSpring', unit: 'Nos',  formula: '1 * L',      rate: 100,
+        hardware: 'Floor Spring',    mechanism: 'FloorSpring', unit: 'Nos',  formula: '1 * L',      rate: 3422,
         variants: [
-            { label: '90 kg',  rate: 100 },
-            { label: '100 kg', rate: 100 },
-            { label: '120 kg', rate: 100 }
+            { label: '90 kg',  rate: 2800 },
+            { label: '100 kg', rate: 3100 },
+            { label: '120 kg', rate: 3422 }
         ],
-        defaultVariant: '90 kg'
+        defaultVariant: '120 kg'
     },
     {
         hardware: 'Door Handle',     mechanism: 'both',        unit: 'Nos',  formula: '2 * L',      rate: 502,
         variants: [
             { label: 'None',             rate: 0   },
-            { label: 'American Handle',  rate: 100 },
+            { label: 'American Handle',  rate: 50  },
             { label: 'H-Handle',         rate: 502 },
             { label: 'D-Handle',         rate: 100 }
         ],
         defaultVariant: 'H-Handle'
     },
     {
-        hardware: 'Door Closer',     mechanism: 'Hinge',       unit: 'Nos',  formula: '1 * L',      rate: 100,
+        hardware: 'Door Closer',     mechanism: 'Hinge',       unit: 'Nos',  formula: '1 * L',      rate: 1350,
         variants: [],   defaultVariant: null
     },
     {
@@ -1339,9 +1339,9 @@ const DOOR_HARDWARE_DEFAULTS = [
         hardware: 'Lock Body',       mechanism: 'both',        unit: 'Nos',  formula: '1',          rate: 266,
         variants: [
             { label: 'Dead Lock (both side key)',     rate: 266 },
-            { label: 'Dead Lock (key + knob)',        rate: 100 },
-            { label: 'Dead Lock (both side knob)',    rate: 100 },
-            { label: 'Mortise Lock',                  rate: 100 },
+            { label: 'Dead Lock (key + knob)',        rate: 266 },
+            { label: 'Dead Lock (both side knob)',    rate: 266 },
+            { label: 'Mortise Lock',                  rate: 349 },
             { label: 'Pad Lock',                      rate: 100 },
             { label: 'Kaptan Lock',                   rate: 100 }
         ],
@@ -1349,12 +1349,12 @@ const DOOR_HARDWARE_DEFAULTS = [
     },
     {
         // v1.35: 1 per door. Auto-checked only with Dead Lock or Mortise Lock variants.
-        hardware: 'Cylinder',        mechanism: 'both',        unit: 'Nos',  formula: '1',          rate: 489,
+        hardware: 'Cylinder',        mechanism: 'both',        unit: 'Nos',  formula: '1',          rate: 413,
         variants: [],   defaultVariant: null
     },
     {
         // v1.35: 1 per door. Auto-checked ONLY with Mortise Lock variant.
-        hardware: 'Mortise Handle',  mechanism: 'both',        unit: 'Nos',  formula: '1',          rate: 100,
+        hardware: 'Mortise Handle',  mechanism: 'both',        unit: 'Nos',  formula: '1',          rate: 413,
         variants: [],   defaultVariant: null
     },
     {
@@ -1373,29 +1373,30 @@ const DOOR_HARDWARE_DEFAULTS = [
         variants: [],   defaultVariant: null
     },
     {
-        hardware: 'Door Stopper',    mechanism: 'both',        unit: 'Nos',  formula: '1',          rate: 100,
+        // v1.52: rate = ₹17.5 per inch of stopper length
+        hardware: 'Door Stopper',    mechanism: 'both',        unit: 'Nos',  formula: '1',          rate: 175,
         variants: [
-            { label: '4"',  rate: 100 },
-            { label: '6"',  rate: 100 },
-            { label: '8"',  rate: 100 },
-            { label: '10"', rate: 100 },
-            { label: '12"', rate: 100 },
-            { label: '18"', rate: 100 },
-            { label: '24"', rate: 100 }
+            { label: '4"',  rate: 70  },
+            { label: '6"',  rate: 105 },
+            { label: '8"',  rate: 140 },
+            { label: '10"', rate: 175 },
+            { label: '12"', rate: 210 },
+            { label: '18"', rate: 315 },
+            { label: '24"', rate: 420 }
         ],
         defaultVariant: '10"'
     },
     {
-        hardware: 'Door Leg Stopper', mechanism: 'both',       unit: 'Nos',  formula: '1 * L',      rate: 100,
+        hardware: 'Door Leg Stopper', mechanism: 'both',       unit: 'Nos',  formula: '1 * L',      rate: 201,
         variants: [],   defaultVariant: null
     },
     {
-        hardware: 'Magnet',          mechanism: 'both',        unit: 'Nos',  formula: '1 * L',      rate: 100,
+        hardware: 'Magnet',          mechanism: 'both',        unit: 'Nos',  formula: '1 * L',      rate: 107,
         variants: [
             { label: 'No. 2 Magnet', rate: 100 },
-            { label: 'Ball Magnet',  rate: 100 }
+            { label: 'Ball Magnet',  rate: 107 }
         ],
-        defaultVariant: 'No. 2 Magnet'
+        defaultVariant: 'Ball Magnet'
     }
 ];
 
@@ -4168,15 +4169,22 @@ window.addEventListener('load', function () {
         }
     } catch (e) { console.error('ACP rate migration error', e); }
 
-    // v1.51: one-time migration — update door hardware default rates to market prices
+    // v1.52: one-time migration — update ALL door hardware rates to market prices
+    // (supersedes v1.51 partial migration)
     try {
-        if (!localStorage.getItem('doorHwRatesV51')) {
+        if (!localStorage.getItem('doorHwRatesV52')) {
             const list = getDoorHardwareList();
             const updates = {
-                'Door Handle':  { rate: 502, variants: { 'H-Handle': 502 }, defaultVariant: 'H-Handle' },
-                'Lock Body':    { rate: 266, variants: { 'Dead Lock (both side key)': 266 } },
-                'Cylinder':     { rate: 489 },
-                'Door Stopper': { defaultVariant: '10"' }
+                'Door Hinge':     { rate: 52,   variants: { '5"×1.25"': 65, '4"×1.25"': 52 } },
+                'Floor Spring':   { rate: 3422, variants: { '90 kg': 2800, '100 kg': 3100, '120 kg': 3422 }, defaultVariant: '120 kg' },
+                'Door Handle':    { rate: 502,  variants: { 'American Handle': 50, 'H-Handle': 502 }, defaultVariant: 'H-Handle' },
+                'Door Closer':    { rate: 1350 },
+                'Lock Body':      { rate: 266,  variants: { 'Dead Lock (both side key)': 266, 'Dead Lock (key + knob)': 266, 'Dead Lock (both side knob)': 266, 'Mortise Lock': 349 } },
+                'Cylinder':       { rate: 413 },
+                'Mortise Handle': { rate: 413 },
+                'Door Stopper':   { rate: 175,  variants: { '4"': 70, '6"': 105, '8"': 140, '10"': 175, '12"': 210, '18"': 315, '24"': 420 }, defaultVariant: '10"' },
+                'Door Leg Stopper': { rate: 201 },
+                'Magnet':         { rate: 107,  variants: { 'No. 2 Magnet': 100, 'Ball Magnet': 107 }, defaultVariant: 'Ball Magnet' }
             };
             list.forEach(item => {
                 const upd = updates[item.hardware];
@@ -4190,8 +4198,8 @@ window.addEventListener('load', function () {
                 }
             });
             if (typeof autoSaveHardwareMaster === 'function') autoSaveHardwareMaster();
-            localStorage.setItem('doorHwRatesV51', '1');
-            console.log('🔧 Migrated door hardware rates to v1.51 market prices');
+            localStorage.setItem('doorHwRatesV52', '1');
+            console.log('🔧 Migrated door hardware rates to v1.52 market prices');
         }
     } catch (e) { console.error('Door HW rate migration error', e); }
 
