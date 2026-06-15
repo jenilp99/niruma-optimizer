@@ -523,10 +523,14 @@ function getDoorThicknessPlan(win, supplierData) {
     if (heavyGlass) band = (band === 'small') ? 'medium' : 'large';
 
     // ── Target gauge (mm) by role × band ──
+    // v1.56: bottom & middle rails lightened — the 12mm threaded rod (top+bottom rails)
+    // + 38×38×3 tie-angles now carry joint integrity & anti-sag, so rail gauge is no
+    // longer the sag-critical factor. Hinge stile stays thick (hinge load / screw
+    // pull-out), top rail stays light, handle moderate (hardware load).
     const MATRIX = {
-        small:  { hinge: 1.8, bottom: 1.5, middle: 1.4, handle: 1.4, top: 1.1, frame: 1.3 },
-        medium: { hinge: 2.0, bottom: 1.6, middle: 1.5, handle: 1.5, top: 1.2, frame: 1.4 },
-        large:  { hinge: 2.0, bottom: 1.8, middle: 1.6, handle: 1.6, top: 1.4, frame: 1.5 }
+        small:  { hinge: 1.8, bottom: 1.2, middle: 1.2, handle: 1.4, top: 1.1, frame: 1.3 },
+        medium: { hinge: 2.0, bottom: 1.2, middle: 1.3, handle: 1.5, top: 1.2, frame: 1.4 },
+        large:  { hinge: 2.0, bottom: 1.3, middle: 1.3, handle: 1.6, top: 1.4, frame: 1.5 }
     };
     const tgt = MATRIX[band];
     const reasonBand = `${band} door (${Math.round(perLeafW)}"×${Math.round(height)}"${heavyGlass ? ', heavy glass' : ''})`;
