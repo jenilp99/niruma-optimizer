@@ -4547,8 +4547,7 @@ function openProjectThicknessModal() {
         return;
     }
 
-    // Populate bulk apply dropdowns
-    populateBulkThicknessDropdowns(projectWindows);
+    // v1.57: bulk Quick Apply removed — per-profile suggestions handle defaults now.
 
     // Populate individual items list
     renderProjectThicknessItems(projectWindows);

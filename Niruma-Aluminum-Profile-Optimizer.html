@@ -10,8 +10,8 @@
     <title>Niruma Aluminum Profile Optimizer</title>
 
     <!-- CSS -->
-    <link rel="stylesheet" href="css/styles.css?v=1.56">
-    <link rel="stylesheet" href="css/modal.css?v=1.56">
+    <link rel="stylesheet" href="css/styles.css?v=1.57">
+    <link rel="stylesheet" href="css/modal.css?v=1.57">
 
     <!-- External Libraries -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -65,7 +65,7 @@
                 <span><strong>mm</strong></span>
             </div>
             <!-- APP VERSION — bump this number on every push/update -->
-            <div class="navbar-version">Ver: 1.56</div>
+            <div class="navbar-version">Ver: 1.57</div>
         </div>
     </nav>
 
@@ -1665,7 +1665,7 @@
                 <button class="close-btn" onclick="closeProjectThicknessModal()">&times;</button>
             </div>
             <div class="modal-body" style="overflow-y: auto; max-height: calc(90vh - 120px);">
-                <!-- v1.56: Pre-run gate banner (shown only when RUN is gated on door review) -->
+                <!-- v1.57: Pre-run gate banner (shown only when RUN is gated on door review) -->
                 <div id="doorThkGateBanner" style="display:none; background:#fff3e0; border:2px solid #fb8c00; border-radius:8px; padding:12px 15px; margin-bottom:15px;">
                     <strong style="color:#e65100;">🚪 Review door thicknesses before optimizing.</strong>
                     <div style="font-size:0.9em; color:#5d4037; margin-top:4px;">
@@ -1682,39 +1682,8 @@
                     Thicker profiles are recommended for larger windows.
                 </div>
 
-                <!-- Quick Apply Section -->
-                <div
-                    style="background: #e8f5e9; padding: 15px; border-radius: 8px; margin-bottom: 20px; border: 2px solid #4caf50;">
-                    <h4 style="margin-top: 0; color: #2e7d32;">🎯 Quick Apply (Bulk Selection)</h4>
-                    <div class="form-row" style="align-items: flex-end;">
-                        <div class="form-group" style="flex: 2;">
-                            <label>Apply to ALL Windows:</label>
-                            <select id="bulkWindowThickness" style="width: 100%;">
-                                <option value="">-- Select Thickness --</option>
-                            </select>
-                        </div>
-                        <div class="form-group" style="flex: 1;">
-                            <button type="button" class="btn btn-success" onclick="applyBulkThickness('Window')"
-                                style="width: 100%;">
-                                ✓ Apply to Windows
-                            </button>
-                        </div>
-                    </div>
-                    <div class="form-row" style="align-items: flex-end; margin-top: 10px;">
-                        <div class="form-group" style="flex: 2;">
-                            <label>Apply to ALL Doors:</label>
-                            <select id="bulkDoorThickness" style="width: 100%;">
-                                <option value="">-- Select Thickness --</option>
-                            </select>
-                        </div>
-                        <div class="form-group" style="flex: 1;">
-                            <button type="button" class="btn btn-success" onclick="applyBulkThickness('Door')"
-                                style="width: 100%;">
-                                ✓ Apply to Doors
-                            </button>
-                        </div>
-                    </div>
-                </div>
+                <!-- v1.57: Quick Apply (Bulk Selection) removed — it flattened the
+                     role-based per-profile door suggestions to one uniform gauge. -->
 
                 <!-- Individual Window/Door List -->
                 <h4 style="margin-bottom: 10px;">📋 Individual Configuration</h4>
@@ -1868,18 +1837,18 @@
     </div>
 
     <!-- JavaScript Files - Load in Order -->
-    <script src="js/storage.js?v=1.56"></script>
-    <script src="js/supplier_master.js?v=1.56"></script>
+    <script src="js/storage.js?v=1.57"></script>
+    <script src="js/supplier_master.js?v=1.57"></script>
     <!-- Supplier Modules -->
-    <script src="js/suppliers/windalco.js?v=1.56"></script>
-    <script src="js/suppliers/jk_alu.js?v=1.56"></script>
-    <script src="js/suppliers/atlantis.js?v=1.56"></script>
-    <script src="js/suppliers/vitco.js?v=1.56"></script>
+    <script src="js/suppliers/windalco.js?v=1.57"></script>
+    <script src="js/suppliers/jk_alu.js?v=1.57"></script>
+    <script src="js/suppliers/atlantis.js?v=1.57"></script>
+    <script src="js/suppliers/vitco.js?v=1.57"></script>
 
-    <script src="js/app.js?v=1.56"></script>
-    <script src="js/optimization.js?v=1.56"></script>
-    <script src="js/exports.js?v=1.56"></script>
-    <script src="js/Quotation.js?v=1.56"></script>
+    <script src="js/app.js?v=1.57"></script>
+    <script src="js/optimization.js?v=1.57"></script>
+    <script src="js/exports.js?v=1.57"></script>
+    <script src="js/Quotation.js?v=1.57"></script>
 
 </body>
 
