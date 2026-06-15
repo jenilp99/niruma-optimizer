@@ -864,6 +864,19 @@ function generateQuotationPDF(projectWindows, selectedProject, formData) {
             return drawHeader();
         };
 
+        // v1.58: page-safety options for any table that may span pages — reserve the
+        // footer strip (so rows never hide under the footer), keep a top margin clear
+        // of the header, repeat the column header, never split a row across the break,
+        // and stamp the page header on every continuation page. `marginOver` overrides
+        // individual margin sides (e.g. a custom left for a half-width table).
+        const HEADER_BOTTOM = mg + 21;   // y just below the header rule
+        const pageSafe = (marginOver) => ({
+            margin: Object.assign({ left: mg, right: mg, top: HEADER_BOTTOM, bottom: 22 }, marginOver || {}),
+            rowPageBreak: 'avoid',
+            showHead: 'everyPage',
+            didDrawPage: () => drawHeader()
+        });
+
         let y;
 
         // ══════════════════════════════════════════════════════════════════════
@@ -1000,7 +1013,7 @@ function generateQuotationPDF(projectWindows, selectedProject, formData) {
 
         doc.autoTable({
             startY: y,
-            margin: { left: mg, right: mg },
+            ...pageSafe(),
             head: [[
                 'Type', 'Image', 'Location', 'Description',
                 `Size (${displayUnit === 'mm' ? 'MM' : '"'})\nW X H`,
@@ -1106,7 +1119,7 @@ function generateQuotationPDF(projectWindows, selectedProject, formData) {
 
         doc.autoTable({
             startY: y + 2,
-            margin: { left: mg, right: mg, bottom: 22 },  // v1.38: reserve space for footer
+            ...pageSafe(),
             head: [[
                 'Type', 'Qty',
                 'Net Wt\n(kg)', 'Waste Wt\n(kg)',
@@ -1120,12 +1133,7 @@ function generateQuotationPDF(projectWindows, selectedProject, formData) {
             theme: 'grid',
             headStyles: { fillColor: [30, 60, 114], textColor: [255, 255, 255], fontSize: 7, fontStyle: 'bold', halign: 'center', valign: 'middle' },
             bodyStyles: { fontSize: 7, halign: 'right', valign: 'middle' },
-            columnStyles: { 0: { halign: 'center' }, 1: { halign: 'center' }, 12: { halign: 'center' } },
-            // v1.38: prevent row from splitting across pages (no half-row at top
-            // of next page). If a row doesn't fit, the WHOLE row moves to next page.
-            rowPageBreak: 'avoid',
-            // Repeat the header on every continuation page so customer sees column titles
-            showHead: 'everyPage'
+            columnStyles: { 0: { halign: 'center' }, 1: { halign: 'center' }, 12: { halign: 'center' } }
         });
 
         y = doc.lastAutoTable.finalY + 5;
@@ -1251,15 +1259,13 @@ function generateQuotationPDF(projectWindows, selectedProject, formData) {
 
             doc.autoTable({
                 startY: y + 2,
-                margin: { left: mg, right: mg, bottom: 22 },  // v1.45: reserve footer space so rows don't overlap it
+                ...pageSafe(),
                 head: [['Hardware Item', 'Qty', 'Unit', 'Rate', 'Cost']],
                 body: rows,
                 theme: 'grid',
                 headStyles: { fillColor: [30,60,114], textColor: [255,255,255], fontSize: 8, halign: 'center' },
                 bodyStyles: { fontSize: 8 },
-                columnStyles: { 0: { cellWidth: 80 }, 1: { halign: 'right' }, 2: { halign: 'center' }, 3: { halign: 'right' }, 4: { halign: 'right' } },
-                rowPageBreak: 'avoid',     // v1.45: whole row moves to next page rather than splitting
-                showHead: 'everyPage'      // v1.45: repeat column header on continuation pages
+                columnStyles: { 0: { cellWidth: 80 }, 1: { halign: 'right' }, 2: { halign: 'center' }, 3: { halign: 'right' }, 4: { halign: 'right' } }
             });
             y = doc.lastAutoTable.finalY + 4;
         });
@@ -1294,7 +1300,7 @@ function generateQuotationPDF(projectWindows, selectedProject, formData) {
 
         doc.autoTable({
             startY: y + 2,
-            margin: { left: mg, right: mg },
+            ...pageSafe(),
             head: [['Hardware Item', 'Total Qty', 'Unit', 'Rate', 'Cost']],
             body: aggRows,
             theme: 'grid',
@@ -1399,7 +1405,7 @@ function generateQuotationPDF(projectWindows, selectedProject, formData) {
 
             doc.autoTable({
                 startY: y + 2,
-                margin: { left: mg, right: mg },
+                ...pageSafe(),
                 head: [['Sec No', 'Material', 'Stock Len', 'Qty', 'Wt/Stick (kg)', 'Total Wt (kg)', 'Cost']],
                 body: rows,
                 theme: 'grid',
@@ -1518,7 +1524,7 @@ function generateQuotationPDF(projectWindows, selectedProject, formData) {
 
         doc.autoTable({
             startY: y + 2,
-            margin: { left: mg, right: mg },
+            ...pageSafe(),
             head: [['Series', 'Component', 'Sticks', 'Total Length (ft)', 'Rate (Rs/ft)', 'Cost']],
             body: pcRows,
             theme: 'grid',
@@ -1571,7 +1577,7 @@ function generateQuotationPDF(projectWindows, selectedProject, formData) {
                     { content: `Rs. ${gTotCost.toFixed(2)}`, styles: { fontStyle: 'bold', halign: 'right', fillColor: [245, 245, 245] } }
                 ]);
                 doc.autoTable({
-                    startY: y + 2, margin: { left: mg, right: mg },
+                    startY: y + 2, ...pageSafe(),
                     head: [['Window', 'Qty', 'Glass Spec', 'Size (WxH)', 'Area (sqft)', 'Rate/sqft', 'Cost']],
                     body: glassRows, theme: 'grid',
                     headStyles: { fillColor: [30, 60, 114], textColor: [255, 255, 255], fontSize: 8, halign: 'center' },
@@ -1621,7 +1627,7 @@ function generateQuotationPDF(projectWindows, selectedProject, formData) {
                     { content: `Rs. ${tCost.toFixed(2)}`, styles: { fontStyle: 'bold', halign: 'right', fillColor: [245, 245, 245] } }
                 ]);
                 doc.autoTable({
-                    startY: y + 2, margin: { left: mg, right: mg },
+                    startY: y + 2, ...pageSafe(),
                     head: [['Material', 'Thk', 'Sheet Size', 'Sheets', 'Panel Area (sqft)', 'Rate/sqft', 'Cost']],
                     body: rows, theme: 'grid',
                     headStyles: { fillColor: [30, 60, 114], textColor: [255, 255, 255], fontSize: 8, halign: 'center' },
@@ -1668,7 +1674,7 @@ function generateQuotationPDF(projectWindows, selectedProject, formData) {
                     { content: tCost > 0 ? `Rs. ${tCost.toFixed(2)}` : '-', styles: { fontStyle: 'bold', halign: 'right', fillColor: [245, 245, 245] } }
                 ]);
                 doc.autoTable({
-                    startY: y + 2, margin: { left: mg, right: mg },
+                    startY: y + 2, ...pageSafe(),
                     head: [['Roll Width', 'New Rolls', 'From Stock', 'Pieces', 'Used Length', 'Cost']],
                     body: rows, theme: 'grid',
                     headStyles: { fillColor: [30, 60, 114], textColor: [255, 255, 255], fontSize: 8, halign: 'center' },
