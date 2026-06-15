@@ -3911,6 +3911,7 @@ function openSectionSelectModal(materialKey) {
                             sectionNo: sec.sectionNo,
                             weight: sec.weight,
                             t: sec.t || 'N/A',
+                            w: sec.w != null ? sec.w : null,   // face width (mm) — door profiles
                             desc: sec.desc || componentName
                         });
                     });
@@ -3935,14 +3936,45 @@ function openSectionSelectModal(materialKey) {
                     sectionNo: item.sectionNo || item.material,
                     weight: item.weight,
                     t: item.thickness || 'N/A',
+                    w: item.w != null ? item.w : null,
                     desc: item.material
                 });
             }
         });
     }
 
-    // Store options globally for selection callback
-    window.currentSectionOptions = options;
+    // v1.53: for DOOR components, narrow the list to the face-width(s) the doors in
+    // the active project actually use (e.g. hide 47mm Door Middle Single sections when
+    // the door needs the 85mm one). Window components have no stored width → show all.
+    let requiredWidths = null;
+    if (seriesName === 'Door' && typeof computeDoorComponentWidths === 'function') {
+        try {
+            const projSel = document.getElementById('projectSelector');
+            const proj = projSel ? projSel.value : null;
+            const doorWins = (typeof windows !== 'undefined' ? windows : []).filter(w =>
+                w.category === 'Door' && (!proj || w.projectName === proj));
+            const wset = new Set();
+            doorWins.forEach(win => {
+                const sd = (window.SUPPLIER_REGISTRY || {})[win.vendor];
+                const cw = computeDoorComponentWidths(win, sd);
+                (cw[componentName] || []).forEach(x => wset.add(x));
+            });
+            if (wset.size) requiredWidths = [...wset];
+        } catch (e) { console.warn('Door width filter skipped:', e); }
+    }
+
+    let displayOptions = options;
+    if (requiredWidths && options.some(o => o.w != null)) {
+        const f = options.filter(o => o.w != null &&
+            requiredWidths.some(rw => Math.abs(o.w - rw) <= 3));
+        if (f.length) {
+            displayOptions = f;
+            console.log(`%c🔎 Filtered to width(s) ${requiredWidths.join('/')}mm → ${f.length}/${options.length} sections`, 'color:#6610f2;');
+        }
+    }
+
+    // Store options globally for selection callback (indices map to the SHOWN list)
+    window.currentSectionOptions = displayOptions;
 
     // Populate the thicknessSelect dropdown
     const thicknessSelect = document.getElementById('thicknessSelect');
@@ -3953,14 +3985,15 @@ function openSectionSelectModal(materialKey) {
 
     thicknessSelect.innerHTML = '<option value="">-- Select Thickness --</option>';
 
-    if (options.length === 0) {
+    if (displayOptions.length === 0) {
         thicknessSelect.innerHTML += '<option value="" disabled>No options available</option>';
         console.log('%c⚠️ No thickness options available for this component', 'color: orange;');
     } else {
-        options.forEach((opt, idx) => {
-            thicknessSelect.innerHTML += `<option value="${idx}">${opt.supplier} - ${opt.sectionNo} (T: ${opt.t}mm, Wt: ${opt.weight}kg)</option>`;
+        displayOptions.forEach((opt, idx) => {
+            const wLabel = (opt.w != null) ? `W: ${Math.round(opt.w)}mm, ` : '';
+            thicknessSelect.innerHTML += `<option value="${idx}">${opt.supplier} - ${opt.sectionNo} (${wLabel}T: ${opt.t}mm, Wt: ${opt.weight}kg)</option>`;
         });
-        console.log(`%c✅ Populated ${options.length} thickness options in dropdown`, 'color: green;');
+        console.log(`%c✅ Populated ${displayOptions.length} thickness options in dropdown`, 'color: green;');
         console.log('Dropdown options count:', thicknessSelect.options.length);
     }
 
@@ -3973,9 +4006,10 @@ function openSectionSelectModal(materialKey) {
     if (catalogueList) {
         let catalogueHtml = '';
         options.forEach(opt => {
+            const wInfo = (opt.w != null) ? `Width: ${Math.round(opt.w)}mm | ` : '';
             catalogueHtml += `<div style="padding: 8px; border-bottom: 1px solid #eee;">
                 <strong>${opt.supplier}</strong> - ${opt.sectionNo}<br>
-                <small>Thickness: ${opt.t}mm | Weight: ${opt.weight}kg</small>
+                <small>${wInfo}Thickness: ${opt.t}mm | Weight: ${opt.weight}kg</small>
             </div>`;
         });
         catalogueList.innerHTML = catalogueHtml || '<p>No sections in catalogue.</p>';
@@ -4019,6 +4053,7 @@ function showSelectedSectionDetails() {
     contentDiv.innerHTML = `
         <p><strong>Supplier:</strong> ${opt.supplier}</p>
         <p><strong>Section No:</strong> ${opt.sectionNo}</p>
+        ${opt.w != null ? `<p><strong>Width:</strong> ${Math.round(opt.w)} mm</p>` : ''}
         <p><strong>Thickness:</strong> ${opt.t} mm</p>
         <p><strong>Weight:</strong> ${opt.weight} kg/12ft</p>
     `;

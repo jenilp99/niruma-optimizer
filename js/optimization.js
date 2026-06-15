@@ -233,12 +233,19 @@ function selectHingeSideProfile(win, supplierData) {
 
 // ── Top Rail Profile Selection ────────────────────────────────────────────────
 // Get minimum section weight (kg per 12ft / 144") for a Door profile.
-function getDoorProfileWeight(materialName, supplierData) {
+// v1.53: width-aware. When requiredWidthMM is given, only consider sections whose
+// face width `w` matches (±2mm) before taking the lightest — so e.g. Door Middle
+// Single at 85mm uses the 83mm/3.5kg section, not the lighter 47mm one. If no
+// section matches the width (or width omitted), falls back to all sections.
+function getDoorProfileWeight(materialName, supplierData, requiredWidthMM) {
     const doorSections = supplierData && supplierData.sections && supplierData.sections['Door'];
     if (!doorSections || !doorSections[materialName]) return null;
-    const weights = doorSections[materialName]
-        .map(s => parseFloat(s.weight))
-        .filter(w => w > 0);
+    let secs = doorSections[materialName];
+    if (requiredWidthMM > 0) {
+        const matched = secs.filter(s => s.w != null && Math.abs(parseFloat(s.w) - requiredWidthMM) <= 3);
+        if (matched.length) secs = matched;
+    }
+    const weights = secs.map(s => parseFloat(s.weight)).filter(w => w > 0);
     return weights.length ? Math.min(...weights) : null;
 }
 
@@ -290,7 +297,7 @@ function selectTopRailProfile(win, supplierData, handleVW, hingeVW) {
 
     // Door Top — always considered (its width is topWidthMM by definition)
     const topStock = doorStock.filter(s => s.material === 'Door Top');
-    const wTop     = getDoorProfileWeight('Door Top', supplierData);
+    const wTop     = getDoorProfileWeight('Door Top', supplierData, topWidthMM);
     if (topStock.length && wTop) {
         const kg = estimatePiecesKg([{ length: railLen, qty: L }], topStock, wTop);
         candidates.push({ profile: 'Door Top', kg, mergedKg: null });
@@ -299,7 +306,7 @@ function selectTopRailProfile(win, supplierData, handleVW, hingeVW) {
     // Door Bottom — only if width matches (~114.5mm) AND bottom rail also uses Door Bottom
     if (Math.abs(topWidthMM - 114.5) < 1 && Math.abs(topWidthMM - bottomWidthMM) < 1) {
         const bottomStock = doorStock.filter(s => s.material === 'Door Bottom');
-        const wBottom     = getDoorProfileWeight('Door Bottom', supplierData);
+        const wBottom     = getDoorProfileWeight('Door Bottom', supplierData, bottomWidthMM);
         if (bottomStock.length && wBottom) {
             // Merged: top + bottom + hinge stile all from Door Bottom stock
             const mergedKg = estimatePiecesKg([{ length: railLen, qty: L * 2 }, { length: stileLen, qty: L }], bottomStock, wBottom);
@@ -312,7 +319,7 @@ function selectTopRailProfile(win, supplierData, handleVW, hingeVW) {
     // Door Middle Single (DMS) — if middleWidth matches topWidth
     if (Math.abs(middleWidthMM - topWidthMM) < 0.5) {
         const dmsStock = doorStock.filter(s => s.material === 'Door Middle Single');
-        const wDms     = getDoorProfileWeight('Door Middle Single', supplierData);
+        const wDms     = getDoorProfileWeight('Door Middle Single', supplierData, topWidthMM);
         if (dmsStock.length && wDms) {
             const kg = estimatePiecesKg([{ length: railLen, qty: L }], dmsStock, wDms);
             candidates.push({ profile: 'Door Middle Single', kg, mergedKg: null });
@@ -401,6 +408,70 @@ function computeDoorStileWidths(win, supplierData) {
         handleVW: handleWidthMM / 25.4,
         hingeVW:  hingeWidthMM  / 25.4
     };
+}
+
+// v1.53: Resolve the face-width(s) in mm that each door component is used at for
+// THIS door. Mirrors the width logic in generateDoorProfileFormulas so the section
+// picker modal can filter to applicable widths and weight lookups stay consistent.
+// Returns { '<component>': [w1, w2, ...] }. Components a door doesn't use are absent.
+function computeDoorComponentWidths(win, supplierData) {
+    const map = {};
+    const add = (comp, wmm) => {
+        if (!comp || !(wmm > 0)) return;
+        if (!map[comp]) map[comp] = new Set();
+        map[comp].add(Math.round(wmm * 10) / 10);
+    };
+
+    const HANDLE_COMP = {
+        'Door Vertical':      'Door Vertical',
+        'Door Tips Vertical': 'Door Tips Vertical',
+        'Door Middle Single': 'Door Middle Single'
+    };
+    const handleComp = HANDLE_COMP[win.handleProfile] || 'Door Vertical';
+
+    // Handle stile width
+    let handleWidthMM;
+    if      (handleComp === 'Door Tips Vertical')  handleWidthMM = 47.5;
+    else if (handleComp === 'Door Middle Single')  handleWidthMM = win.handleWidth || win.middleWidth || 47.5;
+    else                                           handleWidthMM = win.handleWidth || win.verticalWidth || 47.5;
+    add(handleComp, handleWidthMM);
+
+    // Hinge stile
+    let hingeComp, hingeWidthMM;
+    if ((win.closingMechanism || 'Hinge') === 'Hinge') {
+        const userHingeW = parseFloat(win.hingeWidth);
+        const w = (userHingeW > 0) ? userHingeW : 114.5;
+        if (w >= 110) {
+            hingeComp = 'Door Bottom';
+            const dbSections = supplierData && supplierData.sections &&
+                               supplierData.sections['Door'] && supplierData.sections['Door']['Door Bottom'];
+            hingeWidthMM = (dbSections && dbSections[0] && dbSections[0].w) || 114.5;
+        } else {
+            hingeComp = 'Door Top';
+            hingeWidthMM = w;
+        }
+    } else {
+        hingeComp = HANDLE_COMP[win.floorSpringHingeProfile] || handleComp;
+        if (hingeComp === 'Door Tips Vertical')      hingeWidthMM = 47.5;
+        else if (hingeComp === 'Door Middle Single') hingeWidthMM = win.middleWidth || 47.5;
+        else                                          hingeWidthMM = win.handleWidth || win.verticalWidth || 47.5;
+    }
+    add(hingeComp, hingeWidthMM);
+
+    // Top rail — same auto-selection used by the cutting plan
+    const topRailComp = selectTopRailProfile(win, supplierData, handleWidthMM / 25.4, hingeWidthMM / 25.4);
+    add(topRailComp, win.topWidth || 47.5);
+
+    // Bottom rail (always Door Bottom), Middle rail (always Door Middle Double)
+    add('Door Bottom', win.bottomWidth || 114.5);
+    add('Door Middle Double', win.middleWidth || 47.5);
+
+    // Frame (Door Leg Partition = 40mm) when framed
+    if (win.frame) add('Door Leg Partition', 40);
+
+    const out = {};
+    Object.keys(map).forEach(k => { out[k] = [...map[k]]; });
+    return out;
 }
 
 // Generate door profile formulas dynamically based on window properties.
