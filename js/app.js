@@ -4484,6 +4484,52 @@ function getComponentThicknessOptions(vendor, series, componentName, profileWidt
 }
 
 /**
+ * v1.54: Pre-run door thickness GATE. Opens the Project Thickness modal in "confirm"
+ * mode — shows the gate banner + a "Confirm & Run" button. Suggestions are already
+ * seeded into the doors by runOptimization() before this is called.
+ */
+function openDoorThicknessGate(project) {
+    window._doorThkGateProject = project;
+    openProjectThicknessModal();
+    const banner = document.getElementById('doorThkGateBanner');
+    const confirmBtn = document.getElementById('doorThkConfirmRunBtn');
+    if (banner) banner.style.display = 'block';
+    if (confirmBtn) confirmBtn.style.display = 'inline-block';
+}
+
+/**
+ * Apply size/role-based suggested thicknesses to every door in the project,
+ * overwriting auto-filled values (preserves manual edits). Refreshes the list.
+ */
+function applySuggestedToAllDoors() {
+    const project = window._doorThkGateProject ||
+        (document.getElementById('projectSelector') || {}).value;
+    if (!project) return;
+    const doors = windows.filter(w => w.projectName === project && w.category === 'Door');
+    let n = 0;
+    doors.forEach(w => { n += applyDoorThicknessPlan(w, true); });   // force = re-apply suggestions
+    autoSaveWindows();
+    renderProjectThicknessItems(windows.filter(w => w.projectName === project));
+    showAlert(`✅ Applied suggested thicknesses to ${doors.length} door(s).`);
+}
+
+/**
+ * Confirm the (possibly edited) door thicknesses and proceed to optimization.
+ * Marks this door-config signature confirmed so RUN won't re-prompt until doors change.
+ */
+function confirmDoorThicknessAndRun() {
+    const project = window._doorThkGateProject ||
+        (document.getElementById('projectSelector') || {}).value;
+    autoSaveWindows();
+    if (project && window._pendingDoorSig) {
+        window._doorThkSig = window._doorThkSig || {};
+        window._doorThkSig[project] = window._pendingDoorSig[project];
+    }
+    closeProjectThicknessModal();
+    if (typeof runOptimization === 'function') runOptimization();
+}
+
+/**
  * Open the Project Thickness Configuration Modal
  */
 function openProjectThicknessModal() {
@@ -4506,6 +4552,12 @@ function openProjectThicknessModal() {
 
     // Populate individual items list
     renderProjectThicknessItems(projectWindows);
+
+    // Default: hide gate-only UI (openDoorThicknessGate re-shows it when gating a RUN)
+    const banner = document.getElementById('doorThkGateBanner');
+    const confirmBtn = document.getElementById('doorThkConfirmRunBtn');
+    if (banner) banner.style.display = 'none';
+    if (confirmBtn) confirmBtn.style.display = 'none';
 
     // Show modal
     const modal = document.getElementById('projectThicknessModal');
@@ -4593,6 +4645,10 @@ function renderProjectThicknessItems(projectWindows) {
         const isDoor = w.category === 'Door';
         const icon = isDoor ? '🚪' : '🪟';
         const recommended = getRecommendedThickness(w.height, w.width);
+        // Doors get per-profile size/role suggestions (not one number); windows get a single value.
+        const suggestText = isDoor
+            ? `per-profile (size & role based) — click Edit to review`
+            : `<strong>${recommended.t}mm</strong> (${recommended.reason})`;
 
         // Check current selection status
         const hasThickness = w.componentThicknesses && Object.keys(w.componentThicknesses).length > 0;
@@ -4602,8 +4658,12 @@ function renderProjectThicknessItems(projectWindows) {
         // Get current thickness display
         let currentThicknessDisplay = 'Not Set';
         if (hasThickness) {
-            const firstComp = Object.values(w.componentThicknesses)[0];
-            currentThicknessDisplay = `${firstComp.t}mm`;
+            if (isDoor) {
+                currentThicknessDisplay = `${Object.keys(w.componentThicknesses).length} profiles set`;
+            } else {
+                const firstComp = Object.values(w.componentThicknesses)[0];
+                currentThicknessDisplay = `${firstComp.t}mm`;
+            }
         }
 
         html += `
@@ -4614,7 +4674,7 @@ function renderProjectThicknessItems(projectWindows) {
                     ${w.width}" × ${w.height}" | ${w.vendor} | ${w.series}
                 </div>
                 <div style="font-size: 0.8em; color: #3498db; margin-top: 3px;">
-                    💡 Suggested: <strong>${recommended.t}mm</strong> (${recommended.reason})
+                    💡 Suggested: ${suggestText}
                 </div>
             </div>
             <div style="flex: 1; text-align: center;">
@@ -4704,6 +4764,7 @@ function closeProjectThicknessModal() {
         modal.classList.remove('active');
         document.body.style.overflow = '';
     }
+    window._doorThkGateProject = null;
 }
 
 /**
@@ -4731,66 +4792,76 @@ function openComponentThicknessModal(windowIdx) {
     const container = document.getElementById('componentThicknessList');
     if (!container) return;
 
-    // Get components from formulas
-    const formulas = seriesFormulas[w.series] || [];
-    const recommended = getRecommendedThickness(w.height, w.width);
+    const isDoor = w.category === 'Door';
+    const supplierData = (window.SUPPLIER_REGISTRY || {})[w.vendor];
 
-    let html = `
-    <div class="alert alert-success" style="margin-bottom: 15px; padding: 10px;">
-        💡 <strong>Recommended:</strong> ${recommended.t}mm - ${recommended.reason}
-    </div>`;
-
-    if (formulas.length === 0) {
-        html += '<p style="color: #e67e22;">⚠️ No component formulas found for this series. Please configure series formulas first.</p>';
+    // Build the row list. Doors use the DYNAMIC profile plan (size/role-based
+    // suggestions, exact components this door uses); windows use static formulas.
+    let html = '';
+    let rows = [];
+    if (isDoor && typeof getDoorThicknessPlan === 'function') {
+        const plan = getDoorThicknessPlan(w, supplierData);
+        html += `<div class="alert alert-success" style="margin-bottom: 15px; padding: 10px;">
+            🚪 <strong>Suggested by door size & role</strong> — ★ marks the recommended gauge. Edit any if needed.
+        </div>`;
+        rows = Object.entries(plan).map(([component, rec]) => ({
+            component, desc: rec.role, recT: rec.t, recSection: rec.sectionNo, width: rec.w
+        }));
+        if (!rows.length) html += '<p style="color:#e67e22;">⚠️ No door sections found for this vendor.</p>';
     } else {
-        formulas.forEach((f, idx) => {
-            const currentSelection = w.componentThicknesses?.[f.component];
-            const currentValue = currentSelection?.t || '';
-            const currentWidth = currentSelection?.profileWidth || null;
-
-            // Get all options for this component (without width filter) to find unique widths
-            const allOptions = getComponentThicknessOptions(w.vendor, w.series, f.component, null);
-
-            // Extract unique widths
-            const uniqueWidths = [...new Set(allOptions.filter(o => o.w).map(o => o.w))].sort((a, b) => a - b);
-            const hasMultipleWidths = uniqueWidths.length > 1;
-
-            // Get filtered options based on selected width or show all
-            const componentOptions = hasMultipleWidths && currentWidth
-                ? getComponentThicknessOptions(w.vendor, w.series, f.component, currentWidth)
-                : allOptions;
-
-            html += `
-            <div style="padding: 10px; border-bottom: 1px solid #eee;">
-                <div style="display: flex; align-items: center; gap: 15px; margin-bottom: ${hasMultipleWidths ? '8px' : '0'};">
-                    <div style="flex: 1; font-weight: bold;">${f.component}</div>
-                    <div style="flex: 1; color: #666; font-size: 0.9em;">${f.desc}</div>
-                    ${hasMultipleWidths ? `
-                    <div style="flex: 0.7;">
-                        <select id="compWidth_${idx}" class="component-width-select" data-component="${f.component}" data-idx="${idx}" 
-                                style="width: 100%; padding: 6px; background: #fff3cd; border: 1px solid #ffc107;"
-                                onchange="updateThicknessForWidth(${windowIdx}, '${f.component}', ${idx})">
-                            <option value="">📐 Profile Width</option>
-                            ${uniqueWidths.map(w =>
-                `<option value="${w}" ${w === currentWidth ? 'selected' : ''}>${w}mm</option>`
-            ).join('')}
-                        </select>
-                    </div>` : ''}
-                    <div style="flex: 1;">
-                        <select id="compThickness_${idx}" class="component-thickness-select" data-component="${f.component}" style="width: 100%; padding: 6px;">
-                            <option value="">-- Select --</option>
-                            ${componentOptions.map(opt =>
-                `<option value="${opt.t}" data-sectionno="${opt.sectionNo}" data-weight="${opt.weight}" data-width="${opt.w || ''}" ${opt.t === currentValue ? 'selected' : ''} 
-                             ${opt.t === recommended.t ? 'style="font-weight: bold; color: #2e7d32;"' : ''}>
-                                ${opt.t}mm ${opt.t === recommended.t ? '★' : ''} (${opt.sectionNo})
-                            </option>`
-            ).join('')}
-                        </select>
-                    </div>
-                </div>
-            </div>`;
-        });
+        const formulas = seriesFormulas[w.series] || [];
+        const recommended = getRecommendedThickness(w.height, w.width);
+        html += `<div class="alert alert-success" style="margin-bottom: 15px; padding: 10px;">
+            💡 <strong>Recommended:</strong> ${recommended.t}mm - ${recommended.reason}
+        </div>`;
+        if (!formulas.length) html += '<p style="color:#e67e22;">⚠️ No component formulas found for this series. Please configure series formulas first.</p>';
+        rows = formulas.map(f => ({ component: f.component, desc: f.desc, recT: recommended.t, recSection: null, width: null }));
     }
+
+    rows.forEach((row, idx) => {
+        const comp = row.component;
+        const currentSelection = w.componentThicknesses?.[comp];
+        const currentValue = currentSelection?.t || '';
+
+        const allOptions = getComponentThicknessOptions(w.vendor, w.series, comp, null);
+        const uniqueWidths = [...new Set(allOptions.filter(o => o.w).map(o => o.w))].sort((a, b) => a - b);
+        // Doors: width is fixed by the door config (no width picker); windows keep the picker.
+        const hasMultipleWidths = !isDoor && uniqueWidths.length > 1;
+        const fixedWidth = isDoor ? row.width : (currentSelection?.profileWidth || null);
+        const componentOptions = (isDoor && row.width != null)
+            ? getComponentThicknessOptions(w.vendor, w.series, comp, row.width)
+            : (hasMultipleWidths && fixedWidth ? getComponentThicknessOptions(w.vendor, w.series, comp, fixedWidth) : allOptions);
+
+        const recT = row.recT;
+        const effVal = (currentValue !== '') ? currentValue : recT;   // pre-select recommended if unset
+
+        html += `
+        <div style="padding: 10px; border-bottom: 1px solid #eee;">
+            <div style="display: flex; align-items: center; gap: 15px;">
+                <div style="flex: 1; font-weight: bold;">${comp}${isDoor && row.width != null ? ` <span style="font-size:0.8em;color:#888;">${Math.round(row.width)}mm</span>` : ''}</div>
+                <div style="flex: 1; color: #666; font-size: 0.9em; text-transform: capitalize;">${row.desc || ''}</div>
+                ${hasMultipleWidths ? `
+                <div style="flex: 0.7;">
+                    <select id="compWidth_${idx}" class="component-width-select" data-component="${comp}" data-idx="${idx}"
+                            style="width: 100%; padding: 6px; background: #fff3cd; border: 1px solid #ffc107;"
+                            onchange="updateThicknessForWidth(${windowIdx}, '${comp}', ${idx})">
+                        <option value="">📐 Profile Width</option>
+                        ${uniqueWidths.map(uw => `<option value="${uw}" ${uw === fixedWidth ? 'selected' : ''}>${uw}mm</option>`).join('')}
+                    </select>
+                </div>` : ''}
+                <div style="flex: 1;">
+                    <select id="compThickness_${idx}" class="component-thickness-select" data-component="${comp}" style="width: 100%; padding: 6px;">
+                        <option value="">-- Select --</option>
+                        ${componentOptions.map(opt => {
+                            const isRec = Math.abs(opt.t - recT) < 0.001 && (!row.recSection || opt.sectionNo === row.recSection);
+                            const sel = (String(opt.t) === String(effVal)) ? 'selected' : '';
+                            return `<option value="${opt.t}" data-sectionno="${opt.sectionNo}" data-weight="${opt.weight}" data-width="${opt.w || ''}" ${sel} ${isRec ? 'style="font-weight: bold; color: #2e7d32;"' : ''}>${opt.t}mm ${isRec ? '★' : ''} (${opt.sectionNo})</option>`;
+                        }).join('')}
+                    </select>
+                </div>
+            </div>
+        </div>`;
+    });
 
     container.innerHTML = html;
 

@@ -10,8 +10,8 @@
     <title>Niruma Aluminum Profile Optimizer</title>
 
     <!-- CSS -->
-    <link rel="stylesheet" href="css/styles.css?v=1.53">
-    <link rel="stylesheet" href="css/modal.css?v=1.53">
+    <link rel="stylesheet" href="css/styles.css?v=1.54">
+    <link rel="stylesheet" href="css/modal.css?v=1.54">
 
     <!-- External Libraries -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -65,7 +65,7 @@
                 <span><strong>mm</strong></span>
             </div>
             <!-- APP VERSION — bump this number on every push/update -->
-            <div class="navbar-version">Ver: 1.53</div>
+            <div class="navbar-version">Ver: 1.54</div>
         </div>
     </nav>
 
@@ -1665,6 +1665,18 @@
                 <button class="close-btn" onclick="closeProjectThicknessModal()">&times;</button>
             </div>
             <div class="modal-body" style="overflow-y: auto; max-height: calc(90vh - 120px);">
+                <!-- v1.54: Pre-run gate banner (shown only when RUN is gated on door review) -->
+                <div id="doorThkGateBanner" style="display:none; background:#fff3e0; border:2px solid #fb8c00; border-radius:8px; padding:12px 15px; margin-bottom:15px;">
+                    <strong style="color:#e65100;">🚪 Review door thicknesses before optimizing.</strong>
+                    <div style="font-size:0.9em; color:#5d4037; margin-top:4px;">
+                        Suggested gauges are pre-filled per profile based on each door's size & structural role
+                        (heaviest at the hinge/pivot, lightest at the top rail; glazing clip set to the sturdiest gauge).
+                        Click <em>Edit</em> on any door to adjust, then <strong>Confirm &amp; Run</strong>.
+                    </div>
+                    <button type="button" class="btn btn-warning btn-sm" onclick="applySuggestedToAllDoors()" style="margin-top:8px;">
+                        ↻ Re-apply suggested to all doors
+                    </button>
+                </div>
                 <div class="alert alert-info" style="margin-bottom: 15px;">
                     <strong>📐 Thickness Selection:</strong> Select material thickness for optimization.
                     Thicker profiles are recommended for larger windows.
@@ -1714,7 +1726,10 @@
             <div class="modal-footer"
                 style="display: flex; justify-content: space-between; padding: 15px; border-top: 1px solid #eee;">
                 <button class="btn btn-secondary" onclick="closeProjectThicknessModal()">Close</button>
-                <button class="btn btn-success" onclick="saveAllThicknessSelections()">💾 Save All Selections</button>
+                <div style="display:flex; gap:10px;">
+                    <button class="btn btn-success" onclick="saveAllThicknessSelections()">💾 Save All Selections</button>
+                    <button id="doorThkConfirmRunBtn" class="btn btn-primary" style="display:none;" onclick="confirmDoorThicknessAndRun()">✅ Confirm &amp; Run Optimization</button>
+                </div>
             </div>
         </div>
     </div>
@@ -1853,18 +1868,18 @@
     </div>
 
     <!-- JavaScript Files - Load in Order -->
-    <script src="js/storage.js?v=1.53"></script>
-    <script src="js/supplier_master.js?v=1.53"></script>
+    <script src="js/storage.js?v=1.54"></script>
+    <script src="js/supplier_master.js?v=1.54"></script>
     <!-- Supplier Modules -->
-    <script src="js/suppliers/windalco.js?v=1.53"></script>
-    <script src="js/suppliers/jk_alu.js?v=1.53"></script>
-    <script src="js/suppliers/atlantis.js?v=1.53"></script>
-    <script src="js/suppliers/vitco.js?v=1.53"></script>
+    <script src="js/suppliers/windalco.js?v=1.54"></script>
+    <script src="js/suppliers/jk_alu.js?v=1.54"></script>
+    <script src="js/suppliers/atlantis.js?v=1.54"></script>
+    <script src="js/suppliers/vitco.js?v=1.54"></script>
 
-    <script src="js/app.js?v=1.53"></script>
-    <script src="js/optimization.js?v=1.53"></script>
-    <script src="js/exports.js?v=1.53"></script>
-    <script src="js/Quotation.js?v=1.53"></script>
+    <script src="js/app.js?v=1.54"></script>
+    <script src="js/optimization.js?v=1.54"></script>
+    <script src="js/exports.js?v=1.54"></script>
+    <script src="js/Quotation.js?v=1.54"></script>
 
 </body>
 

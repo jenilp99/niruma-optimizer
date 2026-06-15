@@ -12,6 +12,27 @@ function runOptimization() {
         return;
     }
 
+    // v1.54: Pre-run DOOR thickness gate. Seed size/role-based suggestions, then make
+    // the user review & confirm them before optimizing. Re-arms if any door's size or
+    // profile config changes (signature mismatch). Windows are unaffected.
+    const doorWins = windows.filter(w => w.projectName === selectedProject && w.category === 'Door');
+    if (doorWins.length) {
+        const sig = doorWins.map(w =>
+            `${w.configId}:${w.width}x${w.height}:${w.leaves}:${w.handleProfile}:${w.hingeWidth}:${w.closingMechanism}:${w.frame}`
+        ).join('|');
+        window._doorThkSig = window._doorThkSig || {};
+        if (window._doorThkSig[selectedProject] !== sig) {
+            doorWins.forEach(w => applyDoorThicknessPlan(w, false)); // pre-fill suggestions (auto only)
+            if (typeof autoSaveWindows === 'function') autoSaveWindows();
+            window._pendingDoorSig = window._pendingDoorSig || {};
+            window._pendingDoorSig[selectedProject] = sig;
+            if (typeof openDoorThicknessGate === 'function') {
+                openDoorThicknessGate(selectedProject);
+                return;
+            }
+        }
+    }
+
     console.log(`%c🏭 Optimization started for project: "${selectedProject}"`, 'background: #007bff; color: white; padding: 2px 6px;');
 
     // Collect pre-selected thickness from window configurations
@@ -472,6 +493,137 @@ function computeDoorComponentWidths(win, supplierData) {
     const out = {};
     Object.keys(map).forEach(k => { out[k] = [...map[k]]; });
     return out;
+}
+
+// v1.54: Recommended door thickness PLAN — assigns each door profile a target gauge
+// by structural ROLE, scaled by door SIZE, then snaps to the nearest available
+// catalogue section at that profile's width.
+// Returns { '<component>': { t, sectionNo, weight, w, role, reason, supplier } }.
+//
+// Philosophy (hinged door): keep mass low far from the pivot to cut hinge load.
+//   - Hinge/pivot stile = thickest (screw pull-out + bending strength)
+//   - Bottom & middle rails = mid gauge (impact + sag resistance)
+//   - Handle/lock stile = moderate (carries lock/handle hardware — NOT the lightest)
+//   - Top rail = lightest (far from pivot, low load)
+//   - Glazing clip = THICKEST available (it dents when pressed during fitting)
+// Floor-spring doors: shift the heavy gauge to the bottom rail + pivot stile.
+function getDoorThicknessPlan(win, supplierData) {
+    if (!win || !supplierData || !supplierData.sections || !supplierData.sections['Door']) return {};
+    const doorSecs = supplierData.sections['Door'];
+
+    // ── Size band from per-leaf width × height (+ heavy-glass bump) ──
+    const leaves   = win.leaves || 1;
+    const perLeafW = (win.width || 0) / leaves;
+    const height   = win.height || 0;
+    let band = 'medium';
+    if (perLeafW <= 30 && height <= 84) band = 'small';
+    else if (perLeafW > 36 || height > 96) band = 'large';
+    const heavyGlass = (win.glassUnit === 'DGU') || (parseFloat(win.glassThickness) >= 8) ||
+        (win.upperPartition && win.upperPartition.glassType === 'DGU');
+    if (heavyGlass) band = (band === 'small') ? 'medium' : 'large';
+
+    // ── Target gauge (mm) by role × band ──
+    const MATRIX = {
+        small:  { hinge: 1.8, bottom: 1.5, middle: 1.4, handle: 1.4, top: 1.1, frame: 1.3 },
+        medium: { hinge: 2.0, bottom: 1.6, middle: 1.5, handle: 1.5, top: 1.2, frame: 1.4 },
+        large:  { hinge: 2.0, bottom: 1.8, middle: 1.6, handle: 1.6, top: 1.4, frame: 1.5 }
+    };
+    const tgt = MATRIX[band];
+    const reasonBand = `${band} door (${Math.round(perLeafW)}"×${Math.round(height)}"${heavyGlass ? ', heavy glass' : ''})`;
+    const isFloorSpring = (win.closingMechanism || 'Hinge') !== 'Hinge';
+
+    // ── Resolve which component fills each role + its width ──
+    const widths = computeDoorComponentWidths(win, supplierData);
+    const HANDLE_COMP = { 'Door Vertical':'Door Vertical', 'Door Tips Vertical':'Door Tips Vertical', 'Door Middle Single':'Door Middle Single' };
+    const handleComp = HANDLE_COMP[win.handleProfile] || 'Door Vertical';
+    let hingeComp;
+    if (!isFloorSpring) {
+        const hw = parseFloat(win.hingeWidth); const w = (hw > 0) ? hw : 114.5;
+        hingeComp = (w >= 110) ? 'Door Bottom' : 'Door Top';
+    } else {
+        hingeComp = HANDLE_COMP[win.floorSpringHingeProfile] || handleComp;
+    }
+    const sw = computeDoorStileWidths(win, supplierData);
+    const topRailComp = selectTopRailProfile(win, supplierData, sw.handleVW, sw.hingeVW);
+
+    // role → component (a component may collect several roles → take the max target)
+    const roleByComp = {};
+    const addRole = (comp, role) => { if (!comp) return; (roleByComp[comp] = roleByComp[comp] || new Set()).add(role); };
+    addRole(handleComp, 'handle');
+    addRole(hingeComp, isFloorSpring ? 'bottom' : 'hinge');
+    addRole(topRailComp, 'top');
+    addRole('Door Bottom', isFloorSpring ? 'hinge' : 'bottom');  // FS: bottom rail bears load
+    addRole('Door Middle Double', 'middle');
+    if (win.frame) addRole('Door Leg Partition', 'frame');
+
+    // Snap a target gauge to the nearest available section at the component's width.
+    const snap = (component, targetT, maxGauge) => {
+        let secs = doorSecs[component] || [];
+        const reqW = (widths[component] && widths[component][0]) || null;
+        if (reqW != null) {
+            const m = secs.filter(s => s.w != null && Math.abs(parseFloat(s.w) - reqW) <= 3);
+            if (m.length) secs = m;
+        }
+        secs = secs.filter(s => parseFloat(s.weight) > 0);
+        if (!secs.length) return null;
+        let chosen;
+        if (maxGauge) {
+            chosen = secs.reduce((a, b) => parseFloat(b.t) > parseFloat(a.t) ? b : a);
+        } else {
+            // Asymmetric snap: accept a section up to UNDER_TOL below target before
+            // rounding up — avoids a big jump (e.g. 1.5→3.0) when target is 1.6, yet
+            // strength-critical targets with no near option still round up.
+            const UNDER_TOL = 0.15;
+            const sorted = [...secs].sort((a, b) => parseFloat(a.t) - parseFloat(b.t));
+            const up = sorted.find(s => parseFloat(s.t) >= targetT - 0.001);
+            const downArr = sorted.filter(s => parseFloat(s.t) < targetT);
+            const down = downArr.length ? downArr[downArr.length - 1] : null;
+            if (down && (targetT - parseFloat(down.t)) <= UNDER_TOL) chosen = down;
+            else if (up) chosen = up;
+            else chosen = down || sorted[sorted.length - 1];
+        }
+        return { t: parseFloat(chosen.t), sectionNo: chosen.sectionNo,
+                 weight: parseFloat(chosen.weight), w: chosen.w != null ? chosen.w : reqW };
+    };
+
+    const plan = {};
+    Object.keys(roleByComp).forEach(comp => {
+        const roles = [...roleByComp[comp]];
+        const targetT = Math.max(...roles.map(r => tgt[r] || 0));
+        const primaryRole = roles.sort((a, b) => (tgt[b] || 0) - (tgt[a] || 0))[0];
+        const snapped = snap(comp, targetT, false);
+        if (snapped) plan[comp] = { ...snapped, role: primaryRole, reason: `${primaryRole} • ${reasonBand}`, supplier: win.vendor };
+    });
+
+    // Glazing clip — thickest available (dent resistance), no size scaling
+    if (doorSecs['Door Glazing Clip']) {
+        const clip = snap('Door Glazing Clip', 0, true);
+        if (clip) plan['Door Glazing Clip'] = { ...clip, role: 'clip', reason: 'clip • thickest (dent-resistant for press fitting)', supplier: win.vendor };
+    }
+
+    return plan;
+}
+
+// Apply the recommended plan into win.componentThicknesses. By default only fills
+// components that are missing or were previously auto-filled (_auto), so manual
+// edits survive. Pass force=true to overwrite everything. Returns count changed.
+function applyDoorThicknessPlan(win, force) {
+    const sd = (typeof window !== 'undefined' ? window.SUPPLIER_REGISTRY : SUPPLIER_REGISTRY || {})[win.vendor];
+    const plan = getDoorThicknessPlan(win, sd);
+    if (!win.componentThicknesses) win.componentThicknesses = {};
+    let n = 0;
+    Object.entries(plan).forEach(([comp, rec]) => {
+        const cur = win.componentThicknesses[comp];
+        if (force || !cur || cur._auto) {
+            win.componentThicknesses[comp] = {
+                t: rec.t, supplier: rec.supplier || win.vendor,
+                sectionNo: rec.sectionNo, weight: rec.weight,
+                profileWidth: rec.w, _auto: true
+            };
+            n++;
+        }
+    });
+    return n;
 }
 
 // Generate door profile formulas dynamically based on window properties.
