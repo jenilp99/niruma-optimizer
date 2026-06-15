@@ -623,6 +623,20 @@ function applyDoorThicknessPlan(win, force) {
             n++;
         }
     });
+
+    // v1.55: Door Tie Angle has a single fixed spec (38×38×3) — seed it so it's
+    // weighed in both the optimizer and the quotation, but it is NOT a gate row.
+    const tie = (sd && sd.sections && sd.sections['Door'] && sd.sections['Door']['Door Tie Angle'] || [])[0];
+    if (tie) {
+        const cur = win.componentThicknesses['Door Tie Angle'];
+        if (force || !cur || cur._auto) {
+            win.componentThicknesses['Door Tie Angle'] = {
+                t: tie.t, supplier: win.vendor, sectionNo: tie.sectionNo,
+                weight: tie.weight, profileWidth: tie.w, _auto: true
+            };
+            n++;
+        }
+    }
     return n;
 }
 
@@ -707,7 +721,10 @@ function generateDoorProfileFormulas(win, supplierData) {
         // so vertical lower clip never gets a frame deduction.
         { component: 'Door Glazing Clip',  qty: '4*L', length: 'H - F*(40/25.4) - TW - MW/2 - MRPI',        desc: 'Glazing Clip Vertical Top' },
         { component: 'Door Glazing Clip',  qty: '4*L', length: 'MRPI - BW - MW/2',                          desc: 'Glazing Clip Vertical Bottom' },
-        { component: 'Door Glazing Clip',  qty: '8*L', length: '(W - (F*(80/25.4))) / L - HandleVW - HingeVW', desc: 'Glazing Clip Horizontal' }
+        { component: 'Door Glazing Clip',  qty: '8*L', length: '(W - (F*(80/25.4))) / L - HandleVW - HingeVW', desc: 'Glazing Clip Horizontal' },
+        // v1.55: Tie angle 38×38×3 — 8 short cleats (~40mm) per leaf screwed inside the
+        // rails to tie the profiles together and resist sag. Weight-based at Door rate.
+        { component: 'Door Tie Angle',     qty: '8*L', length: '(40/25.4)',                                  desc: 'Tie Angle (joint cleat)' }
         // v1.48: Door Rod 12mm removed from the profile cut plan — it is now costed as
         // hardware (per nos @ Rs.115), not aluminium by weight. See generateDoorHardware().
     ];

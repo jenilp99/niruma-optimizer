@@ -237,6 +237,11 @@ window.registerSupplier("JK ALU EXTRUSION", {
             "Door Rod 12mm": [
                 { sectionNo: "DR12", t: 12.0, weight: 1.13, w: 12 }
             ],
+            // v1.55: Door Tie Angle 38×38×3 — joint cleat (8 × ~40mm pieces per leaf),
+            // ≈0.591 kg/m → 2.16 kg per 144" stick. Costed by weight at the Door series rate.
+            "Door Tie Angle": [
+                { sectionNo: "TIE3838", t: 3.0, weight: 2.16, w: 38, h: 38 }
+            ],
             // Door Bottom (L=25mm or 15mm)
             "Door Bottom": [
                 { sectionNo: "4101", t: 1.16, weight: 4.400, l: 25, w: 114.5 },
@@ -414,6 +419,8 @@ window.registerSupplier("JK ALU EXTRUSION", {
             { material: 'Door Glazing Clip', stock1: 141, stock1Cost: 0, stock2: 177, stock2Cost: 0 },
             { material: 'Door Leg Partition', stock1: 141, stock1Cost: 0, stock2: 177, stock2Cost: 0 },
             { material: 'Door Tips Vertical', stock1: 141, stock1Cost: 0, stock2: 177, stock2Cost: 0 },
+            // v1.55: Door Tie Angle 38×38×3 — 12' (144") stock, weight-based cost (2.16 kg/stick)
+            { material: 'Door Tie Angle', stock1: 144, stock1Cost: 0, stock2: 0, stock2Cost: 0, weight: 2.16 },
             // v1.40: Door Rod 12mm — 2 metre stock (78.74")
             { material: 'Door Rod 12mm', stock1: 78.74, stock1Cost: 40, stock2: 0, stock2Cost: 0 }
         ]

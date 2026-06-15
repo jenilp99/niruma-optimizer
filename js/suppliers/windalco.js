@@ -172,6 +172,12 @@ window.registerSupplier("Windalco Aluminium", {
             "Door Corner Section": [
                 { sectionNo: "20206", t: 1.00, weight: 3.800 }
             ],
+            // v1.55: Door Tie Angle 38×38×3 — joint cleat screwed inside rails to tie
+            // profiles & resist sag. Cut into ~40mm pieces (8 per leaf). ≈0.591 kg/m
+            // → 2.16 kg per 144" stick. Costed by weight at the Door series rate.
+            "Door Tie Angle": [
+                { sectionNo: "TIE3838", t: 3.0, weight: 2.16, w: 38, h: 38 }
+            ],
             // Glazing Clip (from catalog page 17)
             "Door Glazing Clip": [
                 { sectionNo: "20157", t: 0.40, weight: 0.200 },
@@ -297,6 +303,8 @@ window.registerSupplier("Windalco Aluminium", {
             { material: 'Door Tips Vertical', stock1: 141, stock1Cost: 100, stock2: 177, stock2Cost: 125 },
             { material: 'Door Corner Section', stock1: 141, stock1Cost: 100, stock2: 177, stock2Cost: 125 },
             { material: 'Door Glazing Clip', stock1: 141, stock1Cost: 100, stock2: 177, stock2Cost: 125 },
+            // v1.55: Door Tie Angle 38×38×3 — 12' (144") stock, weight-based cost (2.16 kg/stick)
+            { material: 'Door Tie Angle', stock1: 144, stock1Cost: 0, stock2: 0, stock2Cost: 0, weight: 2.16 },
             // v1.40: Door Rod 12mm sold in 2-metre lengths (78.74"). Single stock option.
             { material: 'Door Rod 12mm', stock1: 78.74, stock1Cost: 40, stock2: 0, stock2Cost: 0 }
         ]
