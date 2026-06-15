@@ -44,6 +44,135 @@ function incrementConfigCounter(category) {
     localStorage.setItem('doorCounter', doorCounter);
 }
 
+// ── v1.60: Config-ID uniqueness + bulk (multi-size) add helpers ────────────────
+// Config IDs are unique PER PROJECT (two projects may each have W01).
+function isConfigIdTaken(id, projectName, excludeIdx) {
+    if (!id) return false;
+    const k = String(id).trim().toLowerCase();
+    return windows.some((w, i) =>
+        i !== excludeIdx &&
+        (w.projectName || '') === (projectName || '') &&
+        (w.configId || '').trim().toLowerCase() === k);
+}
+
+// Next free Wnn/Dnn for a project, skipping ids already used or reserved this batch.
+function nextAvailableConfigId(category, projectName, reserved) {
+    const prefix = category === 'Door' ? 'D' : 'W';
+    reserved = reserved || new Set();
+    let n = 1, id;
+    do { id = prefix + String(n).padStart(2, '0'); n++; }
+    while (isConfigIdTaken(id, projectName, -1) || reserved.has(id.toLowerCase()));
+    return id;
+}
+
+function flagField(el, on) {
+    if (!el) return;
+    el.style.outline = on ? '2px solid #e74c3c' : '';
+    el.style.background = on ? '#fdecea' : '';
+}
+
+// Collect the size rows from a form: the primary single inputs + any extra rows.
+// Returns [{ configId, location, widthRaw, heightRaw, qty, _idEl, _wEl, _hEl }, ...]
+function collectSizeRows(form) {
+    const m = form === 'door'
+        ? { id: 'doorConfigId', loc: 'doorLocation', w: 'doorWidth',  h: 'doorHeight',  qty: 'doorQty',   cont: 'doorExtraSizes' }
+        : { id: 'configId',     loc: 'windowLocation', w: 'width',     h: 'height',      qty: 'windowQty', cont: 'windowExtraSizes' };
+    const rows = [];
+    const idEl = document.getElementById(m.id);
+    const wEl  = document.getElementById(m.w);
+    const hEl  = document.getElementById(m.h);
+    rows.push({
+        configId: (idEl && idEl.value || '').trim(),
+        location: document.getElementById(m.loc) ? document.getElementById(m.loc).value : '',
+        widthRaw: parseDimension(wEl ? wEl.value : ''),
+        heightRaw: parseDimension(hEl ? hEl.value : ''),
+        qty: parseInt(document.getElementById(m.qty) ? document.getElementById(m.qty).value : '1') || 1,
+        _idEl: idEl, _wEl: wEl, _hEl: hEl
+    });
+    const cont = document.getElementById(m.cont);
+    if (cont) cont.querySelectorAll('.size-row').forEach(r => {
+        const idi = r.querySelector('.szid'), wi = r.querySelector('.szw'), hi = r.querySelector('.szh');
+        rows.push({
+            configId: (idi && idi.value || '').trim(),
+            location: (r.querySelector('.szloc') || {}).value || '',
+            widthRaw: parseDimension(wi ? wi.value : ''),
+            heightRaw: parseDimension(hi ? hi.value : ''),
+            qty: parseInt((r.querySelector('.szqty') || {}).value) || 1,
+            _idEl: idi, _wEl: wi, _hEl: hi
+        });
+    });
+    return rows;
+}
+
+// Append one extra size row (pre-fills previous row's W/H, next free Config ID).
+function addSizeRow(form) {
+    const category = form === 'door' ? 'Door' : (document.getElementById('category') ? document.getElementById('category').value : 'Window');
+    const project = (document.getElementById(form === 'door' ? 'doorProjectName' : 'projectName') || {}).value || '';
+    const cont = document.getElementById(form === 'door' ? 'doorExtraSizes' : 'windowExtraSizes');
+    if (!cont) return;
+    const existing = collectSizeRows(form);
+    const reserved = new Set(existing.map(r => (r.configId || '').toLowerCase()).filter(Boolean));
+    const nextId = nextAvailableConfigId(category, project, reserved);
+    const prev = existing[existing.length - 1] || {};
+    const wv = (prev._wEl && prev._wEl.value) || '';
+    const hv = (prev._hEl && prev._hEl.value) || '';
+    const inS = 'padding:6px;border:1px solid #ddd;border-radius:5px;';
+    const row = document.createElement('div');
+    row.className = 'size-row';
+    row.style.cssText = 'display:flex;gap:6px;align-items:center;margin-top:6px;flex-wrap:wrap;';
+    row.innerHTML =
+        `<input class="szid"  value="${nextId}" title="Config ID" style="width:62px;${inS}">
+         <input class="szloc" placeholder="Location" style="width:120px;${inS}">
+         <input class="szw"   placeholder="Width"  value="${wv}" style="width:90px;${inS}">
+         <input class="szh"   placeholder="Height" value="${hv}" style="width:90px;${inS}">
+         <input class="szqty" type="number" min="1" value="1" title="Qty" style="width:55px;${inS}">
+         <button type="button" class="btn btn-danger btn-sm" title="Remove this size" onclick="this.closest('.size-row').remove();">✕</button>`;
+    cont.appendChild(row);
+}
+
+// Remove all extra size rows from a form (called after add / on entering edit).
+function clearExtraSizes(form) {
+    const cont = document.getElementById(form === 'door' ? 'doorExtraSizes' : 'windowExtraSizes');
+    if (cont) cont.innerHTML = '';
+}
+
+// Validate a batch of size rows: positive sizes, non-empty + unique Config IDs.
+// Returns true if OK, else flags the offending field, alerts, and returns false.
+function validateSizeRows(rows, projectName, excludeIdx) {
+    rows.forEach(r => { flagField(r._idEl, false); flagField(r._wEl, false); flagField(r._hEl, false); });
+    const seen = new Set();
+    for (const r of rows) {
+        if (!(r.widthRaw > 0) || !(r.heightRaw > 0)) {
+            showAlert('❌ Width and Height must be greater than zero.', 'error');
+            flagField(r._wEl, !(r.widthRaw > 0)); flagField(r._hEl, !(r.heightRaw > 0));
+            return false;
+        }
+        if (!r.configId) {
+            showAlert('❌ Config ID is required.', 'error'); flagField(r._idEl, true); return false;
+        }
+        const key = r.configId.toLowerCase();
+        if (seen.has(key) || isConfigIdTaken(r.configId, projectName, excludeIdx)) {
+            showAlert(`❌ Config ID "${r.configId}" is already used in this project. Please change it.`, 'error');
+            flagField(r._idEl, true); return false;
+        }
+        seen.add(key);
+    }
+    return true;
+}
+
+// Duplicate an existing window/door with the next free Config ID (then user edits size).
+function duplicateUnit(idx) {
+    const src = windows[idx];
+    if (!src) return;
+    const clone = JSON.parse(JSON.stringify(src));
+    clone.configId = nextAvailableConfigId(src.category === 'Door' ? 'Door' : 'Window', src.projectName);
+    windows.splice(idx + 1, 0, clone);
+    autoSaveWindows();
+    refreshProjectSelector();
+    displayWindows();
+    showAlert(`✅ Duplicated ${src.configId} → ${clone.configId}. Click ✏️ Edit to change its size.`);
+}
+
 let aluminumRate = 520;   // v1.43: global default ₹/kg (was 280)
 let unitMode = 'inch';
 
@@ -1593,11 +1722,8 @@ function readDoorAccessories() {
 }
 
 // Add Door from single-page form
-function addDoor(event) {
-    event.preventDefault();
-
-    const widthRaw  = parseDimension(document.getElementById('doorWidth').value);
-    const heightRaw = parseDimension(document.getElementById('doorHeight').value);
+// v1.60: build a door object from the form spec + a per-unit size override.
+function buildDoorData(size) {
     const bottomProfile = document.getElementById('doorBottomProfileNew').value;
 
     let bottomWidth = 114.5;
@@ -1656,13 +1782,13 @@ function addDoor(event) {
 
     const doorData = {
         category:   'Door',
-        configId:   document.getElementById('doorConfigId').value,
+        configId:   size.configId,
         projectName: document.getElementById('doorProjectName').value,
-        location:   document.getElementById('doorLocation')?.value || '',
+        location:   size.location || '',
         vendor:     document.getElementById('doorVendor').value,
-        width:      convertToInches(widthRaw),
-        height:     convertToInches(heightRaw),
-        qty:        parseInt(document.getElementById('doorQty')?.value) || 1,
+        width:      convertToInches(size.widthRaw),
+        height:     convertToInches(size.heightRaw),
+        qty:        size.qty || 1,
         series:     'Door',
         description: document.getElementById('doorDescription').value,
         glassUnit:      primaryGlassType,
@@ -1690,9 +1816,23 @@ function addDoor(event) {
         mosquitoShutters: 0
     };
 
-    if (editingDoorIndex !== null && windows[editingDoorIndex]) {
-        // EDIT MODE — merge into existing door, preserve any fields not in the form
-        // (e.g. componentThicknesses set via the Thickness modal)
+    return doorData;
+}
+
+function addDoor(event) {
+    event.preventDefault();
+
+    const projectName = document.getElementById('doorProjectName').value;
+    const editing = editingDoorIndex !== null && windows[editingDoorIndex];
+    const rows = collectSizeRows('door');
+    const effRows = editing ? rows.slice(0, 1) : rows;   // edit applies to the primary row only
+
+    if (!validateSizeRows(effRows, projectName, editing ? editingDoorIndex : -1)) return;
+
+    if (editing) {
+        // EDIT MODE — merge into existing door, preserve fields not in the form
+        // (e.g. componentThicknesses set via the Thickness modal).
+        const doorData = buildDoorData(effRows[0]);
         const original = windows[editingDoorIndex];
         windows[editingDoorIndex] = { ...original, ...doorData };
         autoSaveWindows();
@@ -1700,12 +1840,13 @@ function addDoor(event) {
         exitDoorEditMode(/*resetForm=*/true);
         showAlert(`✅ Door ${editedId} updated successfully!`);
     } else {
-        // ADD MODE — push new door
-        windows.push(doorData);
+        // ADD MODE — one door per size row (shared spec + accessories).
+        effRows.forEach(r => windows.push(buildDoorData(r)));
         autoSaveWindows();
         incrementConfigCounter('Door');
-        document.getElementById('doorConfigId').value = getNextConfigId('Door');
-        showAlert(`✅ Door ${doorData.configId} added successfully!`);
+        clearExtraSizes('door');
+        document.getElementById('doorConfigId').value = nextAvailableConfigId('Door', projectName);
+        showAlert(`✅ Added ${effRows.length} door${effRows.length > 1 ? 's' : ''} successfully!`);
     }
 
     refreshProjectSelector();
@@ -1719,6 +1860,7 @@ function clearDoorForm() {
         exitDoorEditMode(/*resetForm=*/false);
     }
     document.getElementById('doorForm').reset();
+    clearExtraSizes('door');
     document.getElementById('doorConfigId').value = getNextConfigId('Door');
     renderDoorAccessoriesChecklist('Hinge');
     // Re-run conditional UI handlers after reset so ACP/Glass rows reflect reset state
@@ -1746,6 +1888,10 @@ function editDoorInPlace(idx) {
 
     editingDoorIndex = idx;
 
+    // v1.60: bulk multi-size is add-only — hide + clear during edit
+    clearExtraSizes('door');
+    const dbw = document.getElementById('doorBulkAddWrap'); if (dbw) dbw.style.display = 'none';
+
     // 1. Switch to Door tab + scroll to add section
     if (typeof switchAddMode === 'function') switchAddMode('Door');
     scrollToSection('section-add');
@@ -1766,6 +1912,8 @@ function cancelDoorEdit() {
 function exitDoorEditMode(resetForm) {
     editingDoorIndex = null;
     setDoorFormEditingUI(false, null);
+    clearExtraSizes('door');
+    const dbw = document.getElementById('doorBulkAddWrap'); if (dbw) dbw.style.display = '';
     if (resetForm) {
         document.getElementById('doorForm').reset();
         document.getElementById('doorConfigId').value = getNextConfigId('Door');
@@ -2181,42 +2329,24 @@ function toggleUnit() {
 // WINDOW MANAGEMENT
 // ============================================================================
 
-function addWindow(event) {
-    event.preventDefault();
-
-    // Get category
+// v1.60: build a window/door object from the form spec + a per-unit size override.
+// size = { configId, location, widthRaw, heightRaw, qty }
+function buildWindowData(size) {
     const category = document.getElementById('category')?.value || 'Window';
-
-    // Get values
-    const widthRaw = parseDimension(document.getElementById('width').value);
-    const heightRaw = parseDimension(document.getElementById('height').value);
+    const seriesVal = document.getElementById('series').value;
+    const msCount = parseInt(document.getElementById('mosquitoShutters')?.value || '0');
     const tracks = parseInt(document.getElementById('tracks')?.value || '0', 10);
     const shutters = parseInt(document.getElementById('shutters')?.value || '1', 10);
 
-    // Validation
-    if (widthRaw <= 0 || heightRaw <= 0) {
-        showAlert('❌ Error: Width and Height must be greater than zero.', 'error');
-        return;
-    }
-
-    // Validation for windows only
-    if (category === 'Window' && shutters <= 0) {
-        showAlert('❌ Error: Number of shutters must be at least 1.', 'error');
-        return;
-    }
-
-    const seriesVal = document.getElementById('series').value;
-    const msCount = parseInt(document.getElementById('mosquitoShutters')?.value || '0');
-
     const windowData = {
-        configId: document.getElementById('configId').value,
+        configId: size.configId,
         projectName: document.getElementById('projectName').value,
-        location: document.getElementById('windowLocation')?.value || '',
-        qty: parseInt(document.getElementById('windowQty')?.value) || 1,
+        location: size.location || '',
+        qty: size.qty || 1,
         category: category,
         vendor: document.getElementById('windowVendor').value,
-        width: convertToInches(widthRaw),
-        height: convertToInches(heightRaw),
+        width: convertToInches(size.widthRaw),
+        height: convertToInches(size.heightRaw),
         series: seriesVal,
         description: document.getElementById('description').value,
         glassUnit: document.getElementById('glassUnit')?.value || 'SGU',
@@ -2225,25 +2355,21 @@ function addWindow(event) {
         cornerJoint: document.getElementById('cornerJoint')?.value || '90'
     };
 
-    // v1.32: only write fields when they actually apply. Avoids polluting
-    // the saved JSON with default values that don't belong on this window.
+    // v1.32: only write fields that actually apply (avoids polluting saved JSON).
     if (category === 'Window') {
         windowData.tracks = tracks;
         windowData.shutters = shutters;
         windowData.mosquitoShutters = msCount;
         windowData.interlockType = document.getElementById('interlockType')?.value || 'slim';
-        // Mosquito-only fields: only when MS > 0
         if (msCount > 0) {
             windowData.mosquitoType      = document.getElementById('mosquitoType')?.value || 'V-2513';
             windowData.mosquitoInterlock = document.getElementById('mosquitoInterlock')?.value || 'V-2516';
-            // mosquitoMiddle: only for 27mm Domal AND MS > 0
             if (seriesVal === '27mm Domal') {
                 windowData.mosquitoMiddle = document.getElementById('mosquitoMiddle')?.checked || false;
             }
         }
     }
 
-    // Door-specific properties
     if (category === 'Door') {
         windowData.frame = parseInt(document.getElementById('doorFrame')?.value || '1');
         windowData.doorGlassType = document.getElementById('doorGlassType')?.value || 'SGU';
@@ -2251,38 +2377,47 @@ function addWindow(event) {
         windowData.partitionThickness = document.getElementById('doorPartitionThickness')?.value || '6';
         windowData.handleProfile = document.getElementById('doorHandleProfile')?.value || 'Door Vertical';
         windowData.bottomProfile = document.getElementById('doorBottomProfile')?.value || 'Door Bottom';
-
-        // Profile widths (in mm)
-        windowData.verticalWidth = 47.5; // Standard for all current handle options
+        windowData.verticalWidth = 47.5;
         windowData.topWidth = parseFloat(document.getElementById('doorTopWidth')?.value || '47.5');
         windowData.middleWidth = parseFloat(document.getElementById('doorMiddleWidth')?.value || '47.5');
-
-        // Bottom width depends on selected profile
-        if (windowData.bottomProfile === 'Door Top 47.5') {
-            windowData.bottomWidth = 47.5;
-        } else if (windowData.bottomProfile === 'Door Top 85') {
-            windowData.bottomWidth = 85;
-        } else {
-            windowData.bottomWidth = 114.5; // Door Bottom (Standard) is 114.5mm
-        }
-        // For Door formulas: S=1 (single door), T=0 (no tracks), MS=0
+        if (windowData.bottomProfile === 'Door Top 47.5') windowData.bottomWidth = 47.5;
+        else if (windowData.bottomProfile === 'Door Top 85') windowData.bottomWidth = 85;
+        else windowData.bottomWidth = 114.5;
         windowData.shutters = 1;
         windowData.tracks = 0;
         windowData.mosquitoShutters = 0;
     }
 
-    if (editingWindowIndex !== null && windows[editingWindowIndex]) {
-        // EDIT MODE — merge into existing window, preserve unspecified fields
-        // (componentThicknesses, accessories on doors that route here, etc.)
-        // v1.32: also strip fields that no longer apply (e.g. mosquitoMiddle when
-        // user changes series from Domal to something else, or disables MS).
+    return windowData;
+}
+
+function addWindow(event) {
+    event.preventDefault();
+
+    const category = document.getElementById('category')?.value || 'Window';
+    const projectName = document.getElementById('projectName').value;
+    const seriesVal = document.getElementById('series').value;
+    const shutters = parseInt(document.getElementById('shutters')?.value || '1', 10);
+    const msCount = parseInt(document.getElementById('mosquitoShutters')?.value || '0');
+
+    const editing = editingWindowIndex !== null && windows[editingWindowIndex];
+    const rows = collectSizeRows('window');
+    const effRows = editing ? rows.slice(0, 1) : rows;   // edit applies to the primary row only
+
+    if (category === 'Window' && shutters <= 0) {
+        showAlert('❌ Error: Number of shutters must be at least 1.', 'error');
+        return;
+    }
+    if (!validateSizeRows(effRows, projectName, editing ? editingWindowIndex : -1)) return;
+
+    if (editing) {
+        // EDIT MODE — merge into existing window, preserve unspecified fields.
+        const windowData = buildWindowData(effRows[0]);
         const original = windows[editingWindowIndex];
         const merged = { ...original, ...windowData };
         if (category === 'Window') {
             if (msCount === 0) {
-                delete merged.mosquitoType;
-                delete merged.mosquitoInterlock;
-                delete merged.mosquitoMiddle;
+                delete merged.mosquitoType; delete merged.mosquitoInterlock; delete merged.mosquitoMiddle;
             } else if (seriesVal !== '27mm Domal') {
                 delete merged.mosquitoMiddle;
             }
@@ -2293,12 +2428,13 @@ function addWindow(event) {
         exitWindowEditMode(/*resetForm=*/true);
         showAlert(`✅ ${category} ${editedId} updated successfully!`);
     } else {
-        // ADD MODE — push new window
-        windows.push(windowData);
+        // ADD MODE — one unit per size row (shared spec).
+        effRows.forEach(r => windows.push(buildWindowData(r)));
         autoSaveWindows();
         incrementConfigCounter(category);
-        document.getElementById('configId').value = getNextConfigId(category);
-        showAlert(`✅ ${category} ${windowData.configId} added successfully!`);
+        clearExtraSizes('window');
+        document.getElementById('configId').value = nextAvailableConfigId(category, projectName);
+        showAlert(`✅ Added ${effRows.length} ${category}${effRows.length > 1 ? 's' : ''} successfully!`);
     }
 
     refreshProjectSelector();
@@ -2311,6 +2447,7 @@ function clearForm() {
         exitWindowEditMode(/*resetForm=*/false);
     }
     document.getElementById('windowForm').reset();
+    clearExtraSizes('window');
     document.getElementById('configId').value = getNextConfigId('Window');
     document.getElementById('projectName').value = 'check';
     initializeAddWindowVendorSelector();
@@ -2333,6 +2470,10 @@ function editWindowInPlace(idx) {
     }
     editingWindowIndex = idx;
 
+    // v1.60: bulk multi-size is add-only — hide + clear during edit
+    clearExtraSizes('window');
+    const wbw = document.getElementById('windowBulkAddWrap'); if (wbw) wbw.style.display = 'none';
+
     // 1. Switch to Window tab + scroll to add section
     if (typeof switchAddMode === 'function') switchAddMode('Window');
     scrollToSection('section-add');
@@ -2353,6 +2494,8 @@ function cancelWindowEdit() {
 function exitWindowEditMode(resetForm) {
     editingWindowIndex = null;
     setWindowFormEditingUI(false, null);
+    clearExtraSizes('window');
+    const wbw = document.getElementById('windowBulkAddWrap'); if (wbw) wbw.style.display = '';
     if (resetForm) {
         document.getElementById('windowForm').reset();
         document.getElementById('configId').value = getNextConfigId('Window');
@@ -2552,7 +2695,7 @@ function renderWindowCard(w, idx) {
                 <div><strong>Project:</strong> ${w.projectName}</div>
                 ${w.location ? `<div><strong>Location:</strong> ${w.location}</div>` : ''}
                 <div><strong>Vendor:</strong> ${w.vendor || 'Not Set'}</div>
-                <div><strong>Size:</strong> ${w.width}" × ${w.height}"</div>
+                <div><strong>Size:</strong> ${Math.round(w.width)}" × ${Math.round(w.height)}"</div>
                 ${isDoor ? (() => {
                     const up = w.upperPartition || {};
                     const lo = w.lowerPartition || {};
@@ -2585,6 +2728,7 @@ function renderWindowCard(w, idx) {
             </div>
             <div class="window-actions">
                 <button class="btn btn-warning btn-sm" onclick="${isDoor ? `editDoorInPlace(${idx})` : `editWindowInPlace(${idx})`}">✏️ Edit</button>
+                <button class="btn btn-secondary btn-sm" onclick="duplicateUnit(${idx})" title="Create a copy with the next Config ID">⧉ Duplicate</button>
                 <button class="btn btn-danger btn-sm" onclick="deleteWindow(${idx})">🗑️ Delete</button>
                 <button class="btn btn-info btn-sm" onclick="openComponentThicknessModal(${idx})">🔗 Thickness</button>
             </div>
