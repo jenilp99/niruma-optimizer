@@ -92,7 +92,16 @@ function runOptimization() {
         });
 
         if (missingSeries.length > 0) {
-            showAlert(`❌ Missing formulas for series: ${missingSeries.join(', ')}\n\nPlease configure formulas in the "Formulas Master" section.`);
+            // v1.63: imported (survey) units may have no Series/Vendor yet — give a clear,
+            // actionable message instead of "Missing formulas for series: " (blank).
+            const unset = projectWindows
+                .filter(w => w.category !== 'Door' && (!w.series || !w.vendor))
+                .map(w => w.configId);
+            if (unset.length) {
+                showAlert(`❌ ${unset.length} window(s) have no Series/Vendor set:\n${unset.join(', ')}\n\nThese were imported without a vendor/series. Set them via ✏️ Edit on each card, or re-import the Excel and choose a Vendor + Series in the Import dialog.`);
+                return;
+            }
+            showAlert(`❌ Missing formulas for series: ${missingSeries.filter(Boolean).join(', ')}\n\nPlease configure formulas in the "Formulas Master" section.`);
             return;
         }
 

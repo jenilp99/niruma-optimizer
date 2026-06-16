@@ -277,7 +277,23 @@ function surveyPreview(parsedUnits, project) {
             `<td>${u.location || ''}</td></tr>`).join('');
     }
     const sum = document.getElementById('surveyPreviewSummary');
-    if (sum) sum.textContent = `Project "${project}" — ${nW} window(s) + ${nD} door(s) will be added. Vendor & series are left blank (set them in the app afterward).`;
+    if (sum) sum.textContent = `Project "${project}" — ${nW} window(s) + ${nD} door(s) will be added.`;
+
+    // v1.63: populate the optional Vendor + Series assignment dropdowns.
+    const vSel = document.getElementById('svImpVendor');
+    if (vSel) {
+        const vendors = Object.keys(window.SUPPLIER_REGISTRY || {});
+        vSel.innerHTML = '<option value="">— leave blank —</option>' +
+            vendors.map(v => `<option value="${v}">${v}</option>`).join('');
+    }
+    const sSel = document.getElementById('svImpSeries');
+    if (sSel) {
+        const all = (typeof seriesFormulas !== 'undefined') ? Object.keys(seriesFormulas) : [];
+        const series = all.filter(s => s && s !== 'Door');
+        sSel.innerHTML = '<option value="">— leave blank —</option>' +
+            series.map(s => `<option value="${s}">${s}</option>`).join('');
+    }
+
     const m = document.getElementById('surveyImportModal');
     if (m) m.classList.add('active');
 }
@@ -290,9 +306,14 @@ function closeSurveyImportModal() {
 function commitSurveyImport() {
     if (!_surveyPending) return;
     const { units, project } = _surveyPending;
+    // v1.63: optional batch Vendor + Series assignment (windows only for series).
+    const vendor = (document.getElementById('svImpVendor') || {}).value || '';
+    const series = (document.getElementById('svImpSeries') || {}).value || '';
     let added = 0, skipped = 0;
     const reserved = new Set();
     units.forEach(u => {
+        if (vendor) u.vendor = vendor;
+        if (series && u.category !== 'Door') u.series = series;
         // ensure a unique config ID within the project (rename collisions, don't block import)
         let id = u.configId;
         if (isConfigIdTaken(id, project, -1) || reserved.has(id.toLowerCase())) {
