@@ -749,6 +749,113 @@ function calculateWindowTotalCost(win, opts) {
 }
 
 // ============================================================================
+// PROJECT SHIPPING ESTIMATE (v1.64) — total material weight + longest item, to
+// help book the right vehicle. Aluminium = exact NET (used) weight; glass &
+// sheets estimated by area×density; hardware/rubber from a built-in approx table.
+// All non-aluminium figures are approximate (no per-piece weights are stored).
+// ============================================================================
+const SHIP_HARDWARE_KG = {
+    'Floor Spring': 3.5, 'Door Closer': 1.5, 'Lock Body': 0.5, 'Cylinder': 0.15,
+    'Mortise Handle': 0.3, 'Door Handle': 0.5, 'Door Hinge': 0.15, 'Door Stopper': 0.2,
+    'Door Leg Stopper': 0.1, 'Magnet': 0.05, 'Door Rod 12mm': 0.6, 'Door Rod Nut': 0.01,
+    'Door Rod Washer': 0.005, 'Concealed Lock': 0.4, 'Roller': 0.08, 'Touch Lock': 0.15,
+    'Multi Lock': 0.3, 'Bearing': 0.05, 'Domal Cleat': 0.02, 'Anti-Lift Plug': 0.005,
+    'Domal Inter Lock Cap': 0.01
+};
+const SHIP_LINEAR_KG_PER_FT = { 'Wool Pile': 0.004, '5mm Aluminum Rubber': 0.03, 'Aluminum Rubber': 0.03 };
+const SHIP_SQFT_TO_M2 = 0.092903;
+
+function shipSheetKgPerM2(material, thk) {
+    const t = parseFloat(thk) || 0;
+    const m = String(material || '').toLowerCase();
+    if (m.includes('acp')) return t >= 3.5 ? 5.5 : 4.5;     // skins dominate; ~flat per sheet
+    if (m.includes('bakelite')) return t * 1.4;             // phenolic ~1.4 g/cc
+    if (m.includes('particle') || m === 'pb' || m.includes('mdf')) return t * 0.7;
+    if (m.includes('mosquito') || m.includes('net')) return 0.3;
+    return t * 1.4;
+}
+
+function computeProjectShippingEstimate(project) {
+    const wins = windows.filter(w => (w.projectName || '') === project);
+    if (!wins.length) return null;
+    let aluNet = 0, glassKg = 0, hwKg = 0, linearKg = 0, maxProductIn = 0, maxStockIn = 0;
+
+    wins.forEach(win => {
+        const q = win.qty || 1;
+        try {
+            const c = (typeof calculateWindowTotalCost === 'function') ? calculateWindowTotalCost(win, { laborPerSqft: 0 }) : null;
+            if (c) aluNet += (c.pieceWeightKg || 0) * q;     // net (used) aluminium — finished goods
+        } catch (e) {}
+        try {
+            (typeof getGlassPanels === 'function' ? getGlassPanels(win) : []).forEach(p => {
+                if (String(p.zone || '').toLowerCase() === 'mosquito') return;   // net, not glass
+                const m2 = (p.area || 0) * SHIP_SQFT_TO_M2 * (p.qty || 1);        // p.qty already incl. win qty
+                const thk = parseFloat((String(p.spec || '').match(/(\d+(?:\.\d+)?)\s*mm/) || [])[1]) || parseFloat(win.glassThickness) || 5;
+                const dgu = (/DGU/i.test(String(p.spec || '')) || win.glassUnit === 'DGU') ? 2 : 1;
+                glassKg += m2 * thk * 2.5 * dgu;             // float glass ≈ 2.5 kg/m²/mm
+            });
+        } catch (e) {}
+        try {
+            (typeof calculateWindowHardware === 'function' ? calculateWindowHardware(win, optimizationResults) : []).forEach(h => {
+                const lin = SHIP_LINEAR_KG_PER_FT[h.hardware];
+                if (lin != null) linearKg += lin * (h.qty || 0) * q;
+                else hwKg += (SHIP_HARDWARE_KG[h.hardware] || 0) * (h.qty || 0) * q;
+            });
+        } catch (e) {}
+        maxProductIn = Math.max(maxProductIn, win.width || 0, win.height || 0);
+    });
+
+    let sheetKg = 0;
+    const sr = optimizationResults && optimizationResults.sheetResults;
+    if (sr && sr.byGroup) Object.values(sr.byGroup).forEach(gr => {
+        const m2 = ((gr.piecesArea || 0) / 144) * SHIP_SQFT_TO_M2;
+        sheetKg += m2 * shipSheetKgPerM2(gr.material, gr.thickness);
+    });
+
+    if (optimizationResults && optimizationResults.results) {
+        Object.values(optimizationResults.results).forEach(plans => (plans || []).forEach(p => {
+            const sl = parseFloat(p.stockLength != null ? p.stockLength : p.stock) || 0;
+            if (sl > maxStockIn) maxStockIn = sl;
+        }));
+    }
+
+    const total = aluNet + glassKg + sheetKg + hwKg + linearKg;
+    return { aluNet, glassKg, sheetKg, hwKg, linearKg, total,
+        maxStockIn, maxProductIn, maxLenIn: Math.max(maxStockIn, maxProductIn), units: wins.length };
+}
+
+function showShippingEstimate() {
+    const project = (document.getElementById('projectSelector') || {}).value;
+    if (!project) { showAlert('❌ Select a project first.', 'error'); return; }
+    if (!optimizationResults || !optimizationResults.results || !Object.keys(optimizationResults.results).length) {
+        showAlert('⚠️ Run Smart Optimization first — material weights come from the optimized cut plan.', 'warning'); return;
+    }
+    const e = computeProjectShippingEstimate(project);
+    if (!e) { showAlert('No items in this project.', 'warning'); return; }
+    const ftIn = inch => { const f = Math.floor(inch / 12), i = Math.round(inch - f * 12); return `${f}'${i ? ' ' + i + '"' : ''}`; };
+    const rows = [
+        ['Aluminium profiles (net / used)', e.aluNet, 'exact'],
+        ['Glass', e.glassKg, 'est.'],
+        ['Partition sheets (ACP / Bakelite / PB)', e.sheetKg, 'est.'],
+        ['Hardware', e.hwKg, 'approx'],
+        ['Rubber / wool pile', e.linearKg, 'approx']
+    ];
+    const body = document.getElementById('shipEstBody');
+    if (body) body.innerHTML = rows.map(r =>
+        `<tr><td style="padding:6px 8px;">${r[0]}</td><td style="text-align:right;padding:6px 8px;">${r[1].toFixed(1)} kg</td><td style="text-align:center;padding:6px 8px;color:#999;font-size:11px;">${r[2]}</td></tr>`
+    ).join('') +
+        `<tr style="font-weight:bold;border-top:2px solid #303c72;"><td style="padding:9px 8px;">Total estimated shipping weight</td><td style="text-align:right;padding:9px 8px;">${e.total.toFixed(0)} kg</td><td></td></tr>`;
+    const ml = document.getElementById('shipEstMaxLen');
+    if (ml) ml.innerHTML = `<strong>${ftIn(e.maxLenIn)}</strong> (${Math.round(e.maxLenIn)}")` +
+        `<div style="font-size:11px;color:#888;margin-top:3px;">longest profile stick ${ftIn(e.maxStockIn)} · largest product dim ${ftIn(e.maxProductIn)}</div>`;
+    const sub = document.getElementById('shipEstSub');
+    if (sub) sub.textContent = `Project "${project}" — ${e.units} item(s). Aluminium is exact (net/used); glass & sheets estimated; hardware/rubber approximate.`;
+    const m = document.getElementById('shipEstModal');
+    if (m) m.classList.add('active');
+}
+function closeShipEstModal() { const m = document.getElementById('shipEstModal'); if (m) m.classList.remove('active'); }
+
+// ============================================================================
 // QUOTATION PDF — client-facing, reference-style layout
 // ============================================================================
 
