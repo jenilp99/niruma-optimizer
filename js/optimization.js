@@ -110,6 +110,7 @@ function runOptimization() {
     }
 
     const results = {};
+    const profilePartialPlan = {};   // v1.65: offcut usage per material (purchase-list only)
     let totalSticks = 0;
     let totalUsed = 0;
     let totalWaste = 0;
@@ -178,7 +179,7 @@ function runOptimization() {
 
         const plans = optimizeMaterialSmart(pieces, effectiveStockInfo, kerf);
         const displayKey = `${materialSeries} | ${materialName}`;
-        results[displayKey] = plans;
+        results[displayKey] = plans;   // full-stock plan — used for costing/quote (UNCHANGED)
 
         plans.forEach(plan => {
             totalSticks++;
@@ -186,6 +187,26 @@ function runOptimization() {
             totalWaste += plan.waste;
             totalCost += plan.cost;
         });
+
+        // v1.65: PURCHASE-LIST-ONLY offcut plan. Packs pieces into matching leftover
+        // offcuts first, then re-optimizes the remainder into new sticks. Stored
+        // separately so the customer quote (which reads `results`) stays identical.
+        const offcuts = ((typeof window !== 'undefined' && window.profilePartials) ? window.profilePartials : [])
+            .filter(p => p.series === materialSeries && p.component === materialName && p.length > 0 && p.qty > 0);
+        if (offcuts.length) {
+            const { leftoverPlans, remaining } = packIntoProfilePartials(pieces, offcuts, kerf);
+            if (leftoverPlans.length) {
+                const newPlans = remaining.length ? optimizeMaterialSmart(remaining, effectiveStockInfo, kerf) : [];
+                profilePartialPlan[displayKey] = {
+                    offcutSticks: leftoverPlans,
+                    newSticks: newPlans,
+                    origStickCount: plans.length,
+                    newStickCount: newPlans.length,
+                    weightPerInch: weight ? weight / 144 : 0,
+                    rate: currentRate
+                };
+            }
+        }
     }
 
     // ── Mosquito Net Optimization ──────────────────────────────────────────────
@@ -220,6 +241,7 @@ function runOptimization() {
         componentSections: componentSections, // Include pre-selected thicknesses
         netResults: netResults,               // Mosquito net 2D cutting plans
         sheetResults: sheetResults,           // Partition sheet 2D cutting plans
+        profilePartialPlan: profilePartialPlan, // v1.65: offcut usage (purchase-list only)
         stats: {
             totalSticks: totalSticks,
             totalUsed: totalUsed.toFixed(2),
@@ -1019,6 +1041,34 @@ function solveSpecificStock(pieces, stockLength, stockCost, kerf) {
     }
 
     return plan;
+}
+
+// v1.65: pack the largest-fitting pieces into leftover offcuts first (FFD, longest
+// offcut first). Returns { leftoverPlans: [cost-0 sticks cut from offcuts], remaining }.
+function packIntoProfilePartials(pieces, partials, kerf) {
+    const leftoverPlans = [];
+    let remaining = [...pieces];
+    const bins = [];
+    partials.forEach(p => { for (let n = 0; n < (p.qty || 1); n++) bins.push({ length: p.length, label: p.label || '' }); });
+    bins.sort((a, b) => b.length - a.length);
+    bins.forEach(bin => {
+        if (!remaining.length) return;
+        const pattern = findBestPattern(remaining, bin.length, kerf);
+        if (!pattern.pieces.length) return;
+        pattern.pieces.forEach(p => { const i = remaining.indexOf(p); if (i !== -1) remaining.splice(i, 1); });
+        leftoverPlans.push({
+            stock: bin.length + '" (offcut)',
+            stockLength: bin.length,
+            pieces: pattern.pieces,
+            used: pattern.used,
+            waste: pattern.waste,
+            cost: 0,
+            efficiency: ((pattern.used / bin.length) * 100).toFixed(1),
+            leftover: true,
+            label: bin.label
+        });
+    });
+    return { leftoverPlans, remaining };
 }
 
 // ============================================================================

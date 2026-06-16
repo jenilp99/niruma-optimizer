@@ -594,6 +594,7 @@ function refreshRatesDisplay() {
     renderNetStockList();
     renderNetPartialRollsList();
     renderSheetPartialsList();
+    renderProfilePartialsList();
     renderSheetAvailabilityList();
 }
 
@@ -949,6 +950,124 @@ function clearSheetPartials() {
     if (!confirm('Clear all partial sheets? This cannot be undone.')) return;
     window.sheetPartials = [];
     renderSheetPartialsList();
+}
+// ─────────────────────────────────────────────────────────────────────────────
+
+// ── Partial Profiles / Offcuts (v1.65) ──────────────────────────────────────
+// Leftover aluminium sticks from previous projects. The optimizer cuts from
+// these first (purchase-list only — the customer quote is unchanged).
+window.profilePartials = window.profilePartials || [];
+
+// Distinct { series, component } across the whole supplier catalogue.
+function getCatalogueProfiles() {
+    const out = [];
+    const seen = new Set();
+    const reg = (typeof window !== 'undefined' && window.SUPPLIER_REGISTRY) || {};
+    Object.values(reg).forEach(sup => {
+        const sections = sup && sup.sections;
+        if (!sections) return;
+        Object.entries(sections).forEach(([series, comps]) => {
+            if (!comps || typeof comps !== 'object') return;
+            Object.keys(comps).forEach(component => {
+                const key = `${series} | ${component}`;
+                if (!seen.has(key)) { seen.add(key); out.push({ series, component, key }); }
+            });
+        });
+    });
+    out.sort((a, b) => a.key.localeCompare(b.key));
+    return out;
+}
+
+// <optgroup>-grouped <option> list, selecting the row's current profile.
+function profileOptionsHtml(selectedKey) {
+    const profs = getCatalogueProfiles();
+    const bySeries = {};
+    profs.forEach(p => { (bySeries[p.series] = bySeries[p.series] || []).push(p); });
+    let html = `<option value="">-- Select profile --</option>`;
+    Object.keys(bySeries).sort().forEach(series => {
+        html += `<optgroup label="${escapeAttr(series)}">`;
+        bySeries[series].forEach(p => {
+            html += `<option value="${escapeAttr(p.key)}" ${p.key === selectedKey ? 'selected' : ''}>${escapeAttr(p.component)}</option>`;
+        });
+        html += `</optgroup>`;
+    });
+    return html;
+}
+
+function renderProfilePartialsList() {
+    const container = document.getElementById('profilePartialsList');
+    if (!container) return;
+    const items = window.profilePartials;
+    const rowStyle = 'display:grid;grid-template-columns:230px 110px 70px 180px 50px;gap:10px;align-items:center;padding:6px 0;border-bottom:1px solid #f0f0f0;';
+    const hdrStyle = 'font-weight:600;font-size:11px;color:#4b1fb3;';
+
+    let html = `<div style="${rowStyle}">
+        <span style="${hdrStyle}">Profile (series · component)</span>
+        <span style="${hdrStyle}">Length (")</span>
+        <span style="${hdrStyle}">Qty</span>
+        <span style="${hdrStyle}">Label (optional)</span>
+        <span style="${hdrStyle}"></span>
+    </div>`;
+
+    if (items.length === 0) {
+        html += `<div style="text-align:center;padding:20px 10px;color:#888;font-size:12px;font-style:italic;">
+            No offcuts added. Click "➕ Add Offcut" to enter leftover profile stock for this project.
+        </div>`;
+    } else {
+        items.forEach((it, idx) => {
+            html += `<div style="${rowStyle}">
+                <select id="pp_prof_${idx}" onchange="updateProfilePartial(${idx})" style="padding:5px 6px;border:1px solid #d4c4f7;border-radius:4px;font-size:12px;">${profileOptionsHtml(it.key)}</select>
+                <input type="number" id="pp_len_${idx}" value="${it.length}" min="1" step="1" onchange="updateProfilePartial(${idx})"
+                       style="padding:5px 6px;border:1px solid #d4c4f7;border-radius:4px;font-size:13px;width:100%;" placeholder="inches">
+                <input type="number" id="pp_qty_${idx}" value="${it.qty}" min="1" step="1" onchange="updateProfilePartial(${idx})"
+                       style="padding:5px 6px;border:1px solid #d4c4f7;border-radius:4px;font-size:13px;width:60px;">
+                <input type="text" id="pp_label_${idx}" value="${escapeAttr(it.label || '')}" onchange="updateProfilePartial(${idx})"
+                       style="padding:5px 6px;border:1px solid #d4c4f7;border-radius:4px;font-size:12px;width:100%;" placeholder="e.g. From Project X">
+                <button onclick="deleteProfilePartial(${idx})" style="background:#e74c3c;color:white;border:none;border-radius:4px;width:36px;height:30px;cursor:pointer;font-size:14px;">🗑️</button>
+            </div>`;
+        });
+        const totLen = items.reduce((s, it) => s + (it.qty || 0) * (it.length || 0), 0);
+        html += `<div style="margin-top:10px;padding:8px 12px;background:#f3eefe;border-radius:6px;font-size:12px;color:#4b1fb3;">
+            <strong>Summary:</strong> ${items.length} offcut line(s), total ${totLen.toFixed(0)}" (${(totLen / 12).toFixed(1)} ft) available.
+        </div>`;
+    }
+    container.innerHTML = html;
+}
+
+function addProfilePartial() {
+    window.profilePartials.push({ key: '', series: '', component: '', length: 120, qty: 1, label: '' });
+    renderProfilePartialsList();
+}
+
+function updateProfilePartial(idx) {
+    const it = window.profilePartials[idx];
+    if (!it) return;
+    const profEl = document.getElementById(`pp_prof_${idx}`);
+    const lenEl = document.getElementById(`pp_len_${idx}`);
+    const qtyEl = document.getElementById(`pp_qty_${idx}`);
+    const labEl = document.getElementById(`pp_label_${idx}`);
+    if (profEl) {
+        it.key = profEl.value;
+        const parts = it.key.split(' | ');
+        it.series = parts[0] || '';
+        it.component = parts[1] || '';
+    }
+    if (lenEl) it.length = Math.max(1, parseFloat(lenEl.value) || 0);
+    if (qtyEl) it.qty = Math.max(1, parseInt(qtyEl.value, 10) || 1);
+    if (labEl) it.label = labEl.value.trim();
+}
+
+function deleteProfilePartial(idx) {
+    if (idx < 0 || idx >= window.profilePartials.length) return;
+    window.profilePartials.splice(idx, 1);
+    renderProfilePartialsList();
+}
+
+function clearProfilePartials() {
+    if (window.profilePartials.length === 0) return;
+    if (!confirm('Clear all offcuts? This cannot be undone.')) return;
+    window.profilePartials = [];
+    renderProfilePartialsList();
 }
 // ─────────────────────────────────────────────────────────────────────────────
 

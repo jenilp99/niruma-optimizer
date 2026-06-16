@@ -1538,6 +1538,37 @@ function generateQuotationPDF(projectWindows, selectedProject, formData) {
             theme: 'grid',
             bodyStyles: { fontSize: 9 }
         });
+        y = doc.lastAutoTable.finalY + 6;
+
+        // v1.65: Offcuts applied — purchase saving (does NOT change the customer total above).
+        const ppPlan = optimizationResults && optimizationResults.profilePartialPlan;
+        if (ppPlan && Object.keys(ppPlan).length) {
+            if (y > PH - 50) { y = beginSection() + 4; }
+            doc.setFont('helvetica', 'bold'); doc.setFontSize(11); doc.setTextColor(75, 31, 179);
+            doc.text('♻️ Offcuts Applied (workshop purchase saving)', mg, y); y += 2;
+            doc.setFont('helvetica', 'normal'); doc.setFontSize(8); doc.setTextColor(110, 110, 110);
+            y += 4; doc.text('Leftover stock used first — buy this many fewer new sticks. Customer total above is unchanged.', mg, y); y += 3;
+            const ppRows = []; let savedSticks = 0;
+            Object.entries(ppPlan).forEach(([key, pp]) => {
+                const offUsed = (pp.offcutSticks || []).length;
+                const saved = (pp.origStickCount || 0) - (pp.newStickCount || 0);
+                if (saved > 0) savedSticks += saved;
+                ppRows.push([
+                    key,
+                    String(offUsed),
+                    `${pp.origStickCount} → ${pp.newStickCount}`,
+                    saved > 0 ? `−${saved} stick${saved > 1 ? 's' : ''}` : '—'
+                ]);
+            });
+            doc.autoTable({
+                startY: y + 2, ...pageSafe(),
+                head: [['Profile', 'Offcuts Used', 'New Sticks (was → now)', 'Saved']],
+                body: ppRows, theme: 'grid',
+                headStyles: { fillColor: [75, 31, 179], textColor: [255, 255, 255], fontSize: 8, halign: 'center' },
+                bodyStyles: { fontSize: 8 },
+                columnStyles: { 0: { cellWidth: 80 }, 1: { halign: 'center' }, 2: { halign: 'center' }, 3: { halign: 'right' } }
+            });
+        }
 
         drawFooter(3);
         } // end if (sec.profileList)

@@ -10,8 +10,8 @@
     <title>Niruma Aluminum Profile Optimizer</title>
 
     <!-- CSS -->
-    <link rel="stylesheet" href="css/styles.css?v=1.64">
-    <link rel="stylesheet" href="css/modal.css?v=1.64">
+    <link rel="stylesheet" href="css/styles.css?v=1.65">
+    <link rel="stylesheet" href="css/modal.css?v=1.65">
 
     <!-- External Libraries -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -65,7 +65,7 @@
                 <span><strong>mm</strong></span>
             </div>
             <!-- APP VERSION — bump this number on every push/update -->
-            <div class="navbar-version">Ver: 1.64</div>
+            <div class="navbar-version">Ver: 1.65</div>
         </div>
     </nav>
 
@@ -144,7 +144,7 @@
                         Door</button>
                 </div>
 
-                <!-- v1.64: Site survey form — generate a printable .xlsx, fill on site, import back -->
+                <!-- v1.65: Site survey form — generate a printable .xlsx, fill on site, import back -->
                 <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:18px;padding:10px 12px;background:#eef6fb;border:1px solid #cfe3f0;border-radius:8px;">
                     <strong style="color:#2c5f86;">📋 Site Survey:</strong>
                     <button type="button" class="btn btn-info btn-sm" onclick="openSurveyGenerateDialog()">⬇️ Generate Blank Form (Excel)</button>
@@ -202,7 +202,7 @@
                                 </div>
                             </div>
 
-                            <!-- v1.64: Bulk add — set the spec once, add many sizes (shared supplier/hardware) -->
+                            <!-- v1.65: Bulk add — set the spec once, add many sizes (shared supplier/hardware) -->
                             <div id="windowBulkAddWrap" style="margin: 0 0 10px;">
                                 <div id="windowExtraSizes"></div>
                                 <button type="button" class="btn btn-outline btn-sm" onclick="addSizeRow('window')"
@@ -488,7 +488,7 @@
                                 </div>
                             </div>
 
-                            <!-- v1.64: Bulk add — set the spec once, add many sizes (shared accessories/profiles) -->
+                            <!-- v1.65: Bulk add — set the spec once, add many sizes (shared accessories/profiles) -->
                             <div id="doorBulkAddWrap" style="margin: 4px 0 10px;">
                                 <div id="doorExtraSizes"></div>
                                 <button type="button" class="btn btn-outline btn-sm" onclick="addSizeRow('door')"
@@ -1160,6 +1160,25 @@
                         </div>
                     </div>
                 </details>
+
+                <!-- v1.65: Partial aluminium profiles / offcuts -->
+                <details class="rate-group" id="profilePartialsPanel" style="margin-bottom: 20px; border: 1px solid #6610f2; border-radius: 8px; background: white;">
+                    <summary style="padding: 12px 15px; cursor: pointer; font-weight: bold; background: #f3eefe; border-radius: 8px; list-style: none; color:#4b1fb3;">
+                        📦 Partial Profiles / Offcuts <span style="font-weight:normal;font-size:12px;color:#666;">(leftover aluminium sticks from previous projects)</span></summary>
+                    <div style="padding: 15px; border-top: 1px solid #e0d4fb;">
+                        <p style="font-size:12px;color:#666;margin:0 0 10px 0;">
+                            Leftover profile offcuts? Pick the exact profile, length and qty — the optimizer uses these
+                            <strong>first</strong> to cut down how many new sticks you buy. <strong>The customer quotation is
+                            unchanged</strong> (offcuts are a workshop saving, shown only in the Profile / Section Purchase List).
+                            <strong>This list resets on page reload.</strong>
+                        </p>
+                        <div id="profilePartialsList"></div>
+                        <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap;">
+                            <button class="btn btn-sm" style="background:#6610f2;color:white;" onclick="addProfilePartial()">➕ Add Offcut</button>
+                            <button class="btn btn-sm" style="background:#e74c3c;color:white;" onclick="clearProfilePartials()">🗑️ Clear All</button>
+                        </div>
+                    </div>
+                </details>
             </div>
         </section>
 
@@ -1695,7 +1714,7 @@
                 <button class="close-btn" onclick="closeProjectThicknessModal()">&times;</button>
             </div>
             <div class="modal-body" style="display: block; overflow-y: auto; max-height: calc(90vh - 120px);">
-                <!-- v1.64: force block layout — the global .modal-body{display:flex}
+                <!-- v1.65: force block layout — the global .modal-body{display:flex}
                      rule (styles.css) otherwise crams the banner/info/list into columns -->
                 <!-- Pre-run gate banner (shown only when RUN is gated on door review) -->
                 <div id="doorThkGateBanner" style="display:none; background:#fff3e0; border:2px solid #fb8c00; border-radius:8px; padding:12px 15px; margin-bottom:15px;">
@@ -1714,7 +1733,7 @@
                     Thicker profiles are recommended for larger windows.
                 </div>
 
-                <!-- v1.64: Quick Apply (Bulk Selection) removed — it flattened the
+                <!-- v1.65: Quick Apply (Bulk Selection) removed — it flattened the
                      role-based per-profile door suggestions to one uniform gauge. -->
 
                 <!-- Individual Window/Door List -->
@@ -1869,15 +1888,15 @@
     </div>
 
     <!-- JavaScript Files - Load in Order -->
-    <script src="js/storage.js?v=1.64"></script>
-    <script src="js/supplier_master.js?v=1.64"></script>
+    <script src="js/storage.js?v=1.65"></script>
+    <script src="js/supplier_master.js?v=1.65"></script>
     <!-- Supplier Modules -->
-    <script src="js/suppliers/windalco.js?v=1.64"></script>
-    <script src="js/suppliers/jk_alu.js?v=1.64"></script>
-    <script src="js/suppliers/atlantis.js?v=1.64"></script>
-    <script src="js/suppliers/vitco.js?v=1.64"></script>
+    <script src="js/suppliers/windalco.js?v=1.65"></script>
+    <script src="js/suppliers/jk_alu.js?v=1.65"></script>
+    <script src="js/suppliers/atlantis.js?v=1.65"></script>
+    <script src="js/suppliers/vitco.js?v=1.65"></script>
 
-    <!-- v1.64: Survey form — Generate dialog -->
+    <!-- v1.65: Survey form — Generate dialog -->
     <div id="surveyGenModal" class="modal">
         <div class="modal-content" style="max-width: 560px;">
             <div class="modal-header">
@@ -1902,7 +1921,7 @@
         </div>
     </div>
 
-    <!-- v1.64: Survey form — Import preview -->
+    <!-- v1.65: Survey form — Import preview -->
     <div id="surveyImportModal" class="modal">
         <div class="modal-content" style="max-width: 620px; max-height: 90vh;">
             <div class="modal-header">
@@ -1911,7 +1930,7 @@
             </div>
             <div class="modal-body" style="display:block; overflow-y:auto; max-height:calc(90vh - 130px);">
                 <div id="surveyPreviewSummary" class="alert alert-info" style="margin-bottom:12px;"></div>
-                <!-- v1.64: optionally assign Vendor + Series to the whole batch at import -->
+                <!-- v1.65: optionally assign Vendor + Series to the whole batch at import -->
                 <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;margin-bottom:12px;padding:10px;background:#f7f9fb;border:1px solid #e3e8ee;border-radius:8px;">
                     <div style="flex:1;min-width:160px;">
                         <label style="font-weight:600;font-size:12px;">Vendor (all units)</label>
@@ -1935,7 +1954,7 @@
         </div>
     </div>
 
-    <!-- v1.64: Project shipping estimate (material weight + longest item) -->
+    <!-- v1.65: Project shipping estimate (material weight + longest item) -->
     <div id="shipEstModal" class="modal">
         <div class="modal-content" style="max-width: 560px;">
             <div class="modal-header">
@@ -1960,11 +1979,11 @@
         </div>
     </div>
 
-    <script src="js/app.js?v=1.64"></script>
-    <script src="js/optimization.js?v=1.64"></script>
-    <script src="js/exports.js?v=1.64"></script>
-    <script src="js/Quotation.js?v=1.64"></script>
-    <script src="js/survey.js?v=1.64"></script>
+    <script src="js/app.js?v=1.65"></script>
+    <script src="js/optimization.js?v=1.65"></script>
+    <script src="js/exports.js?v=1.65"></script>
+    <script src="js/Quotation.js?v=1.65"></script>
+    <script src="js/survey.js?v=1.65"></script>
 
 </body>
 
