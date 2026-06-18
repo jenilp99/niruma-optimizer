@@ -52,10 +52,34 @@ function showQuotationInputDialog(projectWindows, selectedProject) {
         (projectSettings && projectSettings.clientName) ? projectSettings.clientName : '';
     document.getElementById('qtModalClientAddress').value = '';
     document.getElementById('qtModalDeliveryAddress').value = '';
-    document.getElementById('qtModalGST').value = '0';
-    document.getElementById('qtModalLabor').value = '45';
-    document.getElementById('qtModalLeadTime').value = '21 Working Days';
     document.getElementById('qtModalUnit').value = 'mm';
+
+    // Build per-series labor rate inputs from the project's actual series
+    const seriesSet = new Map();
+    projectWindows.forEach(w => {
+        const key = w.category === 'Door' ? 'Door' : (w.series || 'Unknown');
+        if (!seriesSet.has(key)) {
+            const areaSqft = projectWindows
+                .filter(x => (x.category === 'Door' ? 'Door' : (x.series || 'Unknown')) === key)
+                .reduce((s, x) => s + (x.width * x.height / 144) * (x.qty || 1), 0);
+            seriesSet.set(key, { area: areaSqft, rate: 45 });
+        }
+    });
+    const grid = document.getElementById('qtLaborRatesGrid');
+    grid.innerHTML = '';
+    seriesSet.forEach((info, series) => {
+        const safeId = 'qtLabor_' + series.replace(/[^a-zA-Z0-9]/g, '_');
+        grid.innerHTML += `<div style="display:flex;align-items:center;gap:6px;min-width:0;">
+            <span style="font-size:12px;font-weight:600;white-space:nowrap;min-width:90px;">${series}</span>
+            <input type="number" id="${safeId}" data-qt-labor-series="${series}" data-qt-area="${info.area.toFixed(2)}"
+                   value="45" min="0" step="1" oninput="qtRecalcLeadTime()"
+                   style="padding:6px;border:1px solid #ddd;border-radius:6px;font-size:13px;width:80px;">
+            <span style="font-size:11px;color:#888;">${info.area.toFixed(1)} sqft</span>
+        </div>`;
+    });
+
+    // Auto-calculate lead time
+    qtRecalcLeadTime();
 
     // Default section selection: customer-facing only. User ticks internal lists as needed.
     const _secDefaults = {
@@ -74,6 +98,18 @@ function showQuotationInputDialog(projectWindows, selectedProject) {
     document.getElementById('quotationInputModal').classList.add('active');
 }
 
+function qtRecalcLeadTime() {
+    const inputs = document.querySelectorAll('[data-qt-labor-series]');
+    let totalLaborCost = 0;
+    inputs.forEach(inp => {
+        const rate = parseFloat(inp.value) || 0;
+        const area = parseFloat(inp.dataset.qtArea) || 0;
+        totalLaborCost += rate * area;
+    });
+    const days = Math.max(10, Math.ceil(totalLaborCost / 1500));
+    document.getElementById('qtModalLeadTime').value = days + ' Working Days';
+}
+
 function qtToggleAllSections(on) {
     document.querySelectorAll('.qtSecChk').forEach(chk => { chk.checked = !!on; });
 }
@@ -83,14 +119,19 @@ function closeQuotationModal() {
 }
 
 function confirmGenerateQuotation() {
+    // Collect per-series labor rates
+    const laborBySeries = {};
+    document.querySelectorAll('[data-qt-labor-series]').forEach(inp => {
+        laborBySeries[inp.dataset.qtLaborSeries] = parseFloat(inp.value) || 0;
+    });
     const formData = {
         quoteNo:         document.getElementById('qtModalQuoteNo').value.trim() || getNextQuotationNumber(),
         clientName:      document.getElementById('qtModalClientName').value.trim() || '',
         clientAddress:   document.getElementById('qtModalClientAddress').value.trim(),
         deliveryAddress: document.getElementById('qtModalDeliveryAddress').value.trim(),
-        gstPct:          parseFloat(document.getElementById('qtModalGST').value) || 0,
-        laborPerSqft:    parseFloat(document.getElementById('qtModalLabor').value) || 0,
-        leadTime:        document.getElementById('qtModalLeadTime').value.trim() || '21 Working Days',
+        laborBySeries:   laborBySeries,
+        laborPerSqft:    0,
+        leadTime:        document.getElementById('qtModalLeadTime').value.trim() || '10 Working Days',
         displayUnit:     document.getElementById('qtModalUnit').value || 'mm',
         sections: {
             quotation:    document.getElementById('qtSecQuotation').checked,
@@ -657,7 +698,10 @@ function _computeDoorPartitionWastageCost(win) {
 
 function calculateWindowTotalCost(win, opts) {
     opts = opts || {};
-    const laborPerSqft = parseFloat(opts.laborPerSqft) || 0;
+    const seriesKey = win.category === 'Door' ? 'Door' : (win.series || 'Unknown');
+    const laborPerSqft = (opts.laborBySeries && opts.laborBySeries[seriesKey] != null)
+        ? parseFloat(opts.laborBySeries[seriesKey]) || 0
+        : parseFloat(opts.laborPerSqft) || 0;
 
     // Glass — doors use per-partition glass; windows use single pane
     let glassCost = 0;
@@ -866,9 +910,9 @@ function generateQuotationPDF(projectWindows, selectedProject, formData) {
         clientName      = '',
         clientAddress   = '',
         deliveryAddress = '',
-        gstPct          = 0,
         laborPerSqft    = 0,
-        leadTime        = '21 Working Days',
+        laborBySeries   = {},
+        leadTime        = '10 Working Days',
         displayUnit     = 'mm'
     } = formData;
 
@@ -882,7 +926,7 @@ function generateQuotationPDF(projectWindows, selectedProject, formData) {
     const validUntil = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toLocaleDateString('en-IN', { day: '2-digit', month: '2-digit', year: 'numeric' }); // v1.45: 30 → 7 days
 
     // Pre-calculate all window costs (labor included per window)
-    const costData = projectWindows.map(win => ({ win, c: calculateWindowTotalCost(win, { laborPerSqft }) }));
+    const costData = projectWindows.map(win => ({ win, c: calculateWindowTotalCost(win, { laborPerSqft, laborBySeries }) }));
 
     // Project-level totals — hoisted so both Quotation sub-blocks (table + total box) can use them.
     const totalQty  = costData.reduce((s, { win }) => s + (win.qty || 1), 0);

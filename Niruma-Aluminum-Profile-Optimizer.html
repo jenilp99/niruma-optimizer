@@ -10,8 +10,8 @@
     <title>Niruma Aluminum Profile Optimizer</title>
 
     <!-- CSS -->
-    <link rel="stylesheet" href="css/styles.css?v=1.66">
-    <link rel="stylesheet" href="css/modal.css?v=1.66">
+    <link rel="stylesheet" href="css/styles.css?v=1.67">
+    <link rel="stylesheet" href="css/modal.css?v=1.67">
 
     <!-- External Libraries -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -65,7 +65,7 @@
                 <span><strong>mm</strong></span>
             </div>
             <!-- APP VERSION — bump this number on every push/update -->
-            <div class="navbar-version">Ver: 1.66</div>
+            <div class="navbar-version">Ver: 1.67</div>
         </div>
     </nav>
 
@@ -1809,13 +1809,10 @@
                     <textarea id="qtModalDeliveryAddress" rows="2" placeholder="Site address" style="padding:8px; border:1px solid #ddd; border-radius:6px; font-size:13px; width:100%; box-sizing:border-box; resize:vertical;"></textarea>
                 </div>
 
-                <div style="display:flex; flex-direction:column; min-width:0;">
-                    <label style="font-weight:600; font-size:13px; margin-bottom:4px;">GST (%)</label>
-                    <input type="number" id="qtModalGST" value="0" min="0" max="100" step="0.1" style="padding:8px; border:1px solid #ddd; border-radius:6px; font-size:13px; width:100%; box-sizing:border-box;">
-                </div>
-                <div style="display:flex; flex-direction:column; min-width:0;">
-                    <label style="font-weight:600; font-size:13px; margin-bottom:4px;">Labor Rate (₹/sqft)</label>
-                    <input type="number" id="qtModalLabor" value="45" min="0" step="1" style="padding:8px; border:1px solid #ddd; border-radius:6px; font-size:13px; width:100%; box-sizing:border-box;">
+                <div id="qtLaborRatesContainer" style="display:flex; flex-direction:column; grid-column: 1 / -1; min-width:0;">
+                    <label style="font-weight:700; font-size:13px; margin-bottom:6px;">Labor Rate (₹/sqft) — per series</label>
+                    <div id="qtLaborRatesGrid" style="display:grid; grid-template-columns:1fr 1fr; gap:8px;">
+                    </div>
                 </div>
 
                 <div style="display:flex; flex-direction:column; grid-column: 1 / -1; min-width:0;">
@@ -1888,13 +1885,13 @@
     </div>
 
     <!-- JavaScript Files - Load in Order -->
-    <script src="js/storage.js?v=1.66"></script>
-    <script src="js/supplier_master.js?v=1.66"></script>
+    <script src="js/storage.js?v=1.67"></script>
+    <script src="js/supplier_master.js?v=1.67"></script>
     <!-- Supplier Modules -->
-    <script src="js/suppliers/windalco.js?v=1.66"></script>
-    <script src="js/suppliers/jk_alu.js?v=1.66"></script>
-    <script src="js/suppliers/atlantis.js?v=1.66"></script>
-    <script src="js/suppliers/vitco.js?v=1.66"></script>
+    <script src="js/suppliers/windalco.js?v=1.67"></script>
+    <script src="js/suppliers/jk_alu.js?v=1.67"></script>
+    <script src="js/suppliers/atlantis.js?v=1.67"></script>
+    <script src="js/suppliers/vitco.js?v=1.67"></script>
 
     <!-- v1.65: Survey form — Generate dialog -->
     <div id="surveyGenModal" class="modal">
@@ -1979,11 +1976,11 @@
         </div>
     </div>
 
-    <script src="js/app.js?v=1.66"></script>
-    <script src="js/optimization.js?v=1.66"></script>
-    <script src="js/exports.js?v=1.66"></script>
-    <script src="js/Quotation.js?v=1.66"></script>
-    <script src="js/survey.js?v=1.66"></script>
+    <script src="js/app.js?v=1.67"></script>
+    <script src="js/optimization.js?v=1.67"></script>
+    <script src="js/exports.js?v=1.67"></script>
+    <script src="js/Quotation.js?v=1.67"></script>
+    <script src="js/survey.js?v=1.67"></script>
 
 </body>
 
