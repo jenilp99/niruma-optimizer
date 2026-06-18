@@ -643,6 +643,13 @@ function displayResults() {
     }
     
     const r = optimizationResults;
+
+    // Capture which material sections are collapsed before re-render
+    const collapsedKeys = new Set();
+    document.querySelectorAll('#resultsContent details[data-mat-key]').forEach(det => {
+        if (!det.open) collapsedKeys.add(det.getAttribute('data-mat-key'));
+    });
+
     let html = '<div class="alert alert-success">Smart Cost-Optimized Results for Project <strong>' + r.project + '</strong></div>';
     
     // v1.25 — Export buttons reorganized into 4 logical groups
@@ -738,7 +745,8 @@ function displayResults() {
             .join(', ');
         
         const matCost = plans.reduce((s, p) => s + p.cost, 0);
-        html += `<details class="material-section collapsible-section" open>
+        const detOpen = collapsedKeys.has(key) ? '' : ' open';
+        html += `<details class="material-section collapsible-section" data-mat-key="${key}"${detOpen}>
 <summary class="collapsible-summary"><span class="cs-title">📏 ${materialTitle}</span><span class="cs-meta">${requirementStr}&ensp;·&ensp;Eff:&nbsp;${materialEfficiency}%&ensp;·&ensp;₹${matCost.toFixed(0)}</span><span class="cs-arrow"></span></summary>
 <div class="cs-body">`;
 
@@ -1267,13 +1275,14 @@ function displayResults() {
 
 function exportProject() {
     const projectData = {
-        version: '1.0',
+        version: '1.1',
         exportDate: new Date().toISOString(),
         windows: windows,
         seriesFormulas: seriesFormulas,
         stockMaster: stockMaster,
         kerf: kerf,
-        unitMode: unitMode
+        unitMode: unitMode,
+        componentSections: optimizationResults ? optimizationResults.componentSections : null
     };
     
     const dataStr = JSON.stringify(projectData, null, 2);
@@ -1313,7 +1322,12 @@ function importProject() {
                 stockMaster = projectData.stockMaster;
                 kerf = projectData.kerf || 0.125;
                 unitMode = projectData.unitMode || 'inch';
-                
+
+                if (projectData.componentSections && optimizationResults) {
+                    optimizationResults.componentSections = projectData.componentSections;
+                    autoSaveResults();
+                }
+
                 document.getElementById('kerfGlobal').value = kerf;
                 const allUnitToggles = document.querySelectorAll('input[id*="unitToggle"]');
                 allUnitToggles.forEach(toggle => {
