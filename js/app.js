@@ -4269,12 +4269,17 @@ function openSectionSelectModal(materialKey, vendorFilter) {
             thicknessSelect.innerHTML += `<option value="${idx}">${opt.supplier} - ${opt.sectionNo} (${wLabel}T: ${opt.t}mm, Wt: ${opt.weight}kg)</option>`;
         });
         console.log(`%c✅ Populated ${displayOptions.length} thickness options in dropdown`, 'color: green;');
-        console.log('Dropdown options count:', thicknessSelect.options.length);
+        // Auto-select if only one option
+        if (displayOptions.length === 1) {
+            thicknessSelect.value = '0';
+        }
     }
 
     // Clear previous selection details
     const detailsDiv = document.getElementById('selectedSectionDetails');
     if (detailsDiv) detailsDiv.style.display = 'none';
+    // Show details if auto-selected
+    if (displayOptions.length === 1) showSelectedSectionDetails();
 
     // Populate catalogue list
     const catalogueList = document.getElementById('catalogueList');
