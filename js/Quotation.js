@@ -1342,15 +1342,20 @@ function generateQuotationPDF(projectWindows, selectedProject, formData) {
             seriesAvg[sk].area += c.windowAreaSqft * q;
             seriesAvg[sk].cost += c.totalCost * q;
         });
-        doc.setFont('helvetica', 'normal');
+        doc.setFont('helvetica', 'bold');
         doc.setFontSize(8);
+        doc.text('Average Rate / Sq.Ft.', mg, y);
+        y += 4;
+        doc.setFont('helvetica', 'normal');
         const seriesKeys = Object.keys(seriesAvg);
-        const avgParts = seriesKeys.map(sk => {
+        seriesKeys.forEach(sk => {
             const r = seriesAvg[sk].area > 0 ? (seriesAvg[sk].cost / seriesAvg[sk].area).toFixed(0) : '0';
-            return `${sk}: ₹${r}`;
+            doc.text(`${sk}:  Rs. ${r} /sqft  (${seriesAvg[sk].area.toFixed(1)} sqft)`, mg + 5, y);
+            y += 3.5;
         });
         const overallAvg = totalArea > 0 ? (subtotal / totalArea).toFixed(0) : '0';
-        doc.text(`Avg. Rate/Sq.Ft. — ${avgParts.join('  |  ')}  |  Overall: ₹${overallAvg}`, PW - mg, y, { align: 'right' });
+        doc.setFont('helvetica', 'bold');
+        doc.text(`Overall:  Rs. ${overallAvg} /sqft`, mg + 5, y);
         y += 5;
 
         // Notes
