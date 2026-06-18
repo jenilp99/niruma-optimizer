@@ -263,14 +263,50 @@ function runOptimization() {
     }
     // ──────────────────────────────────────────────────────────────────────────
 
+    // Auto-select componentSections for materials with only one thickness option
+    for (const compoundKey of Object.keys(results)) {
+        if (componentSections[compoundKey]) continue; // already pre-selected
+        const [seriesName, componentName] = compoundKey.split(' | ');
+        if (!seriesName || !componentName) continue;
+
+        // Resolve vendor filter
+        let vf = null;
+        const vendors = vendorByMaterial[compoundKey];
+        if (vendors && vendors.length === 1) vf = vendors[0];
+
+        let options = [];
+        if (window.SUPPLIER_REGISTRY) {
+            const suppliers = vf ? [[vf, window.SUPPLIER_REGISTRY[vf]]] : Object.entries(window.SUPPLIER_REGISTRY);
+            suppliers.forEach(([sName, sd]) => {
+                if (sd && sd.sections && sd.sections[seriesName] && sd.sections[seriesName][componentName]) {
+                    sd.sections[seriesName][componentName].forEach(sec => {
+                        options.push({ supplier: sName, sectionNo: sec.sectionNo, weight: sec.weight, t: sec.t || 'N/A', w: sec.w != null ? sec.w : null });
+                    });
+                }
+            });
+            if (options.length === 0 && vf) {
+                Object.entries(window.SUPPLIER_REGISTRY).forEach(([sName, sd]) => {
+                    if (sd && sd.sections && sd.sections[seriesName] && sd.sections[seriesName][componentName]) {
+                        sd.sections[seriesName][componentName].forEach(sec => {
+                            options.push({ supplier: sName, sectionNo: sec.sectionNo, weight: sec.weight, t: sec.t || 'N/A', w: sec.w != null ? sec.w : null });
+                        });
+                    }
+                });
+            }
+        }
+        if (options.length === 1) {
+            componentSections[compoundKey] = options[0];
+        }
+    }
+
     optimizationResults = {
         project: selectedProject,
         results: results,
-        componentSections: componentSections, // Include pre-selected thicknesses
-        vendorByMaterial: vendorByMaterial,    // Which vendor(s) supply each material key
-        netResults: netResults,               // Mosquito net 2D cutting plans
-        sheetResults: sheetResults,           // Partition sheet 2D cutting plans
-        profilePartialPlan: profilePartialPlan, // v1.65: offcut usage (purchase-list only)
+        componentSections: componentSections,
+        vendorByMaterial: vendorByMaterial,
+        netResults: netResults,
+        sheetResults: sheetResults,
+        profilePartialPlan: profilePartialPlan,
         stats: {
             totalSticks: totalSticks,
             totalUsed: totalUsed.toFixed(2),
