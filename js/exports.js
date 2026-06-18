@@ -644,10 +644,13 @@ function displayResults() {
     
     const r = optimizationResults;
 
-    // Capture which material sections are collapsed before re-render
+    // Capture which material sections were explicitly toggled before re-render
     const collapsedKeys = new Set();
+    const expandedKeys = new Set();
     document.querySelectorAll('#resultsContent details[data-mat-key]').forEach(det => {
-        if (!det.open) collapsedKeys.add(det.getAttribute('data-mat-key'));
+        const k = det.getAttribute('data-mat-key');
+        if (det.open) expandedKeys.add(k);
+        else collapsedKeys.add(k);
     });
 
     let html = '<div class="alert alert-success">Smart Cost-Optimized Results for Project <strong>' + r.project + '</strong></div>';
@@ -745,7 +748,11 @@ function displayResults() {
             .join(', ');
         
         const matCost = plans.reduce((s, p) => s + p.cost, 0);
-        const detOpen = collapsedKeys.has(key) ? '' : ' open';
+        const hasThickness = !!(r.componentSections && r.componentSections[key]);
+        // Honour explicit user toggle; otherwise collapse if thickness already selected
+        const detOpen = collapsedKeys.has(key) ? ''
+            : expandedKeys.has(key) ? ' open'
+            : hasThickness ? '' : ' open';
         html += `<details class="material-section collapsible-section" data-mat-key="${key}"${detOpen}>
 <summary class="collapsible-summary"><span class="cs-title">📏 ${materialTitle}</span><span class="cs-meta">${requirementStr}&ensp;·&ensp;Eff:&nbsp;${materialEfficiency}%&ensp;·&ensp;₹${matCost.toFixed(0)}</span><span class="cs-arrow"></span></summary>
 <div class="cs-body">`;
