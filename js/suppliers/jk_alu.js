@@ -39,7 +39,7 @@ window.registerSupplier("JK ALU EXTRUSION", {
                 { sectionNo: "1402", t: 0.85, weight: 1.400 }
             ],
             "3/4\" C-channel": [
-                { sectionNo: "PENDING", weight: 0.500, desc: "Mosquito C-channel" }
+                { sectionNo: "5602", t: 0.90, weight: 0.240 }
             ],
             "3/4\" 2 Track Top": [
                 { sectionNo: "2101", t: 0.80, weight: 1.600 },
@@ -123,7 +123,7 @@ window.registerSupplier("JK ALU EXTRUSION", {
                 { sectionNo: "1354", t: 1.50, weight: 3.300 }
             ],
             "1\" C-channel": [
-                { sectionNo: "PENDING", weight: 0.500, desc: "Mosquito C-channel" }
+                { sectionNo: "5606", t: 0.80, weight: 0.280 }
             ],
             "1\" 2 Track Top": [
                 { sectionNo: "2151", t: 1.20, weight: 2.300 },
@@ -171,7 +171,7 @@ window.registerSupplier("JK ALU EXTRUSION", {
                 { sectionNo: "4651", t: 1.20, weight: 1.150 }
             ],
             "DOMAL C-CHANNEL": [
-                { sectionNo: "PENDING", t: 1.00, weight: 0.500, desc: "Mosquito C-channel" }
+                { sectionNo: "5608", t: 1.20, weight: 0.500 }
             ]
         },
         "Door": {

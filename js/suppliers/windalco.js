@@ -67,6 +67,9 @@ window.registerSupplier("Windalco Aluminium", {
             ],
             "3/4\" 4 Track Bottom": [
                 { sectionNo: "20048", t: 1.00, weight: 5.100 }
+            ],
+            "3/4\" C-channel": [
+                { sectionNo: "5602", t: 0.90, weight: 0.240 }
             ]
         },
         "1\"": {
@@ -111,6 +114,9 @@ window.registerSupplier("Windalco Aluminium", {
             ],
             "1\" 4 Track Top/Bottom": [ // Speculative based on Image 2 Bottom Right
                 { sectionNo: "20082", t: 1.50, weight: 7.450, desc: "Heavy/4 Track?" }
+            ],
+            "1\" C-channel": [
+                { sectionNo: "5606", t: 0.80, weight: 0.280 }
             ]
         },
         "Door": {
@@ -184,6 +190,23 @@ window.registerSupplier("Windalco Aluminium", {
                 { sectionNo: "20158", t: 0.72, weight: 0.320 },
                 { sectionNo: "20159", t: 0.90, weight: 0.420 }
             ]
+        },
+        "27mm Domal": {
+            "27mm Domal 2 Track": [
+                { sectionNo: "20126", t: 1.35, weight: 2.800 }
+            ],
+            "27mm Domal 3 Track": [
+                { sectionNo: "20127", t: 1.20, weight: 4.100 }
+            ],
+            "27mm Domal Shutter": [
+                { sectionNo: "20128", t: 1.45, weight: 3.000 }
+            ],
+            "27mm Domal Clip": [
+                { sectionNo: "20129", t: 1.05, weight: 0.900 }
+            ],
+            "27mm Domal C-channel": [
+                { sectionNo: "5608", t: 1.20, weight: 0.500 }
+            ]
         }
     },
 
@@ -212,7 +235,9 @@ window.registerSupplier("Windalco Aluminium", {
             // Mosquito
             { component: '3/4" Handle', qty: '1*MS', length: 'H-1.5', desc: 'MS Handle' },
             { component: '3/4" Interlock', qty: '1*MS', length: 'H-1.5', desc: 'MS Interlock' },
-            { component: '3/4" Bearing Bottom', qty: '2*MS', length: '(W-5-1.5*(S-1))/S', desc: 'MS Bearing Bottom' }
+            { component: '3/4" Bearing Bottom', qty: '2*MS', length: '(W-5-1.5*(S-1))/S', desc: 'MS Bearing Bottom' },
+            { component: '3/4" C-channel', qty: '2*MS', length: 'H-1.5', desc: 'MS C-channel V' },
+            { component: '3/4" C-channel', qty: '2*MS', length: '(W-5-1.5*(S-1))/S', desc: 'MS C-channel H' }
         ],
         '1"': [
             { component: '1" Handle', qty: '2', length: 'H-1.125', desc: 'Handles' },
@@ -230,7 +255,9 @@ window.registerSupplier("Windalco Aluminium", {
             // Mosquito
             { component: '1" Handle', qty: '1*MS', length: 'H-1.125', desc: 'MS Handle' },
             { component: '1" Interlock', qty: '1*MS', length: 'H-1.125', desc: 'MS Interlock' },
-            { component: '1" Bearing Bottom', qty: '2*MS', length: '(W-5-2*(S-1))/S', desc: 'MS Bearing Bottom' }
+            { component: '1" Bearing Bottom', qty: '2*MS', length: '(W-5-2*(S-1))/S', desc: 'MS Bearing Bottom' },
+            { component: '1" C-channel', qty: '2*MS', length: 'H-1.125', desc: 'MS C-channel V' },
+            { component: '1" C-channel', qty: '2*MS', length: '(W-5-2*(S-1))/S', desc: 'MS C-channel H' }
         ],
         // Door Formulas (same as JK ALU for universal compatibility)
         'Door': [
@@ -254,6 +281,25 @@ window.registerSupplier("Windalco Aluminium", {
             { component: 'Door Glazing Clip', qty: '4*L', length: 'MRPI - F*(20/25.4) - BW - MW/2',             desc: 'Glazing Clip Vertical Bottom' },
             // Door Glazing Clip - Horizontal (4 per pane × 2 panes per leaf)
             { component: 'Door Glazing Clip', qty: '8*L', length: '(W - (F*(80/25.4))) / L - HandleVW - HingeVW', desc: 'Glazing Clip Horizontal' }
+        ],
+        '27mm Domal': [
+            { component: '27mm Domal Shutter', qty: '2*S', length: 'H-2.75', desc: 'Shutter Verticals' },
+            { component: '27mm Domal Shutter', qty: '2*S', length: '(W-3+2.5*(S-1))/S', desc: 'Shutter Horizontals' },
+            { component: '27mm Domal Clip', qty: '2*(S-1)', length: 'H-2.75', desc: 'Interlock Clips' },
+
+            { component: '27mm Domal 2 Track', qty: '1', length: 'T==2 ? W : 0', desc: '2T Track Top' },
+            { component: '27mm Domal 2 Track', qty: '1', length: 'T==2 ? W : 0', desc: '2T Track Bottom' },
+            { component: '27mm Domal 2 Track', qty: '2', length: 'T==2 ? H : 0', desc: '2T Track Sides' },
+
+            { component: '27mm Domal 3 Track', qty: '1', length: 'T==3 ? W : 0', desc: '3T Track Top' },
+            { component: '27mm Domal 3 Track', qty: '1', length: 'T==3 ? W : 0', desc: '3T Track Bottom' },
+            { component: '27mm Domal 3 Track', qty: '2', length: 'T==3 ? H : 0', desc: '3T Track Sides' },
+
+            { component: '27mm Domal C-channel', qty: '2*MS', length: 'H-2.75', desc: 'MS C-channel Vert' },
+            { component: '27mm Domal C-channel', qty: '2*MS', length: '(W-3+2.5*(S-1))/S', desc: 'MS C-channel Horiz' },
+            { component: '27mm Domal Shutter', qty: '2*MS', length: 'H-2.75', desc: 'MS Shutter Vert' },
+            { component: '27mm Domal Shutter', qty: '2*MS', length: '(W-3+2.5*(S-1))/S', desc: 'MS Shutter Horiz' },
+            { component: '27mm Domal Clip', qty: '1*MS', length: 'H-2.75', desc: 'MS Clip' }
         ]
     },
 
@@ -270,7 +316,8 @@ window.registerSupplier("Windalco Aluminium", {
             { material: '3/4" 3 Track Top', stock1: 141, stock1Cost: 100, stock2: 177, stock2Cost: 125 },
             { material: '3/4" 3 Track Bottom', stock1: 141, stock1Cost: 100, stock2: 177, stock2Cost: 125 },
             { material: '3/4" 4 Track Top', stock1: 141, stock1Cost: 100, stock2: 177, stock2Cost: 125 },
-            { material: '3/4" 4 Track Bottom', stock1: 141, stock1Cost: 100, stock2: 177, stock2Cost: 125 }
+            { material: '3/4" 4 Track Bottom', stock1: 141, stock1Cost: 100, stock2: 177, stock2Cost: 125 },
+            { material: '3/4" C-channel', stock1: 141, stock1Cost: 100, stock2: 177, stock2Cost: 125 }
         ],
         '1"': [
             { material: '1" Handle', stock1: 141, stock1Cost: 100, stock2: 177, stock2Cost: 125 },
@@ -283,12 +330,12 @@ window.registerSupplier("Windalco Aluminium", {
             { material: '1" 3 Track Top', stock1: 141, stock1Cost: 100, stock2: 177, stock2Cost: 125 },
             { material: '1" 3 Track Bottom', stock1: 141, stock1Cost: 100, stock2: 177, stock2Cost: 125 },
             { material: '1" 4 Track Top', stock1: 141, stock1Cost: 100, stock2: 177, stock2Cost: 125 },
-            { material: '1" 4 Track Bottom', stock1: 141, stock1Cost: 100, stock2: 177, stock2Cost: 125 }
+            { material: '1" 4 Track Bottom', stock1: 141, stock1Cost: 100, stock2: 177, stock2Cost: 125 },
+            { material: '1" C-channel', stock1: 141, stock1Cost: 100, stock2: 177, stock2Cost: 125 }
         ],
         '27mm Domal': [
             { material: '27mm Domal 2 Track', stock1: 141, stock1Cost: 100, stock2: 177, stock2Cost: 125 },
             { material: '27mm Domal 3 Track', stock1: 141, stock1Cost: 100, stock2: 177, stock2Cost: 125 },
-            { material: '27mm Domal 4 Track', stock1: 141, stock1Cost: 100, stock2: 177, stock2Cost: 125 },
             { material: '27mm Domal Shutter', stock1: 141, stock1Cost: 100, stock2: 177, stock2Cost: 125 },
             { material: '27mm Domal Clip', stock1: 141, stock1Cost: 100, stock2: 177, stock2Cost: 125 },
             { material: '27mm Domal C-channel', stock1: 141, stock1Cost: 100, stock2: 177, stock2Cost: 125 }

@@ -52,6 +52,34 @@ function runOptimization() {
 
     console.log('📋 Pre-selected thicknesses from window configs:', preSelectedThicknesses);
 
+    // Build vendor-by-material map: for each material key, record which vendor(s) supply it
+    const vendorByMaterial = {};
+    projectWindows.forEach(w => {
+        const seriesName = w.series;
+        const vendor = w.vendor;
+        if (!seriesName || !vendor) return;
+        const sd = (window.SUPPLIER_REGISTRY || {})[vendor];
+        const formulas = (sd && sd.formulas && sd.formulas[seriesName])
+            || seriesFormulas[seriesName] || [];
+        formulas.forEach(f => {
+            const targetSeries = f.series || seriesName;
+            const key = `${targetSeries} | ${f.component}`;
+            if (!vendorByMaterial[key]) vendorByMaterial[key] = new Set();
+            vendorByMaterial[key].add(vendor);
+        });
+        if (seriesName === 'Door' && typeof generateDoorProfileFormulas === 'function') {
+            const doorFormulas = generateDoorProfileFormulas(w, sd);
+            doorFormulas.forEach(f => {
+                const targetSeries = f.series || seriesName;
+                const key = `${targetSeries} | ${f.component}`;
+                if (!vendorByMaterial[key]) vendorByMaterial[key] = new Set();
+                vendorByMaterial[key].add(vendor);
+            });
+        }
+    });
+    // Convert Sets to arrays for JSON serialization
+    Object.keys(vendorByMaterial).forEach(k => { vendorByMaterial[k] = [...vendorByMaterial[k]]; });
+
     const piecesByMaterial = calculatePieces(selectedProject, '');
 
     if (Object.keys(piecesByMaterial).length === 0) {
@@ -239,6 +267,7 @@ function runOptimization() {
         project: selectedProject,
         results: results,
         componentSections: componentSections, // Include pre-selected thicknesses
+        vendorByMaterial: vendorByMaterial,    // Which vendor(s) supply each material key
         netResults: netResults,               // Mosquito net 2D cutting plans
         sheetResults: sheetResults,           // Partition sheet 2D cutting plans
         profilePartialPlan: profilePartialPlan, // v1.65: offcut usage (purchase-list only)

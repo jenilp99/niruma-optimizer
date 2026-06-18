@@ -4128,7 +4128,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
 let currentSelectionTarget = null; // Stores the material key we are selecting for
 
-function openSectionSelectModal(materialKey) {
+function openSectionSelectModal(materialKey, vendorFilter) {
     currentSelectionTarget = materialKey;
 
     // Parse the key to get Series Name and Component Name
@@ -4143,6 +4143,12 @@ function openSectionSelectModal(materialKey) {
         componentName = materialKey;
     }
 
+    // Resolve vendor filter: explicit param > vendorByMaterial from optimization results
+    if (!vendorFilter && optimizationResults && optimizationResults.vendorByMaterial) {
+        const vendors = optimizationResults.vendorByMaterial[materialKey];
+        if (vendors && vendors.length === 1) vendorFilter = vendors[0];
+    }
+
     // Set the material name display
     const materialNameSpan = document.getElementById('selectMaterialName');
     if (materialNameSpan) {
@@ -4150,42 +4156,48 @@ function openSectionSelectModal(materialKey) {
     }
 
     // Attempt to find relevant sections from Stock Master or Supplier Registry
-    // We want to show ALL available options for this type of component
+    // Filter to the window's vendor when known
 
     // 1. Get sections from Supplier Registry directly if possible (Highest fidelity)
-    // We need to loop through all suppliers and find sections that match this series/component
     let options = [];
 
-    console.log(`%c🔍 Searching for sections: Series="${seriesName}", Component="${componentName}"`, 'background: #6f42c1; color: white; padding: 2px 6px;');
+    console.log(`%c🔍 Searching for sections: Series="${seriesName}", Component="${componentName}", Vendor="${vendorFilter || 'ALL'}"`, 'background: #6f42c1; color: white; padding: 2px 6px;');
 
     if (window.SUPPLIER_REGISTRY) {
-        Object.entries(window.SUPPLIER_REGISTRY).forEach(([supplierName, supplierData]) => {
-            console.log(`   Checking supplier: ${supplierName}`);
-            if (supplierData.sections && supplierData.sections[seriesName]) {
-                const sectionGroup = supplierData.sections[seriesName];
-                console.log(`   ✓ Found series "${seriesName}" in ${supplierName}, keys:`, Object.keys(sectionGroup));
-                // Check if direct match exists
-                if (sectionGroup[componentName]) {
-                    console.log(`   ✓ Found component "${componentName}" with ${sectionGroup[componentName].length} variants`);
-                    // Add all variants
-                    sectionGroup[componentName].forEach(sec => {
-                        options.push({
-                            supplier: supplierName,
-                            sectionNo: sec.sectionNo,
-                            weight: sec.weight,
-                            t: sec.t || 'N/A',
-                            w: sec.w != null ? sec.w : null,   // face width (mm) — door profiles
-                            desc: sec.desc || componentName
+        const collectFromSuppliers = (entries) => {
+            entries.forEach(([supplierName, supplierData]) => {
+                console.log(`   Checking supplier: ${supplierName}`);
+                if (supplierData.sections && supplierData.sections[seriesName]) {
+                    const sectionGroup = supplierData.sections[seriesName];
+                    console.log(`   ✓ Found series "${seriesName}" in ${supplierName}, keys:`, Object.keys(sectionGroup));
+                    if (sectionGroup[componentName]) {
+                        console.log(`   ✓ Found component "${componentName}" with ${sectionGroup[componentName].length} variants`);
+                        sectionGroup[componentName].forEach(sec => {
+                            options.push({
+                                supplier: supplierName,
+                                sectionNo: sec.sectionNo,
+                                weight: sec.weight,
+                                t: sec.t || 'N/A',
+                                w: sec.w != null ? sec.w : null,
+                                desc: sec.desc || componentName
+                            });
                         });
-                    });
-                } else {
-                    console.log(`   ✗ Component "${componentName}" NOT found in this series`);
-                    // Fuzzy match? Or maybe the component name in results is generic (e.g. "Track") 
-                    // and registry has specific "2 Track", "3 Track".
-                    // For now, simple matching.
+                    } else {
+                        console.log(`   ✗ Component "${componentName}" NOT found in this series`);
+                    }
                 }
-            }
-        });
+            });
+        };
+
+        // Try vendor-specific first
+        if (vendorFilter && window.SUPPLIER_REGISTRY[vendorFilter]) {
+            collectFromSuppliers([[vendorFilter, window.SUPPLIER_REGISTRY[vendorFilter]]]);
+        }
+        // Fallback to all suppliers if vendor had no sections for this component
+        if (options.length === 0) {
+            if (vendorFilter) console.log(`   ⚠️ No sections for "${vendorFilter}", showing all suppliers`);
+            collectFromSuppliers(Object.entries(window.SUPPLIER_REGISTRY));
+        }
     }
 
     console.log(`   Total options found: ${options.length}`);
