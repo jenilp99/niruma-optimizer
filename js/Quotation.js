@@ -1332,11 +1332,24 @@ function generateQuotationPDF(projectWindows, selectedProject, formData) {
         doc.text(`( ${numberToWords(Math.round(grandTotal))} Only )`, PW / 2, y, { align: 'center' });
         y += 5;
 
-        // Average rate / sqft
-        const avgRate = totalArea > 0 ? subtotal / totalArea : 0;
+        // Average rate / sqft — per series
+        const seriesAvg = {};
+        costData.forEach(({ win, c }) => {
+            const sk = win.category === 'Door' ? 'Door' : (win.series || 'Unknown');
+            if (!seriesAvg[sk]) seriesAvg[sk] = { area: 0, cost: 0 };
+            const q = win.qty || 1;
+            seriesAvg[sk].area += c.windowAreaSqft * q;
+            seriesAvg[sk].cost += c.totalCost * q;
+        });
         doc.setFont('helvetica', 'normal');
         doc.setFontSize(8);
-        doc.text(`Average Rate / Sq.Ft. : ${avgRate.toFixed(2)}`, PW - mg, y, { align: 'right' });
+        const seriesKeys = Object.keys(seriesAvg);
+        const avgParts = seriesKeys.map(sk => {
+            const r = seriesAvg[sk].area > 0 ? (seriesAvg[sk].cost / seriesAvg[sk].area).toFixed(0) : '0';
+            return `${sk}: ₹${r}`;
+        });
+        const overallAvg = totalArea > 0 ? (subtotal / totalArea).toFixed(0) : '0';
+        doc.text(`Avg. Rate/Sq.Ft. — ${avgParts.join('  |  ')}  |  Overall: ₹${overallAvg}`, PW - mg, y, { align: 'right' });
         y += 5;
 
         // Notes
