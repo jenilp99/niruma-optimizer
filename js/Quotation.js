@@ -699,7 +699,9 @@ function _computeDoorPartitionWastageCost(win) {
 
 function calculateWindowTotalCost(win, opts) {
     opts = opts || {};
-    const seriesKey = win.category === 'Door' ? 'Door' : (win.series || 'Unknown');
+    let seriesKey = win.category === 'Door' ? 'Door' : (win.series || 'Unknown');
+    if (seriesKey === '1') seriesKey = '1"';
+    if (seriesKey === '3/4') seriesKey = '3/4"';
     const laborPerSqft = (opts.laborBySeries && opts.laborBySeries[seriesKey] != null)
         ? parseFloat(opts.laborBySeries[seriesKey]) || 0
         : parseFloat(opts.laborPerSqft) || 0;
