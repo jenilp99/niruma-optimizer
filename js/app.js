@@ -391,6 +391,41 @@ function initializeDefaults() {
         }
     } catch (e) { console.warn('Wool Pile migration error:', e); }
 
+    // v1.72: Migrate bearing + silicon sealant formulas saved in localStorage
+    try {
+        let hwMigrated = false;
+        for (const series of Object.keys(hardwareMaster)) {
+            const items = hardwareMaster[series];
+            if (!Array.isArray(items)) continue;
+            items.forEach(h => {
+                if (!h || !h.formula) return;
+                // Bearing: '2 * S' → '2 * S + 2 * MS'
+                if (h.hardware && /bearing/i.test(h.hardware) && h.formula.trim() === '2 * S') {
+                    h.formula = '2 * S + 2 * MS';
+                    hwMigrated = true;
+                }
+                // Silicon Sealant windows: '(W + H) * 2 / 12' or '(W+H)*2/12' → '(W + H) * 4 / 12'
+                if (h.hardware && /silicon/i.test(h.hardware) && /\(W\s*\+\s*H\)\s*\*\s*2\s*\/\s*12/.test(h.formula)) {
+                    h.formula = '(W + H) * 4 / 12';
+                    hwMigrated = true;
+                }
+            });
+        }
+        // Door silicon: '(W+H)*2/12' → '((H*2)+W)*2/12'
+        const doorHw = hardwareMaster['Door'];
+        if (Array.isArray(doorHw)) {
+            const si = doorHw.find(h => h && /silicon/i.test(h.hardware));
+            if (si && /\(W\s*\+\s*H\)\s*\*\s*2\s*\/\s*12/.test(si.formula)) {
+                si.formula = '((H*2)+W)*2/12';
+                hwMigrated = true;
+            }
+        }
+        if (hwMigrated) {
+            if (typeof autoSaveHardwareMaster === 'function') autoSaveHardwareMaster();
+            console.log('🔧 Migrated bearing & silicon sealant formulas');
+        }
+    } catch (e) { console.warn('Hardware formula migration error:', e); }
+
     // ── Migrate existing saved doors (one-shot, silent) ────────────────────────
     // (a) Doors saved before v1.20 lack an explicit accessories array → seed defaults.
     // (b) Doors with ACP partitions before v1.20 lack acpFacing → default to 'single'.
