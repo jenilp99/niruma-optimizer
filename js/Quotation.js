@@ -62,7 +62,8 @@ function showQuotationInputDialog(projectWindows, selectedProject) {
             const areaSqft = projectWindows
                 .filter(x => (x.category === 'Door' ? 'Door' : (x.series || 'Unknown')) === key)
                 .reduce((s, x) => s + (x.width * x.height / 144) * (x.qty || 1), 0);
-            seriesSet.set(key, { area: areaSqft, rate: 45 });
+            const defaultRate = key === '27mm Domal' ? 45 : 40;
+            seriesSet.set(key, { area: areaSqft, rate: defaultRate });
         }
     });
     const grid = document.getElementById('qtLaborRatesGrid');
@@ -72,7 +73,7 @@ function showQuotationInputDialog(projectWindows, selectedProject) {
         grid.innerHTML += `<div style="display:flex;align-items:center;gap:6px;min-width:0;">
             <span style="font-size:12px;font-weight:600;white-space:nowrap;min-width:90px;">${series}</span>
             <input type="number" id="${safeId}" data-qt-labor-series="${series}" data-qt-area="${info.area.toFixed(2)}"
-                   value="45" min="0" step="1" oninput="qtRecalcLeadTime()"
+                   value="${info.rate}" min="0" step="1" oninput="qtRecalcLeadTime()"
                    style="padding:6px;border:1px solid #ddd;border-radius:6px;font-size:13px;width:80px;">
             <span style="font-size:11px;color:#888;">${info.area.toFixed(1)} sqft</span>
         </div>`;
