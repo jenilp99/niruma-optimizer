@@ -189,16 +189,16 @@ let ratesConfig = {
         'DGU_non_toughened_5mm': 180
     },
     powderCoating: {
-        '3/4" Handle': 27.66,
-        '3/4" Interlock': 34.62,
-        '3/4" Bearing Bottom': 21.94,
-        '3/4" Middle': 32.48,
-        '3/4" 2 track bottom': 69.48,
-        '3/4" 2 track top': 62.46,
-        '3/4" 3 track bottom': 93.78,
-        '3/4" 3 track top': 79.8,
-        '3/4" 4 track bottom': 117.96,
-        '3/4" 4 track top': 100.62,
+        '3/4" Handle': 9.31,
+        '3/4" Interlock': 11.98,
+        '3/4" Bearing Bottom': 11.07,
+        '3/4" Middle': 11.07,
+        '3/4" 2 track bottom': 22.66,
+        '3/4" 2 track top': 18.62,
+        '3/4" 3 track bottom': 29.42,
+        '3/4" 3 track top': 26.67,
+        '3/4" 4 track bottom': 37.25,
+        '3/4" 4 track top': 34.72,
         // v1.36: 1" series rates updated to match current shop rates (₹/ft)
         '1" Handle': 11.7,
         '1" Interlock': 16.12,
@@ -347,6 +347,27 @@ function initializeDefaults() {
             }
         }
     } catch (e) { console.warn('Could not restore ratesConfig:', e); }
+
+    // v1.79: Force-sync 3/4" powder coating rates (with 18% GST) over any stale localStorage values
+    try {
+        const pc79 = {
+            '3/4" Handle': 9.31, '3/4" Interlock': 11.98, '3/4" Bearing Bottom': 11.07,
+            '3/4" Middle': 11.07, '3/4" 2 track bottom': 22.66, '3/4" 2 track top': 18.62,
+            '3/4" 3 track bottom': 29.42, '3/4" 3 track top': 26.67,
+            '3/4" 4 track bottom': 37.25, '3/4" 4 track top': 34.72
+        };
+        let pcChanged = false;
+        for (const [k, v] of Object.entries(pc79)) {
+            if (ratesConfig.powderCoating[k] !== v) {
+                ratesConfig.powderCoating[k] = v;
+                pcChanged = true;
+            }
+        }
+        if (pcChanged) {
+            localStorage.setItem('ratesConfig', JSON.stringify(ratesConfig));
+            console.log('✨ Synced 3/4" powder coating rates (incl. 18% GST)');
+        }
+    } catch (e) { console.warn('PC rate sync error:', e); }
 
     // 1b. Load Config ID counters from localStorage
     const savedWindowCounter = localStorage.getItem('windowCounter');
