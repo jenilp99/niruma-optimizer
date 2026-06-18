@@ -2308,7 +2308,7 @@ function generateDoorHardware(win) {
     items.push(
         { hardware: 'Lock Body',               unit: 'Nos',  formula: '1 * L',            rate: 850  },
         { hardware: 'Cylinder',                unit: 'Nos',  formula: '1 * L',            rate: 450  },
-        { hardware: 'Silicon Sealant',         unit: 'R.Ft', formula: '(W+H)*2/12',       rate: 10   },
+        { hardware: 'Silicon Sealant',         unit: 'R.Ft', formula: '(W+H)*6/12',       rate: 10   },
         { hardware: 'Door Rod 12mm',           unit: 'Nos',  formula: '2 * L',            rate: 115  }
     );
     return items;

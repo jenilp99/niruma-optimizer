@@ -429,26 +429,26 @@ window.registerSupplier("JK ALU EXTRUSION", {
     // 4. HARDWARE DEFAULTS
     hardware: {
         '3/4"': [
-            { hardware: 'Bearing (3/4")', qty: 4, unit: 'Nos', formula: '2 * S', rate: 45 }, // 2 per shutter
+            { hardware: 'Bearing (3/4")', qty: 4, unit: 'Nos', formula: '2 * S + 2 * MS', rate: 45 },
             { hardware: 'Window Lock (Touch)', qty: 2, unit: 'Nos', formula: '2 + (MS > 0 ? 1 : 0)', rate: 65 },
             { hardware: 'Wool Pile', qty: 10, unit: 'R.Ft', formula: '(GL("3/4\\" Interlock") + 4 * T * (W + H)) / 12', rate: 4 },
-            { hardware: 'Silicon Sealant', qty: 1, unit: 'R.Ft', formula: '(W + H) * 2 / 12', rate: 10 },
-            { hardware: 'Corner Joint (PVC)', qty: 4, unit: 'Nos', formula: '4 * F', rate: 5 }, // If Frames used
+            { hardware: 'Silicon Sealant', qty: 1, unit: 'R.Ft', formula: '(W + H) * 6 / 12', rate: 10 },
+            { hardware: 'Corner Joint (PVC)', qty: 4, unit: 'Nos', formula: '4 * F', rate: 5 },
             { hardware: 'Acrylic Stopper', qty: 4, unit: 'Nos', formula: '4', rate: 2 }
         ],
         '1"': [
-            { hardware: 'Bearing (1")', qty: 4, unit: 'Nos', formula: '2 * S', rate: 65 },
+            { hardware: 'Bearing (1")', qty: 4, unit: 'Nos', formula: '2 * S + 2 * MS', rate: 65 },
             { hardware: 'Window Lock (Touch)', qty: 2, unit: 'Nos', formula: '2 + (MS > 0 ? 1 : 0)', rate: 65 },
             { hardware: 'Wool Pile', qty: 10, unit: 'R.Ft', formula: '(GL("1\\" Interlock") + 4 * T * (W + H)) / 12', rate: 4 },
-            { hardware: 'Silicon Sealant', qty: 1, unit: 'R.Ft', formula: '(W + H) * 2 / 12', rate: 10 },
+            { hardware: 'Silicon Sealant', qty: 1, unit: 'R.Ft', formula: '(W + H) * 6 / 12', rate: 10 },
             { hardware: 'Acrylic Stopper', qty: 4, unit: 'Nos', formula: '4', rate: 2 }
         ],
         '27mm Domal': [
-            { hardware: 'Domal Bearing',                         unit: 'Nos',  formula: '2 * S + (MS*2)',                                                                         rate: 47 },
+            { hardware: 'Domal Bearing',                         unit: 'Nos',  formula: '2 * S + 2 * MS',                                                                        rate: 47 },
             { hardware: 'Concealed Lock',                        unit: 'Nos',  formula: '2 * (S/S) + (MS*1)',                                                                     rate: 118 },
             // v1.44 FIX: formula computed INCHES but unit/rate are per FOOT → cost was 12× too high. Added /12.
             { hardware: 'Wool Pile (Domal)',                     unit: 'R.Ft', formula: '((((H * 3) + (W * 2)) * S) + (((H * 3) + (W * 2)) * MS)) / 12',                         rate: 7 },
-            { hardware: 'Silicon Sealant',                       unit: 'R.Ft', formula: '(W + H) * 2 / 12',                                                                       rate: 8 },
+            { hardware: 'Silicon Sealant',                       unit: 'R.Ft', formula: '(W + H) * 6 / 12',                                                                       rate: 8 },
             { hardware: 'Anti-Lift Plug',                        unit: 'Nos',  formula: '2 * S',                                                                                  rate: 2 },
             { hardware: 'Domal Cleat',                           unit: 'Nos',  formula: '4*S + (MS*4)',                                                                           rate: 18 },
             { hardware: 'Domal Inter Lock Cap',                  unit: 'Nos',  formula: '2*(S-1) + (2*(MS*1))',                                                                   rate: 2 },
