@@ -1606,7 +1606,7 @@ const DOOR_HARDWARE_DEFAULTS = [
         variants: [],   defaultVariant: null
     },
     {
-        hardware: 'Silicon Sealant', mechanism: 'both',        unit: 'R.Ft', formula: '(W+H)*6/12', rate: 10,
+        hardware: 'Silicon Sealant', mechanism: 'both',        unit: 'R.Ft', formula: '((H*2)+W)*2/12', rate: 10,
         variants: [],   defaultVariant: null
     },
     // v1.35: Door Rod 12mm moved from hardware → profile cutting plan.
