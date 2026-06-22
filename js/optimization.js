@@ -837,11 +837,10 @@ function generateDoorProfileFormulas(win, supplierData) {
 // Safe evaluation helper to prevent crashes from bad formulas
 function safeEval(formula, context, defaultValue = 0) {
     try {
-        // Create variables from context (MRPI = Middle Rail Position in Inches)
-        const { W, H, S, MS, T, P, CJ, IT, GT, MT, MIT, F, VW, TW, MW, BW, L, HandleVW, HingeVW, MRPI, SOP } = context;
-        // Use a function constructor for slightly better safety than eval()
-        const fn = new Function('W', 'H', 'S', 'MS', 'T', 'P', 'CJ', 'IT', 'GT', 'MT', 'MIT', 'F', 'VW', 'TW', 'MW', 'BW', 'L', 'HandleVW', 'HingeVW', 'MRPI', 'SOP', `return ${formula}`);
-        return fn(W, H, S, MS, T, P, CJ, IT, GT, MT, MIT, F, VW, TW, MW, BW, L, HandleVW, HingeVW, MRPI, SOP);
+        const keys = Object.keys(context);
+        const values = keys.map(k => context[k]);
+        const fn = new Function(...keys, `return ${formula}`);
+        return fn(...values);
     } catch (e) {
         console.error('SafeEval Error:', e, 'Formula:', formula);
         return defaultValue;
