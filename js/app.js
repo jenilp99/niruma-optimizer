@@ -2704,14 +2704,14 @@ function populateWindowFormFromObject(w) {
     setVal('width',  displayW);
     setVal('height', displayH);
 
-    // Vendor + series (filter series by vendor first)
-    setVal('windowVendor', w.vendor || '');
+    // Vendor + series: rebuild vendor options for this series, then re-set vendor
     if (typeof updateVendorOptionsForSeries === 'function') updateVendorOptionsForSeries(w.series);
-    // Trigger any vendor-change handlers to populate series dropdown
+    setVal('windowVendor', w.vendor || '');
     const venEl = document.getElementById('windowVendor');
     if (venEl && venEl.onchange) try { venEl.onchange(); } catch (e) {}
     setTimeout(() => {
         setVal('series', w.series || '');
+        setVal('windowVendor', w.vendor || '');
         if (typeof onSeriesChanged === 'function') onSeriesChanged();
     }, 0);
 
