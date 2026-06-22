@@ -2389,6 +2389,47 @@ function calculateWindowHardware(window, optimizationResults = null) {
         else if (series === '1"') hardwareList = hardwareMaster['1'];
     }
 
+    // ── Shutter-only (fixed frame, T==0) hardware ─────────────────────────
+    // A fixed exhaust/ventilation frame has NO sliding parts, so bearings,
+    // sliding locks and wool pile do not apply. The frame is screwed at the
+    // corners and the glass/net is sealed with silicon. This is handled in
+    // code (not via the editable Hardware Master) because the Master's item
+    // names/formulas vary per user (localStorage), and the sliding formulas
+    // there (e.g. 2*S+2*MS bearings) would wrongly bill a fixed shutter.
+    if (window.tracks === 0) {
+        const soResults = [];
+        const W = window.width || 0, H = window.height || 0;
+        const isMosquito = window.shutterOnlyPartition === 'mosquito';
+
+        // Silicon: one bead around the opening perimeter, in running feet.
+        // (W & H are stored in INCHES, so /12 → feet — no mm involved.)
+        const perimFt = Math.round((2 * (W + H) / 12) * 100) / 100;
+        const silItem = (hardwareList || []).find(h => h && /silicon/i.test(h.hardware || ''));
+        const silRate = (silItem && silItem.unit === 'R.Ft') ? silItem.rate : 10;
+        soResults.push({
+            hardware: 'Silicon Sealant', qty: perimFt, unit: 'R.Ft',
+            rate: silRate, total: Math.round(perimFt * silRate * 100) / 100
+        });
+
+        // Assembly screws (fixed quantities per fabrication spec, ₹1 each).
+        soResults.push({ hardware: 'Screw 13x6', qty: 12, unit: 'Nos', rate: 1, total: 12 });
+        soResults.push({ hardware: 'Screw 32x6', qty: 4,  unit: 'Nos', rate: 1, total: 4  });
+
+        // A glass partition also needs glazing rubber around the pane.
+        if (!isMosquito) {
+            const glass = calculateGlassDimensions(window);
+            if (glass) {
+                const rubberFeet = glass.perimeter * glass.qty * 1.05; // 5% extra
+                const rRate = ratesConfig.global.rubberRate || 5;
+                soResults.push({
+                    hardware: '5mm Aluminum Rubber', qty: rubberFeet, unit: 'Ft',
+                    rate: rRate, total: Math.round(rubberFeet * rRate)
+                });
+            }
+        }
+        return soResults;
+    }
+
     if (!hardwareList) {
         console.warn(`No hardware items found for series: ${series}`);
         return [];

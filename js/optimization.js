@@ -1382,6 +1382,31 @@ function computeNetPieces(projectWindows) {
         if (MS <= 0) return;
 
         const series = win.series;
+
+        // Shutter-only (fixed frame, T==0) mosquito: the net fills the single
+        // inner opening minus the frame profile depth. Handled here so 3/4"/1"
+        // (which have no netDeductions config) still produce a net piece.
+        if (win.tracks === 0 && win.shutterOnlyPartition === 'mosquito') {
+            const frameDeduct = /^1"?$/.test(series) ? 2.0 : 1.42; // inches, both sides
+            const netW0 = Math.max(0, win.width  - frameDeduct);
+            const netH0 = Math.max(0, win.height - frameDeduct);
+            if (netW0 > 0 && netH0 > 0) {
+                console.log(
+                    `%c🕸️ Net ${win.configId} | Fixed Shutter ${series} | ` +
+                    `net ${netW0.toFixed(2)}"×${netH0.toFixed(2)}" × ${MS}`,
+                    'background: #8e44ad; color: white; padding: 2px 6px;'
+                );
+                pieces.push({
+                    w: Math.round(netW0 * 100) / 100,
+                    h: Math.round(netH0 * 100) / 100,
+                    qty: MS,
+                    label: `${win.configId} (${series})`,
+                    series
+                });
+            }
+            return;
+        }
+
         const deductionCfg = (ratesConfig.netDeductions && ratesConfig.netDeductions[series]) || null;
         if (!deductionCfg) {
             console.log(`ℹ️ No net deduction config for series "${series}" — skipping mosquito net`);
