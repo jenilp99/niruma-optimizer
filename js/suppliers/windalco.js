@@ -236,12 +236,15 @@ window.registerSupplier("Windalco Aluminium", {
             { component: '3/4" 4 Track Bottom', qty: '1', length: 'T==4 ? W : 0', desc: '4T Track Bottom' },
             { component: '3/4" 4 Track Top', qty: '2', length: 'T==4 ? H : 0', desc: '4T Track Sides' },
 
-            // Mosquito (only for sliding T>0)
+            // Mosquito — sliding (T>0)
             { component: '3/4" Handle', qty: 'T>0 ? 1*MS : 0', length: 'H-1.5', desc: 'MS Handle' },
             { component: '3/4" Interlock', qty: 'T>0 ? 1*MS : 0', length: 'H-1.5', desc: 'MS Interlock' },
             { component: '3/4" Bearing Bottom', qty: 'T>0 ? 2*MS : 0', length: '(W-5-1.5*(S-1))/S', desc: 'MS Bearing Bottom' },
             { component: '3/4" C-channel', qty: 'T>0 ? 2*MS : 0', length: 'H-1.5', desc: 'MS C-channel V' },
-            { component: '3/4" C-channel', qty: 'T>0 ? 2*MS : 0', length: '(W-5-1.5*(S-1))/S', desc: 'MS C-channel H' }
+            { component: '3/4" C-channel', qty: 'T>0 ? 2*MS : 0', length: '(W-5-1.5*(S-1))/S', desc: 'MS C-channel H' },
+            // Mosquito — shutter only (T==0): C-channel on all 4 sides inside the frame
+            { component: '3/4" C-channel', qty: 'T==0 && MS>0 ? 2 : 0', length: 'H-1.42', desc: 'MS C-channel V' },
+            { component: '3/4" C-channel', qty: 'T==0 && MS>0 ? 2 : 0', length: 'W-1.42', desc: 'MS C-channel H' }
         ],
         '1"': [
             // Sliding window (T>0)
@@ -263,12 +266,15 @@ window.registerSupplier("Windalco Aluminium", {
             { component: '1" 3 Track Bottom', qty: '1', length: 'T==3 ? W : 0', desc: '3T Track Bottom' },
             { component: '1" 3 Track Top', qty: '2', length: 'T==3 ? H : 0', desc: '3T Track Sides' },
 
-            // Mosquito (only for sliding T>0)
+            // Mosquito — sliding (T>0)
             { component: '1" Handle', qty: 'T>0 ? 1*MS : 0', length: 'H-1.125', desc: 'MS Handle' },
             { component: '1" Interlock', qty: 'T>0 ? 1*MS : 0', length: 'H-1.125', desc: 'MS Interlock' },
             { component: '1" Bearing Bottom', qty: 'T>0 ? 2*MS : 0', length: '(W-5-2*(S-1))/S', desc: 'MS Bearing Bottom' },
             { component: '1" C-channel', qty: 'T>0 ? 2*MS : 0', length: 'H-1.125', desc: 'MS C-channel V' },
-            { component: '1" C-channel', qty: 'T>0 ? 2*MS : 0', length: '(W-5-2*(S-1))/S', desc: 'MS C-channel H' }
+            { component: '1" C-channel', qty: 'T>0 ? 2*MS : 0', length: '(W-5-2*(S-1))/S', desc: 'MS C-channel H' },
+            // Mosquito — shutter only (T==0): C-channel on all 4 sides inside the frame
+            { component: '1" C-channel', qty: 'T==0 && MS>0 ? 2 : 0', length: 'H-2', desc: 'MS C-channel V' },
+            { component: '1" C-channel', qty: 'T==0 && MS>0 ? 2 : 0', length: 'W-2', desc: 'MS C-channel H' }
         ],
         // Door Formulas (same as JK ALU for universal compatibility)
         'Door': [

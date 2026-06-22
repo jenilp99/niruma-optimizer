@@ -2528,14 +2528,14 @@ function buildWindowData(size) {
     if (category === 'Window') {
         windowData.tracks = tracks;
         windowData.shutters = tracks === 0 ? 1 : shutters;
-        windowData.mosquitoShutters = tracks === 0 ? 0 : msCount;
+        windowData.mosquitoShutters = msCount;
         windowData.interlockType = document.getElementById('interlockType')?.value || 'slim';
         if (tracks === 0) {
             windowData.shutterOnlyProfile = parseInt(document.getElementById('shutterOnlyProfile')?.value || '1');
         } else {
             delete windowData.shutterOnlyProfile;
         }
-        if (msCount > 0 && tracks > 0) {
+        if (msCount > 0) {
             windowData.mosquitoType      = document.getElementById('mosquitoType')?.value || 'V-2513';
             windowData.mosquitoInterlock = document.getElementById('mosquitoInterlock')?.value || 'V-2516';
             if (seriesVal === '27mm Domal') {
@@ -3092,9 +3092,7 @@ function toggleShutterOnlyConfig() {
     if (soRow) soRow.style.display = tracks === 0 ? 'flex' : 'none';
     if (tracks === 0) {
         const shutEl = document.getElementById('shutters');
-        const msEl = document.getElementById('mosquitoShutters');
         if (shutEl) shutEl.value = '1';
-        if (msEl) { msEl.value = '0'; toggleMosquitoConfig(); }
     }
 }
 
@@ -3214,13 +3212,12 @@ function saveWindowEdit(event) {
         updatedWindow.mosquitoShutters = 0;
     } else {
         updatedWindow.tracks = parseInt(document.getElementById('editTracks').value);
+        updatedWindow.mosquitoShutters = parseInt(document.getElementById('editMosquitoShutters').value);
         if (updatedWindow.tracks === 0) {
             updatedWindow.shutters = 1;
-            updatedWindow.mosquitoShutters = 0;
             updatedWindow.shutterOnlyProfile = parseInt(document.getElementById('editShutterOnlyProfile')?.value || '1');
         } else {
             updatedWindow.shutters = parseInt(document.getElementById('editShutters').value);
-            updatedWindow.mosquitoShutters = parseInt(document.getElementById('editMosquitoShutters').value);
             delete updatedWindow.shutterOnlyProfile;
         }
     }
