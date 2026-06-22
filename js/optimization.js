@@ -979,6 +979,19 @@ function calculatePieces(selectedProject, preferredSupplier) {
             SOP: win.shutterOnlyProfile || 0,  // 0=normal, 1=Handle, 2=Middle
         };
 
+        if (context.T === 0) {
+            console.log('%c🔧 SHUTTER-ONLY DEBUG', 'background:#ff9800;color:white;padding:2px 6px;', {
+                configId: id, T: context.T, SOP: context.SOP, S: context.S, MS: context.MS,
+                W: context.W, H: context.H, formulaCount: formulas.length
+            });
+            formulas.forEach((f, i) => {
+                const q = safeEval(f.qty, context, 0);
+                const l = safeEval(f.length, context, 0);
+                if (q > 0 && l > 0) console.log(`  ✅ [${i}] ${f.component} qty=${q} len=${l} desc=${f.desc}`);
+                else if (q > 0 || l > 0) console.log(`  ⚠️ [${i}] ${f.component} qty=${q} len=${l} (SKIPPED)`);
+            });
+        }
+
         formulas.forEach(formula => {
             // Safety check for formula existence and contents
             if (!formula.qty || !formula.length) {
