@@ -2363,6 +2363,7 @@ function onSeriesChanged() {
         if (opt0) opt0.style.display = allow ? '' : 'none';
         if (!allow && tracksEl.value === '0') { tracksEl.value = '2'; toggleShutterOnlyConfig(); }
     }
+    updateVendorOptionsForSeries(series);
 }
 
 // v1.42: Show Corner Joint + Interlock Design only for series whose formulas
