@@ -2285,13 +2285,10 @@ function generateDoorDiagram(config) {
 // Must include ALL variables used by any formula (door rail formulas need HandleVW, HingeVW)
 function safeEval(formula, context, defaultValue = 0) {
     try {
-        const { W, H, S, MS, T, P, GL, CJ, IT, GT, MT, MIT, F, VW, TW, MW, BW, L, HandleVW, HingeVW } = context;
-        const fn = new Function(
-            'W', 'H', 'S', 'MS', 'T', 'P', 'GL', 'CJ', 'IT', 'GT', 'MT', 'MIT',
-            'F', 'VW', 'TW', 'MW', 'BW', 'L', 'HandleVW', 'HingeVW',
-            `return ${formula}`
-        );
-        const result = fn(W, H, S, MS, T, P, GL, CJ, IT, GT, MT, MIT, F, VW, TW, MW, BW, L, HandleVW, HingeVW);
+        const keys = Object.keys(context);
+        const values = keys.map(k => context[k]);
+        const fn = new Function(...keys, `return ${formula}`);
+        const result = fn(...values);
         return isNaN(result) ? defaultValue : result;
     } catch (e) {
         console.error('SafeEval Error:', e, 'Formula:', formula);
