@@ -10,8 +10,8 @@
     <title>Niruma Aluminum Profile Optimizer</title>
 
     <!-- CSS -->
-    <link rel="stylesheet" href="css/styles.css?v=1.80">
-    <link rel="stylesheet" href="css/modal.css?v=1.80">
+    <link rel="stylesheet" href="css/styles.css?v=1.81">
+    <link rel="stylesheet" href="css/modal.css?v=1.81">
 
     <!-- External Libraries -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -65,7 +65,7 @@
                 <span><strong>mm</strong></span>
             </div>
             <!-- APP VERSION — bump this number on every push/update -->
-            <div class="navbar-version">Ver: 1.80</div>
+            <div class="navbar-version">Ver: 1.81</div>
         </div>
     </nav>
 
@@ -1885,13 +1885,13 @@
     </div>
 
     <!-- JavaScript Files - Load in Order -->
-    <script src="js/storage.js?v=1.80"></script>
-    <script src="js/supplier_master.js?v=1.80"></script>
+    <script src="js/storage.js?v=1.81"></script>
+    <script src="js/supplier_master.js?v=1.81"></script>
     <!-- Supplier Modules -->
-    <script src="js/suppliers/windalco.js?v=1.80"></script>
-    <script src="js/suppliers/jk_alu.js?v=1.80"></script>
-    <script src="js/suppliers/atlantis.js?v=1.80"></script>
-    <script src="js/suppliers/vitco.js?v=1.80"></script>
+    <script src="js/suppliers/windalco.js?v=1.81"></script>
+    <script src="js/suppliers/jk_alu.js?v=1.81"></script>
+    <script src="js/suppliers/atlantis.js?v=1.81"></script>
+    <script src="js/suppliers/vitco.js?v=1.81"></script>
 
     <!-- v1.65: Survey form — Generate dialog -->
     <div id="surveyGenModal" class="modal">
@@ -1920,7 +1920,7 @@
 
     <!-- v1.65: Survey form — Import preview -->
     <div id="surveyImportModal" class="modal">
-        <div class="modal-content" style="max-width: 620px; max-height: 90vh;">
+        <div class="modal-content" style="max-width: 750px; max-height: 90vh;">
             <div class="modal-header">
                 <h3>⬆️ Import Survey — Preview</h3>
                 <button class="close-btn" onclick="closeSurveyImportModal()">&times;</button>
@@ -1931,16 +1931,16 @@
                 <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;margin-bottom:12px;padding:10px;background:#f7f9fb;border:1px solid #e3e8ee;border-radius:8px;">
                     <div style="flex:1;min-width:160px;">
                         <label style="font-weight:600;font-size:12px;">Vendor (all units)</label>
-                        <select id="svImpVendor" style="width:100%;padding:7px;border:1px solid #ddd;border-radius:6px;"></select>
+                        <select id="svImpVendor" onchange="svImpVendorChanged()" style="width:100%;padding:7px;border:1px solid #ddd;border-radius:6px;"></select>
                     </div>
                     <div style="flex:1;min-width:160px;">
-                        <label style="font-weight:600;font-size:12px;">Series (windows only)</label>
-                        <select id="svImpSeries" style="width:100%;padding:7px;border:1px solid #ddd;border-radius:6px;"></select>
+                        <label style="font-weight:600;font-size:12px;">Series (set all windows)</label>
+                        <select id="svImpSeries" onchange="svImpBatchSeriesChanged()" style="width:100%;padding:7px;border:1px solid #ddd;border-radius:6px;"></select>
                     </div>
-                    <span style="font-size:11px;color:#888;flex-basis:100%;">Optional — leave blank to set per-unit later. Needed before Run Optimization. Doors always use the Door series.</span>
+                    <span style="font-size:11px;color:#888;flex-basis:100%;">Select vendor first to see its series. You can also set series per-row below. Doors always use the Door series.</span>
                 </div>
                 <table style="width:100%;border-collapse:collapse;font-size:13px;">
-                    <thead><tr style="background:#303c72;color:#fff;"><th style="text-align:left;padding:6px;">Code</th><th style="padding:6px;">Type</th><th style="text-align:left;padding:6px;">Size</th><th style="text-align:left;padding:6px;">Location</th></tr></thead>
+                    <thead><tr style="background:#303c72;color:#fff;"><th style="text-align:left;padding:6px;">Code</th><th style="padding:6px;">Type</th><th style="text-align:left;padding:6px;">Size</th><th style="text-align:left;padding:6px;">Series</th><th style="text-align:left;padding:6px;">Location</th></tr></thead>
                     <tbody id="surveyPreviewBody"></tbody>
                 </table>
             </div>
@@ -1976,11 +1976,11 @@
         </div>
     </div>
 
-    <script src="js/app.js?v=1.80"></script>
-    <script src="js/optimization.js?v=1.80"></script>
-    <script src="js/exports.js?v=1.80"></script>
-    <script src="js/Quotation.js?v=1.80"></script>
-    <script src="js/survey.js?v=1.80"></script>
+    <script src="js/app.js?v=1.81"></script>
+    <script src="js/optimization.js?v=1.81"></script>
+    <script src="js/exports.js?v=1.81"></script>
+    <script src="js/Quotation.js?v=1.81"></script>
+    <script src="js/survey.js?v=1.81"></script>
 
 </body>
 

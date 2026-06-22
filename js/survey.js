@@ -265,33 +265,68 @@ function buildSurveyDoor(row, meta, code) {
 
 // ── Preview + commit ──────────────────────────────────────────────────────────
 let _surveyPending = null;
+
+function _svImpSeriesOptions(vendor) {
+    if (vendor && typeof supplierMaster !== 'undefined' && supplierMaster[vendor]) {
+        return Object.keys(supplierMaster[vendor]).filter(s => s && s !== 'Door');
+    }
+    const all = (typeof seriesFormulas !== 'undefined') ? Object.keys(seriesFormulas) : [];
+    return all.filter(s => s && s !== 'Door');
+}
+
+function _svImpSeriesHTML(vendor, selected) {
+    const list = _svImpSeriesOptions(vendor);
+    return '<option value="">—</option>' +
+        list.map(s => `<option value="${s}"${s === selected ? ' selected' : ''}>${s}</option>`).join('');
+}
+
+function svImpVendorChanged() {
+    const vendor = (document.getElementById('svImpVendor') || {}).value || '';
+    const sSel = document.getElementById('svImpSeries');
+    if (sSel) sSel.innerHTML = _svImpSeriesHTML(vendor, '');
+    // rebuild per-row dropdowns
+    document.querySelectorAll('.sv-row-series').forEach(sel => {
+        const prev = sel.value;
+        sel.innerHTML = _svImpSeriesHTML(vendor, prev);
+    });
+}
+
+function svImpBatchSeriesChanged() {
+    const val = (document.getElementById('svImpSeries') || {}).value || '';
+    if (!val) return;
+    document.querySelectorAll('.sv-row-series').forEach(sel => { sel.value = val; });
+}
+
 function surveyPreview(parsedUnits, project) {
     _surveyPending = { units: parsedUnits, project };
     const nW = parsedUnits.filter(u => u.category !== 'Door').length;
     const nD = parsedUnits.filter(u => u.category === 'Door').length;
-    const body = document.getElementById('surveyPreviewBody');
-    if (body) {
-        body.innerHTML = parsedUnits.map(u =>
-            `<tr><td>${u.configId}</td><td>${u.category === 'Door' ? '🚪' : '🪟'}</td>` +
-            `<td>${Math.round(u.width)}" × ${Math.round(u.height)}"</td>` +
-            `<td>${u.location || ''}</td></tr>`).join('');
-    }
     const sum = document.getElementById('surveyPreviewSummary');
     if (sum) sum.textContent = `Project "${project}" — ${nW} window(s) + ${nD} door(s) will be added.`;
 
-    // v1.63: populate the optional Vendor + Series assignment dropdowns.
+    // populate vendor dropdown
     const vSel = document.getElementById('svImpVendor');
     if (vSel) {
         const vendors = Object.keys(window.SUPPLIER_REGISTRY || {});
         vSel.innerHTML = '<option value="">— leave blank —</option>' +
             vendors.map(v => `<option value="${v}">${v}</option>`).join('');
     }
+    // populate batch series dropdown (no vendor selected yet → show all)
     const sSel = document.getElementById('svImpSeries');
-    if (sSel) {
-        const all = (typeof seriesFormulas !== 'undefined') ? Object.keys(seriesFormulas) : [];
-        const series = all.filter(s => s && s !== 'Door');
-        sSel.innerHTML = '<option value="">— leave blank —</option>' +
-            series.map(s => `<option value="${s}">${s}</option>`).join('');
+    if (sSel) sSel.innerHTML = _svImpSeriesHTML('', '');
+
+    // build preview rows with per-row series dropdown for windows
+    const body = document.getElementById('surveyPreviewBody');
+    if (body) {
+        body.innerHTML = parsedUnits.map((u, i) => {
+            const seriesCell = u.category === 'Door'
+                ? '<td style="padding:4px;color:#888;font-size:12px;">Door</td>'
+                : `<td style="padding:4px;"><select class="sv-row-series" data-idx="${i}" style="width:100%;padding:3px;border:1px solid #ddd;border-radius:4px;font-size:12px;">${_svImpSeriesHTML('', '')}</select></td>`;
+            return `<tr><td style="padding:4px;">${u.configId}</td><td style="padding:4px;">${u.category === 'Door' ? '🚪' : '🪟'}</td>` +
+                `<td style="padding:4px;">${Math.round(u.width)}" × ${Math.round(u.height)}"</td>` +
+                seriesCell +
+                `<td style="padding:4px;">${u.location || ''}</td></tr>`;
+        }).join('');
     }
 
     const m = document.getElementById('surveyImportModal');
@@ -306,15 +341,20 @@ function closeSurveyImportModal() {
 function commitSurveyImport() {
     if (!_surveyPending) return;
     const { units, project } = _surveyPending;
-    // v1.63: optional batch Vendor + Series assignment (windows only for series).
     const vendor = (document.getElementById('svImpVendor') || {}).value || '';
-    const series = (document.getElementById('svImpSeries') || {}).value || '';
+    // read per-row series selections
+    const rowSelects = document.querySelectorAll('.sv-row-series');
+    const rowSeries = {};
+    rowSelects.forEach(sel => { rowSeries[sel.dataset.idx] = sel.value || ''; });
+
     let added = 0, skipped = 0;
     const reserved = new Set();
-    units.forEach(u => {
+    units.forEach((u, i) => {
         if (vendor) u.vendor = vendor;
-        if (series && u.category !== 'Door') u.series = series;
-        // ensure a unique config ID within the project (rename collisions, don't block import)
+        if (u.category !== 'Door') {
+            const perRow = rowSeries[String(i)] || '';
+            if (perRow) u.series = perRow;
+        }
         let id = u.configId;
         if (isConfigIdTaken(id, project, -1) || reserved.has(id.toLowerCase())) {
             id = nextAvailableConfigId(u.category === 'Door' ? 'Door' : 'Window', project, reserved);
