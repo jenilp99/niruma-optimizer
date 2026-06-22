@@ -3125,14 +3125,13 @@ function toggleShutterOnlyPartition() {
     if (partition === 'glass') {
         if (glassRow) glassRow.style.display = '';
         if (msEl) msEl.value = '0';
-        if (msConfigRow) msConfigRow.style.display = 'none';
     } else {
         if (glassRow) glassRow.style.display = 'none';
         if (msEl) msEl.value = '1';
-        if (msConfigRow) msConfigRow.style.display = 'flex';
         const glassUnit = document.getElementById('glassUnit');
         if (glassUnit) glassUnit.value = 'none';
     }
+    if (msConfigRow) msConfigRow.style.display = 'none';
 }
 
 function toggleEditShutterOnlyPartition() {
