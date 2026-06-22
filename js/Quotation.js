@@ -1128,8 +1128,14 @@ function generateQuotationPDF(projectWindows, selectedProject, formData) {
                 if (win.vendor) d += `\n${win.vendor}`;
                 return d + '\nPowder Coating';
             }
-            let d = `${win.tracks} Track ${win.shutters} Shutter`;
-            if ((win.mosquitoShutters || 0) > 0) d += `\n+ ${win.mosquitoShutters} Mosquito`;
+            let d;
+            if (win.tracks === 0) {
+                d = win.shutterOnlyPartition === 'mosquito' ? 'Mosquito Fixed Shutter' : 'Glass Fixed Shutter';
+                d += `\n(${win.shutterOnlyProfile === 2 ? 'Middle' : 'Handle'} frame)`;
+            } else {
+                d = `${win.tracks} Track ${win.shutters} Shutter`;
+                if ((win.mosquitoShutters || 0) > 0) d += `\n+ ${win.mosquitoShutters} Mosquito`;
+            }
             if (win.series) d += `\nSeries: ${win.series}`;
             if (win.vendor) d += `\nSupplier: ${win.vendor}`;
             return d + '\nPowder Coating';
@@ -1393,7 +1399,9 @@ function generateQuotationPDF(projectWindows, selectedProject, formData) {
         projectWindows.forEach((win, idx) => {
             const hw = calculateWindowHardware(win, optimizationResults);
             const q = win.qty || 1;
-            const winLabel = `${win.configId} (Qty ${q})  —  ${win.tracks}T ${win.shutters}S${(win.mosquitoShutters||0)>0 ? ' + '+win.mosquitoShutters+'MS':''}`;
+            const winLabel = win.tracks === 0
+                ? `${win.configId} (Qty ${q})  —  Fixed ${win.shutterOnlyPartition === 'mosquito' ? 'Mosquito' : 'Glass'} Shutter`
+                : `${win.configId} (Qty ${q})  —  ${win.tracks}T ${win.shutters}S${(win.mosquitoShutters||0)>0 ? ' + '+win.mosquitoShutters+'MS':''}`;
 
             // v1.45: prevent the window title from being orphaned at the bottom of a
             // page (title prints, then its table jumps to the next page). Estimate the
@@ -1995,7 +2003,9 @@ function generateWindowDiagram(config) {
     let svg = `<svg width="${svgWidth}" height="${svgHeight}" xmlns="http://www.w3.org/2000/svg">`;
 
     // Title - Include mosquito shutter info
-    const typeStr = `${config.tracks}T${config.shutters}S${config.mosquitoShutters > 0 ? config.mosquitoShutters + 'MS' : ''}`;
+    const typeStr = config.tracks === 0
+        ? `0T1S${config.mosquitoShutters > 0 ? '1MS' : ''}`
+        : `${config.tracks}T${config.shutters}S${config.mosquitoShutters > 0 ? config.mosquitoShutters + 'MS' : ''}`;
     svg += `<text x="${svgWidth / 2}" y="12" text-anchor="middle" font-family="Arial, sans-serif" font-size="10" font-weight="bold" fill="#2c3e50">${config.windowId} - ${typeStr}</text>`;
 
     // Draw outer frame

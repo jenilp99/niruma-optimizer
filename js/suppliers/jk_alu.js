@@ -449,19 +449,23 @@ window.registerSupplier("JK ALU EXTRUSION", {
     // 4. HARDWARE DEFAULTS
     hardware: {
         '3/4"': [
-            { hardware: 'Bearing (3/4")', qty: 4, unit: 'Nos', formula: '2 * S + 2 * MS', rate: 45 },
-            { hardware: 'Window Lock (Touch)', qty: 2, unit: 'Nos', formula: '2 + (MS > 0 ? 1 : 0)', rate: 65 },
-            { hardware: 'Wool Pile', qty: 10, unit: 'R.Ft', formula: '(GL("3/4\\" Interlock") + 4 * T * (W + H)) / 12', rate: 4 },
-            { hardware: 'Silicon Sealant', qty: 1, unit: 'R.Ft', formula: '(W + H) * 4 / 12', rate: 10 },
+            { hardware: 'Bearing (3/4")', qty: 4, unit: 'Nos', formula: 'T > 0 ? 2 * S + 2 * MS : 0', rate: 45 },
+            { hardware: 'Window Lock (Touch)', qty: 2, unit: 'Nos', formula: 'T > 0 ? 2 + (MS > 0 ? 1 : 0) : 0', rate: 65 },
+            { hardware: 'Wool Pile', qty: 10, unit: 'R.Ft', formula: 'T > 0 ? (GL("3/4\\" Interlock") + 4 * T * (W + H)) / 12 : 0', rate: 4 },
+            { hardware: 'Silicon Sealant', qty: 1, unit: 'R.Ft', formula: 'T > 0 ? (W + H) * 4 / 12 : 2 * (W + H) / 12', rate: 10 },
             { hardware: 'Corner Joint (PVC)', qty: 4, unit: 'Nos', formula: '4 * F', rate: 5 },
-            { hardware: 'Acrylic Stopper', qty: 4, unit: 'Nos', formula: '4', rate: 2 }
+            { hardware: 'Acrylic Stopper', qty: 4, unit: 'Nos', formula: 'T > 0 ? 4 : 0', rate: 2 },
+            { hardware: 'Screw 13x6', qty: 12, unit: 'Nos', formula: 'T == 0 ? 12 : 0', rate: 1 },
+            { hardware: 'Screw 32x6', qty: 4, unit: 'Nos', formula: 'T == 0 ? 4 : 0', rate: 1 }
         ],
         '1"': [
-            { hardware: 'Bearing (1")', qty: 4, unit: 'Nos', formula: '2 * S + 2 * MS', rate: 65 },
-            { hardware: 'Window Lock (Touch)', qty: 2, unit: 'Nos', formula: '2 + (MS > 0 ? 1 : 0)', rate: 65 },
-            { hardware: 'Wool Pile', qty: 10, unit: 'R.Ft', formula: '(GL("1\\" Interlock") + 4 * T * (W + H)) / 12', rate: 4 },
-            { hardware: 'Silicon Sealant', qty: 1, unit: 'R.Ft', formula: '(W + H) * 4 / 12', rate: 10 },
-            { hardware: 'Acrylic Stopper', qty: 4, unit: 'Nos', formula: '4', rate: 2 }
+            { hardware: 'Bearing (1")', qty: 4, unit: 'Nos', formula: 'T > 0 ? 2 * S + 2 * MS : 0', rate: 65 },
+            { hardware: 'Window Lock (Touch)', qty: 2, unit: 'Nos', formula: 'T > 0 ? 2 + (MS > 0 ? 1 : 0) : 0', rate: 65 },
+            { hardware: 'Wool Pile', qty: 10, unit: 'R.Ft', formula: 'T > 0 ? (GL("1\\" Interlock") + 4 * T * (W + H)) / 12 : 0', rate: 4 },
+            { hardware: 'Silicon Sealant', qty: 1, unit: 'R.Ft', formula: 'T > 0 ? (W + H) * 4 / 12 : 2 * (W + H) / 12', rate: 10 },
+            { hardware: 'Acrylic Stopper', qty: 4, unit: 'Nos', formula: 'T > 0 ? 4 : 0', rate: 2 },
+            { hardware: 'Screw 13x6', qty: 12, unit: 'Nos', formula: 'T == 0 ? 12 : 0', rate: 1 },
+            { hardware: 'Screw 32x6', qty: 4, unit: 'Nos', formula: 'T == 0 ? 4 : 0', rate: 1 }
         ],
         '27mm Domal': [
             { hardware: 'Domal Bearing',                         unit: 'Nos',  formula: '2 * S + 2 * MS',                                                                        rate: 47 },
