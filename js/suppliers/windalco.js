@@ -103,7 +103,7 @@ window.registerSupplier("Windalco Aluminium", {
                 { sectionNo: "20077", t: 1.30, weight: 2.500 }
             ],
             "1\" 2 Track Bottom": [
-                { sectionNo: "20078", t: 1.30, weight: 2.500 }
+                { sectionNo: "20078", t: 1.15, weight: 2.500 }
             ],
             "1\" 3 Track Top": [
                 { sectionNo: "20080", t: 1.20, weight: 3.400 },
