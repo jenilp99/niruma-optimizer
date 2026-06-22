@@ -10,8 +10,8 @@
     <title>Niruma Aluminum Profile Optimizer</title>
 
     <!-- CSS -->
-    <link rel="stylesheet" href="css/styles.css?v=1.85a">
-    <link rel="stylesheet" href="css/modal.css?v=1.85a">
+    <link rel="stylesheet" href="css/styles.css?v=1.86">
+    <link rel="stylesheet" href="css/modal.css?v=1.86">
 
     <!-- External Libraries -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -65,7 +65,7 @@
                 <span><strong>mm</strong></span>
             </div>
             <!-- APP VERSION — bump this number on every push/update -->
-            <div class="navbar-version">Ver: 1.85</div>
+            <div class="navbar-version">Ver: 1.86</div>
         </div>
     </nav>
 
@@ -261,7 +261,7 @@
                                         <option value="4">4 Tracks</option>
                                     </select>
                                 </div>
-                                <div class="form-group">
+                                <div class="form-group" id="shuttersGroup">
                                     <label>Glass Shutters (S)</label>
                                     <select id="shutters" required>
                                         <option value="1">1 Shutter</option>
@@ -270,7 +270,7 @@
                                         <option value="4">4 Shutters</option>
                                     </select>
                                 </div>
-                                <div class="form-group">
+                                <div class="form-group" id="mosquitoShuttersGroup">
                                     <label>Mosquito Shutters (MS)</label>
                                     <select id="mosquitoShutters" onchange="toggleMosquitoConfig()" required>
                                         <option value="0" selected>0 Mosquito Shutter</option>
@@ -290,7 +290,14 @@
                                     </select>
                                 </div>
                                 <div class="form-group">
-                                    <span style="font-size:12px;color:#666;margin-top:22px;display:block;">Fixed frame for exhaust fan / ventilation. No tracks, no sliding. Select thickness after adding.</span>
+                                    <label>Partition Inside</label>
+                                    <select id="shutterOnlyPartition" onchange="toggleShutterOnlyPartition()">
+                                        <option value="glass">Glass</option>
+                                        <option value="mosquito">Mosquito Net</option>
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <span style="font-size:12px;color:#666;margin-top:22px;display:block;">Fixed frame — no tracks, no sliding.</span>
                                 </div>
                             </div>
                             <div class="form-row" id="windowGlassRow">
@@ -1524,6 +1531,13 @@
                                     <option value="2">Middle</option>
                                 </select>
                             </div>
+                            <div class="form-group">
+                                <label>Partition Inside</label>
+                                <select id="editShutterOnlyPartition" onchange="toggleEditShutterOnlyPartition()">
+                                    <option value="glass">Glass</option>
+                                    <option value="mosquito">Mosquito Net</option>
+                                </select>
+                            </div>
                         </div>
                     </div>
 
@@ -1908,13 +1922,13 @@
     </div>
 
     <!-- JavaScript Files - Load in Order -->
-    <script src="js/storage.js?v=1.85a"></script>
-    <script src="js/supplier_master.js?v=1.85a"></script>
+    <script src="js/storage.js?v=1.86"></script>
+    <script src="js/supplier_master.js?v=1.86"></script>
     <!-- Supplier Modules -->
-    <script src="js/suppliers/windalco.js?v=1.85a"></script>
-    <script src="js/suppliers/jk_alu.js?v=1.85a"></script>
-    <script src="js/suppliers/atlantis.js?v=1.85a"></script>
-    <script src="js/suppliers/vitco.js?v=1.85a"></script>
+    <script src="js/suppliers/windalco.js?v=1.86"></script>
+    <script src="js/suppliers/jk_alu.js?v=1.86"></script>
+    <script src="js/suppliers/atlantis.js?v=1.86"></script>
+    <script src="js/suppliers/vitco.js?v=1.86"></script>
 
     <!-- v1.65: Survey form — Generate dialog -->
     <div id="surveyGenModal" class="modal">
@@ -1999,11 +2013,11 @@
         </div>
     </div>
 
-    <script src="js/app.js?v=1.85a"></script>
-    <script src="js/optimization.js?v=1.85a"></script>
-    <script src="js/exports.js?v=1.85a"></script>
-    <script src="js/Quotation.js?v=1.85a"></script>
-    <script src="js/survey.js?v=1.85a"></script>
+    <script src="js/app.js?v=1.86"></script>
+    <script src="js/optimization.js?v=1.86"></script>
+    <script src="js/exports.js?v=1.86"></script>
+    <script src="js/Quotation.js?v=1.86"></script>
+    <script src="js/survey.js?v=1.86"></script>
 
 </body>
 

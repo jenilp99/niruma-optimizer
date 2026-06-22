@@ -2527,13 +2527,21 @@ function buildWindowData(size) {
     // v1.32: only write fields that actually apply (avoids polluting saved JSON).
     if (category === 'Window') {
         windowData.tracks = tracks;
-        windowData.shutters = tracks === 0 ? 1 : shutters;
-        windowData.mosquitoShutters = msCount;
         windowData.interlockType = document.getElementById('interlockType')?.value || 'slim';
         if (tracks === 0) {
+            windowData.shutters = 1;
             windowData.shutterOnlyProfile = parseInt(document.getElementById('shutterOnlyProfile')?.value || '1');
+            const soPartition = document.getElementById('shutterOnlyPartition')?.value || 'glass';
+            windowData.shutterOnlyPartition = soPartition;
+            windowData.mosquitoShutters = soPartition === 'mosquito' ? 1 : 0;
+            if (soPartition === 'mosquito') {
+                windowData.glassUnit = 'none';
+            }
         } else {
+            windowData.shutters = shutters;
+            windowData.mosquitoShutters = msCount;
             delete windowData.shutterOnlyProfile;
+            delete windowData.shutterOnlyPartition;
         }
         if (msCount > 0) {
             windowData.mosquitoType      = document.getElementById('mosquitoType')?.value || 'V-2513';
@@ -2738,6 +2746,7 @@ function populateWindowFormFromObject(w) {
 
     // Shutter Only config (visible only when T == 0)
     setVal('shutterOnlyProfile', String(w.shutterOnlyProfile || 1));
+    setVal('shutterOnlyPartition', w.shutterOnlyPartition || (w.mosquitoShutters > 0 ? 'mosquito' : 'glass'));
     if (typeof toggleShutterOnlyConfig === 'function') toggleShutterOnlyConfig();
 
     // Mosquito config (visible only when MS > 0)
@@ -2898,7 +2907,7 @@ function renderWindowCard(w, idx) {
                 </div>`;
                 })() :
             (w.tracks === 0
-                ? `<div><strong>Shutter Only</strong> — ${w.shutterOnlyProfile === 2 ? 'Middle' : 'Handle'} frame</div>`
+                ? `<div><strong>Shutter Only</strong> — ${w.shutterOnlyProfile === 2 ? 'Middle' : 'Handle'} frame, ${w.shutterOnlyPartition === 'mosquito' ? 'Mosquito Net' : 'Glass'}</div>`
                 : `<div><strong>Tracks:</strong> ${w.tracks}</div>
                 <div><strong>Shutters:</strong> ${w.shutters}</div>
                 <div><strong>Mosquito:</strong> ${w.mosquitoShutters}${w.mosquitoMiddle ? ' <span style="color:#0288d1;font-size:11px;">(with 1" middle bar)</span>' : ''}</div>`)}
@@ -3020,6 +3029,8 @@ function editWindow(idx) {
     document.getElementById('editMosquitoShutters').value = win.mosquitoShutters;
     const editSopEl = document.getElementById('editShutterOnlyProfile');
     if (editSopEl) editSopEl.value = String(win.shutterOnlyProfile || 1);
+    const editSoPartEl = document.getElementById('editShutterOnlyPartition');
+    if (editSoPartEl) editSoPartEl.value = win.shutterOnlyPartition || (win.mosquitoShutters > 0 ? 'mosquito' : 'glass');
     toggleEditShutterOnly();
 
     // Set Vendor and filter series
@@ -3089,10 +3100,51 @@ function toggleMosquitoConfig() {
 function toggleShutterOnlyConfig() {
     const tracks = parseInt(document.getElementById('tracks')?.value || '2');
     const soRow = document.getElementById('shutterOnlyRow');
+    const shutGrp = document.getElementById('shuttersGroup');
+    const msGrp = document.getElementById('mosquitoShuttersGroup');
     if (soRow) soRow.style.display = tracks === 0 ? 'flex' : 'none';
+    if (shutGrp) shutGrp.style.display = tracks === 0 ? 'none' : '';
+    if (msGrp) msGrp.style.display = tracks === 0 ? 'none' : '';
     if (tracks === 0) {
         const shutEl = document.getElementById('shutters');
         if (shutEl) shutEl.value = '1';
+        toggleShutterOnlyPartition();
+    } else {
+        const glassRow = document.getElementById('windowGlassRow');
+        if (glassRow) glassRow.style.display = '';
+        const msConfigRow = document.getElementById('mosquitoConfigRow');
+        if (msConfigRow) toggleMosquitoConfig();
+    }
+}
+
+function toggleShutterOnlyPartition() {
+    const partition = document.getElementById('shutterOnlyPartition')?.value || 'glass';
+    const glassRow = document.getElementById('windowGlassRow');
+    const msEl = document.getElementById('mosquitoShutters');
+    const msConfigRow = document.getElementById('mosquitoConfigRow');
+    if (partition === 'glass') {
+        if (glassRow) glassRow.style.display = '';
+        if (msEl) msEl.value = '0';
+        if (msConfigRow) msConfigRow.style.display = 'none';
+    } else {
+        if (glassRow) glassRow.style.display = 'none';
+        if (msEl) msEl.value = '1';
+        if (msConfigRow) msConfigRow.style.display = 'flex';
+        const glassUnit = document.getElementById('glassUnit');
+        if (glassUnit) glassUnit.value = 'none';
+    }
+}
+
+function toggleEditShutterOnlyPartition() {
+    const partition = document.getElementById('editShutterOnlyPartition')?.value || 'glass';
+    const editGlassRow = document.getElementById('editGlassRow');
+    const editMsEl = document.getElementById('editMosquitoShutters');
+    if (partition === 'glass') {
+        if (editGlassRow) editGlassRow.style.display = '';
+        if (editMsEl) editMsEl.value = '0';
+    } else {
+        if (editGlassRow) editGlassRow.style.display = 'none';
+        if (editMsEl) editMsEl.value = '1';
     }
 }
 
@@ -3212,13 +3264,18 @@ function saveWindowEdit(event) {
         updatedWindow.mosquitoShutters = 0;
     } else {
         updatedWindow.tracks = parseInt(document.getElementById('editTracks').value);
-        updatedWindow.mosquitoShutters = parseInt(document.getElementById('editMosquitoShutters').value);
         if (updatedWindow.tracks === 0) {
             updatedWindow.shutters = 1;
             updatedWindow.shutterOnlyProfile = parseInt(document.getElementById('editShutterOnlyProfile')?.value || '1');
+            const soPart = document.getElementById('editShutterOnlyPartition')?.value || 'glass';
+            updatedWindow.shutterOnlyPartition = soPart;
+            updatedWindow.mosquitoShutters = soPart === 'mosquito' ? 1 : 0;
+            if (soPart === 'mosquito') updatedWindow.glassUnit = 'none';
         } else {
             updatedWindow.shutters = parseInt(document.getElementById('editShutters').value);
+            updatedWindow.mosquitoShutters = parseInt(document.getElementById('editMosquitoShutters').value);
             delete updatedWindow.shutterOnlyProfile;
+            delete updatedWindow.shutterOnlyPartition;
         }
     }
 
