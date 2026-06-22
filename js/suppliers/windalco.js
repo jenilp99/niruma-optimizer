@@ -213,16 +213,20 @@ window.registerSupplier("Windalco Aluminium", {
     // 2. SERIES FORMULAS (Standard 3/4" and 1")
     formulas: {
         '3/4"': [
-            { component: '3/4" Handle', qty: '2', length: 'H-1.5', desc: 'Handles' },
-            { component: '3/4" Interlock', qty: '2*S-2', length: 'H-1.5', desc: 'Interlocks' },
-            // Logic: If bearing bottom exists, use it. Else use Top/Bottom for both.
-            { component: '3/4" Bearing Bottom', qty: '2*S', length: '(W-5-1.5*(S-1))/S', desc: 'Bearing Bottom' },
-            // Note: If user selects regular top/bottom in UI, we might need a separate formula or logic.
-            // For now, assuming Bearing Bottom is standard for Windows.
+            // Sliding window (T>0): handles, interlocks, bearing bottom
+            { component: '3/4" Handle', qty: 'T>0 ? 2 : 0', length: 'H-1.5', desc: 'Handles' },
+            { component: '3/4" Interlock', qty: 'T>0 ? 2*S-2 : 0', length: 'H-1.5', desc: 'Interlocks' },
+            { component: '3/4" Bearing Bottom', qty: 'T>0 ? 2*S : 0', length: '(W-5-1.5*(S-1))/S', desc: 'Bearing Bottom' },
+
+            // Shutter Only (T==0): all 4 sides use Handle (SOP==1) or Middle (SOP==2)
+            { component: '3/4" Handle', qty: 'T==0 && SOP==1 ? 2 : 0', length: 'H', desc: 'Handles' },
+            { component: '3/4" Handle', qty: 'T==0 && SOP==1 ? 2 : 0', length: 'W-1.42', desc: 'Bearing Bottom' },
+            { component: '3/4" Middle', qty: 'T==0 && SOP==2 ? 2 : 0', length: 'H', desc: 'Handles' },
+            { component: '3/4" Middle', qty: 'T==0 && SOP==2 ? 2 : 0', length: 'W-1.42', desc: 'Bearing Bottom' },
 
             { component: '3/4" 2 Track Top', qty: '1', length: 'T==2 ? W : 0', desc: '2T Track Top' },
             { component: '3/4" 2 Track Bottom', qty: '1', length: 'T==2 ? W : 0', desc: '2T Track Bottom' },
-            { component: '3/4" 2 Track Top', qty: '2', length: 'T==2 ? H : 0', desc: '2T Track Sides' }, // Use Top for Sides if Vertical not defined
+            { component: '3/4" 2 Track Top', qty: '2', length: 'T==2 ? H : 0', desc: '2T Track Sides' },
 
             { component: '3/4" 3 Track Top', qty: '1', length: 'T==3 ? W : 0', desc: '3T Track Top' },
             { component: '3/4" 3 Track Bottom', qty: '1', length: 'T==3 ? W : 0', desc: '3T Track Bottom' },
@@ -232,17 +236,24 @@ window.registerSupplier("Windalco Aluminium", {
             { component: '3/4" 4 Track Bottom', qty: '1', length: 'T==4 ? W : 0', desc: '4T Track Bottom' },
             { component: '3/4" 4 Track Top', qty: '2', length: 'T==4 ? H : 0', desc: '4T Track Sides' },
 
-            // Mosquito
-            { component: '3/4" Handle', qty: '1*MS', length: 'H-1.5', desc: 'MS Handle' },
-            { component: '3/4" Interlock', qty: '1*MS', length: 'H-1.5', desc: 'MS Interlock' },
-            { component: '3/4" Bearing Bottom', qty: '2*MS', length: '(W-5-1.5*(S-1))/S', desc: 'MS Bearing Bottom' },
-            { component: '3/4" C-channel', qty: '2*MS', length: 'H-1.5', desc: 'MS C-channel V' },
-            { component: '3/4" C-channel', qty: '2*MS', length: '(W-5-1.5*(S-1))/S', desc: 'MS C-channel H' }
+            // Mosquito (only for sliding T>0)
+            { component: '3/4" Handle', qty: 'T>0 ? 1*MS : 0', length: 'H-1.5', desc: 'MS Handle' },
+            { component: '3/4" Interlock', qty: 'T>0 ? 1*MS : 0', length: 'H-1.5', desc: 'MS Interlock' },
+            { component: '3/4" Bearing Bottom', qty: 'T>0 ? 2*MS : 0', length: '(W-5-1.5*(S-1))/S', desc: 'MS Bearing Bottom' },
+            { component: '3/4" C-channel', qty: 'T>0 ? 2*MS : 0', length: 'H-1.5', desc: 'MS C-channel V' },
+            { component: '3/4" C-channel', qty: 'T>0 ? 2*MS : 0', length: '(W-5-1.5*(S-1))/S', desc: 'MS C-channel H' }
         ],
         '1"': [
-            { component: '1" Handle', qty: '2', length: 'H-1.125', desc: 'Handles' },
-            { component: '1" Interlock', qty: '2*S-2', length: 'H-1.125', desc: 'Interlocks' },
-            { component: '1" Bearing Bottom', qty: '2*S', length: '(W-5-2*(S-1))/S', desc: 'Bearing Bottom' },
+            // Sliding window (T>0)
+            { component: '1" Handle', qty: 'T>0 ? 2 : 0', length: 'H-1.125', desc: 'Handles' },
+            { component: '1" Interlock', qty: 'T>0 ? 2*S-2 : 0', length: 'H-1.125', desc: 'Interlocks' },
+            { component: '1" Bearing Bottom', qty: 'T>0 ? 2*S : 0', length: '(W-5-2*(S-1))/S', desc: 'Bearing Bottom' },
+
+            // Shutter Only (T==0): all 4 sides use Handle (SOP==1) or Middle (SOP==2)
+            { component: '1" Handle', qty: 'T==0 && SOP==1 ? 2 : 0', length: 'H', desc: 'Handles' },
+            { component: '1" Handle', qty: 'T==0 && SOP==1 ? 2 : 0', length: 'W-2', desc: 'Bearing Bottom' },
+            { component: '1" Middle', qty: 'T==0 && SOP==2 ? 2 : 0', length: 'H', desc: 'Handles' },
+            { component: '1" Middle', qty: 'T==0 && SOP==2 ? 2 : 0', length: 'W-2', desc: 'Bearing Bottom' },
 
             { component: '1" 2 Track Top', qty: '1', length: 'T==2 ? W : 0', desc: '2T Track Top' },
             { component: '1" 2 Track Bottom', qty: '1', length: 'T==2 ? W : 0', desc: '2T Track Bottom' },
@@ -252,12 +263,12 @@ window.registerSupplier("Windalco Aluminium", {
             { component: '1" 3 Track Bottom', qty: '1', length: 'T==3 ? W : 0', desc: '3T Track Bottom' },
             { component: '1" 3 Track Top', qty: '2', length: 'T==3 ? H : 0', desc: '3T Track Sides' },
 
-            // Mosquito
-            { component: '1" Handle', qty: '1*MS', length: 'H-1.125', desc: 'MS Handle' },
-            { component: '1" Interlock', qty: '1*MS', length: 'H-1.125', desc: 'MS Interlock' },
-            { component: '1" Bearing Bottom', qty: '2*MS', length: '(W-5-2*(S-1))/S', desc: 'MS Bearing Bottom' },
-            { component: '1" C-channel', qty: '2*MS', length: 'H-1.125', desc: 'MS C-channel V' },
-            { component: '1" C-channel', qty: '2*MS', length: '(W-5-2*(S-1))/S', desc: 'MS C-channel H' }
+            // Mosquito (only for sliding T>0)
+            { component: '1" Handle', qty: 'T>0 ? 1*MS : 0', length: 'H-1.125', desc: 'MS Handle' },
+            { component: '1" Interlock', qty: 'T>0 ? 1*MS : 0', length: 'H-1.125', desc: 'MS Interlock' },
+            { component: '1" Bearing Bottom', qty: 'T>0 ? 2*MS : 0', length: '(W-5-2*(S-1))/S', desc: 'MS Bearing Bottom' },
+            { component: '1" C-channel', qty: 'T>0 ? 2*MS : 0', length: 'H-1.125', desc: 'MS C-channel V' },
+            { component: '1" C-channel', qty: 'T>0 ? 2*MS : 0', length: '(W-5-2*(S-1))/S', desc: 'MS C-channel H' }
         ],
         // Door Formulas (same as JK ALU for universal compatibility)
         'Door': [

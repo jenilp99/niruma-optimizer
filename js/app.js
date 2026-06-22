@@ -2353,13 +2353,16 @@ function onSeriesChanged() {
     const series = document.getElementById('series').value;
     const display = document.getElementById('selectedSeriesDisplay');
     if (display) display.textContent = series || '...';
-    // v1.31: re-fire mosquito-config toggle so the "Mosquito Middle" option
-    // shows/hides based on the new series selection (Domal only).
     if (typeof toggleMosquitoConfig === 'function') toggleMosquitoConfig();
-    // v1.42: hide Corner Joint + Interlock Design for series that don't use them.
-    // CJ/IT are only referenced in '25mm Shutter (Shared)' formulas — every other
-    // series ignores them, so showing the dropdowns is misleading.
     if (typeof updateCJITVisibility === 'function') updateCJITVisibility(series);
+    // Show "0 Tracks (Shutter Only)" only for 3/4" and 1" series
+    const tracksEl = document.getElementById('tracks');
+    if (tracksEl) {
+        const opt0 = tracksEl.querySelector('option[value="0"]');
+        const allow = /^(3\/4"|1")$/.test(series);
+        if (opt0) opt0.style.display = allow ? '' : 'none';
+        if (!allow && tracksEl.value === '0') { tracksEl.value = '2'; toggleShutterOnlyConfig(); }
+    }
 }
 
 // v1.42: Show Corner Joint + Interlock Design only for series whose formulas
@@ -2524,10 +2527,15 @@ function buildWindowData(size) {
     // v1.32: only write fields that actually apply (avoids polluting saved JSON).
     if (category === 'Window') {
         windowData.tracks = tracks;
-        windowData.shutters = shutters;
-        windowData.mosquitoShutters = msCount;
+        windowData.shutters = tracks === 0 ? 1 : shutters;
+        windowData.mosquitoShutters = tracks === 0 ? 0 : msCount;
         windowData.interlockType = document.getElementById('interlockType')?.value || 'slim';
-        if (msCount > 0) {
+        if (tracks === 0) {
+            windowData.shutterOnlyProfile = parseInt(document.getElementById('shutterOnlyProfile')?.value || '1');
+        } else {
+            delete windowData.shutterOnlyProfile;
+        }
+        if (msCount > 0 && tracks > 0) {
             windowData.mosquitoType      = document.getElementById('mosquitoType')?.value || 'V-2513';
             windowData.mosquitoInterlock = document.getElementById('mosquitoInterlock')?.value || 'V-2516';
             if (seriesVal === '27mm Domal') {
@@ -2728,6 +2736,10 @@ function populateWindowFormFromObject(w) {
     setChk('glassToughened', !!w.glassToughened);
     setVal('cornerJoint',    w.cornerJoint || '90');
 
+    // Shutter Only config (visible only when T == 0)
+    setVal('shutterOnlyProfile', String(w.shutterOnlyProfile || 1));
+    if (typeof toggleShutterOnlyConfig === 'function') toggleShutterOnlyConfig();
+
     // Mosquito config (visible only when MS > 0)
     setVal('mosquitoType',      w.mosquitoType || 'V-2513');
     setVal('mosquitoInterlock', w.mosquitoInterlock || 'V-2516');
@@ -2885,9 +2897,11 @@ function renderWindowCard(w, idx) {
                     <span style="background:#eafaf1;padding:2px 8px;border-radius:4px;font-size:12px;">⬇ ${fmtPartition(lo)}</span>
                 </div>`;
                 })() :
-            `<div><strong>Tracks:</strong> ${w.tracks}</div>
+            (w.tracks === 0
+                ? `<div><strong>Shutter Only</strong> — ${w.shutterOnlyProfile === 2 ? 'Middle' : 'Handle'} frame</div>`
+                : `<div><strong>Tracks:</strong> ${w.tracks}</div>
                 <div><strong>Shutters:</strong> ${w.shutters}</div>
-                <div><strong>Mosquito:</strong> ${w.mosquitoShutters}${w.mosquitoMiddle ? ' <span style="color:#0288d1;font-size:11px;">(with 1" middle bar)</span>' : ''}</div>`}
+                <div><strong>Mosquito:</strong> ${w.mosquitoShutters}${w.mosquitoMiddle ? ' <span style="color:#0288d1;font-size:11px;">(with 1" middle bar)</span>' : ''}</div>`)}
                 <div><strong>Series:</strong> ${w.series}</div>
                 <div><strong>Qty:</strong> ${w.qty || 1}</div>
                 <div><strong>Thickness:</strong> <span style="color: ${hasThickness ? '#2e7d32' : '#e67e22'};">${thicknessStatus} ${thicknessLabel}</span></div>
@@ -3004,6 +3018,9 @@ function editWindow(idx) {
     document.getElementById('editTracks').value = win.tracks;
     document.getElementById('editShutters').value = win.shutters;
     document.getElementById('editMosquitoShutters').value = win.mosquitoShutters;
+    const editSopEl = document.getElementById('editShutterOnlyProfile');
+    if (editSopEl) editSopEl.value = String(win.shutterOnlyProfile || 1);
+    toggleEditShutterOnly();
 
     // Set Vendor and filter series
     const vendorSelector = document.getElementById('editWindowVendor');
@@ -3069,6 +3086,18 @@ function toggleMosquitoConfig() {
     }
 }
 
+function toggleShutterOnlyConfig() {
+    const tracks = parseInt(document.getElementById('tracks')?.value || '2');
+    const soRow = document.getElementById('shutterOnlyRow');
+    if (soRow) soRow.style.display = tracks === 0 ? 'flex' : 'none';
+    if (tracks === 0) {
+        const shutEl = document.getElementById('shutters');
+        const msEl = document.getElementById('mosquitoShutters');
+        if (shutEl) shutEl.value = '1';
+        if (msEl) { msEl.value = '0'; toggleMosquitoConfig(); }
+    }
+}
+
 function updateGlassThicknessOptions() {
     const unit = document.getElementById('glassUnit').value;
     const thicknessSelect = document.getElementById('glassThickness');
@@ -3105,6 +3134,12 @@ function toggleEditMosquitoConfig() {
         const seriesVal = seriesEl ? seriesEl.value : '';
         mmGrp.style.display = (msCount > 0 && seriesVal === '27mm Domal') ? '' : 'none';
     }
+}
+
+function toggleEditShutterOnly() {
+    const tracks = parseInt(document.getElementById('editTracks')?.value || '2');
+    const soRow = document.getElementById('editShutterOnlyRow');
+    if (soRow) soRow.style.display = tracks === 0 ? 'flex' : 'none';
 }
 
 function updateEditGlassThicknessOptions() {
@@ -3179,8 +3214,15 @@ function saveWindowEdit(event) {
         updatedWindow.mosquitoShutters = 0;
     } else {
         updatedWindow.tracks = parseInt(document.getElementById('editTracks').value);
-        updatedWindow.shutters = parseInt(document.getElementById('editShutters').value);
-        updatedWindow.mosquitoShutters = parseInt(document.getElementById('editMosquitoShutters').value);
+        if (updatedWindow.tracks === 0) {
+            updatedWindow.shutters = 1;
+            updatedWindow.mosquitoShutters = 0;
+            updatedWindow.shutterOnlyProfile = parseInt(document.getElementById('editShutterOnlyProfile')?.value || '1');
+        } else {
+            updatedWindow.shutters = parseInt(document.getElementById('editShutters').value);
+            updatedWindow.mosquitoShutters = parseInt(document.getElementById('editMosquitoShutters').value);
+            delete updatedWindow.shutterOnlyProfile;
+        }
     }
 
     // MERGE instead of REPLACE — preserves fields the edit modal doesn't expose

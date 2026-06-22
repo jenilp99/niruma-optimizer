@@ -838,10 +838,10 @@ function generateDoorProfileFormulas(win, supplierData) {
 function safeEval(formula, context, defaultValue = 0) {
     try {
         // Create variables from context (MRPI = Middle Rail Position in Inches)
-        const { W, H, S, MS, T, P, CJ, IT, GT, MT, MIT, F, VW, TW, MW, BW, L, HandleVW, HingeVW, MRPI } = context;
+        const { W, H, S, MS, T, P, CJ, IT, GT, MT, MIT, F, VW, TW, MW, BW, L, HandleVW, HingeVW, MRPI, SOP } = context;
         // Use a function constructor for slightly better safety than eval()
-        const fn = new Function('W', 'H', 'S', 'MS', 'T', 'P', 'CJ', 'IT', 'GT', 'MT', 'MIT', 'F', 'VW', 'TW', 'MW', 'BW', 'L', 'HandleVW', 'HingeVW', 'MRPI', `return ${formula}`);
-        return fn(W, H, S, MS, T, P, CJ, IT, GT, MT, MIT, F, VW, TW, MW, BW, L, HandleVW, HingeVW, MRPI);
+        const fn = new Function('W', 'H', 'S', 'MS', 'T', 'P', 'CJ', 'IT', 'GT', 'MT', 'MIT', 'F', 'VW', 'TW', 'MW', 'BW', 'L', 'HandleVW', 'HingeVW', 'MRPI', 'SOP', `return ${formula}`);
+        return fn(W, H, S, MS, T, P, CJ, IT, GT, MT, MIT, F, VW, TW, MW, BW, L, HandleVW, HingeVW, MRPI, SOP);
     } catch (e) {
         console.error('SafeEval Error:', e, 'Formula:', formula);
         return defaultValue;
@@ -977,6 +977,7 @@ function calculatePieces(selectedProject, preferredSupplier) {
             MIT: win.mosquitoInterlock || 'V-2516',
             L: win.leaves || 1,
             MRPI,  // Middle Rail Position in Inches (from floor to rail centre)
+            SOP: win.shutterOnlyProfile || 0,  // 0=normal, 1=Handle, 2=Middle
         };
 
         formulas.forEach(formula => {
