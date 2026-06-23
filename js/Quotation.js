@@ -2336,7 +2336,7 @@ function generateDoorHardware(win) {
     items.push(
         { hardware: 'Lock Body',               unit: 'Nos',  formula: '1 * L',            rate: 850  },
         { hardware: 'Cylinder',                unit: 'Nos',  formula: '1 * L',            rate: 450  },
-        { hardware: 'Silicon Sealant',         unit: 'R.Ft', formula: '((H*2)+W)*2/12',   rate: 10   },
+        { hardware: 'Silicon Sealant',         unit: 'R.Ft', formula: '((H*2)+W)*2/12',   rate: 2.875 },
         { hardware: 'Door Rod 12mm',           unit: 'Nos',  formula: '2 * L',            rate: 115  }
     );
     return items;
@@ -2405,7 +2405,7 @@ function calculateWindowHardware(window, optimizationResults = null) {
         // (W & H are stored in INCHES, so /12 → feet — no mm involved.)
         const perimFt = Math.round((2 * (W + H) / 12) * 100) / 100;
         const silItem = (hardwareList || []).find(h => h && /silicon/i.test(h.hardware || ''));
-        const silRate = (silItem && silItem.unit === 'R.Ft') ? silItem.rate : 10;
+        const silRate = (silItem && silItem.unit === 'R.Ft') ? silItem.rate : 2.875;
         soResults.push({
             hardware: 'Silicon Sealant', qty: perimFt, unit: 'R.Ft',
             rate: silRate, total: Math.round(perimFt * silRate * 100) / 100

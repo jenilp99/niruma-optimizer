@@ -436,6 +436,34 @@ function initializeDefaults() {
         }
     } catch (e) { console.warn('Hardware formula sync error:', e); }
 
+    // v1.94: Correct Silicon costing. Real cost = ₹230/bottle, 1 bottle = 80 R.Ft
+    // → ₹2.875/R.Ft. Older saves had silicon at ₹10/R.Ft (or as "Bottle @ ₹80"
+    // with a wrong qty). One-shot: canonicalize EVERY silicon item (matched by
+    // name containing "silicon") to unit R.Ft, rate ₹2.875, and the correct
+    // perimeter formula — windows = inside+outside of track, doors = inside+
+    // outside of the 3-side frame. Guarded by a flag so later rate edits stick.
+    try {
+        if (!localStorage.getItem('siliconRate2875Migration')) {
+            let silChanged = false;
+            for (const [series, items] of Object.entries(hardwareMaster || {})) {
+                if (!Array.isArray(items)) continue;
+                const isDoor = series === 'Door';
+                const windowFormula = 'T > 0 ? (W + H) * 4 / 12 : 2 * (W + H) / 12';
+                const doorFormula   = '((H*2)+W)*2/12';
+                items.forEach(h => {
+                    if (!h || !/silicon/i.test(h.hardware || '')) return;
+                    h.unit = 'R.Ft';
+                    h.rate = 2.875;
+                    h.formula = isDoor ? doorFormula : windowFormula;
+                    silChanged = true;
+                });
+            }
+            if (silChanged && typeof autoSaveHardwareMaster === 'function') autoSaveHardwareMaster();
+            localStorage.setItem('siliconRate2875Migration', '1');
+            console.log('🧴 Silicon costing migrated → ₹2.875/R.Ft (₹230 / 80 ft bottle)');
+        }
+    } catch (e) { console.warn('Silicon rate migration error:', e); }
+
     // ── Migrate existing saved doors (one-shot, silent) ────────────────────────
     // (a) Doors saved before v1.20 lack an explicit accessories array → seed defaults.
     // (b) Doors with ACP partitions before v1.20 lack acpFacing → default to 'single'.
@@ -1651,7 +1679,7 @@ const DOOR_HARDWARE_DEFAULTS = [
         variants: [],   defaultVariant: null
     },
     {
-        hardware: 'Silicon Sealant', mechanism: 'both',        unit: 'R.Ft', formula: '((H*2)+W)*2/12', rate: 10,
+        hardware: 'Silicon Sealant', mechanism: 'both',        unit: 'R.Ft', formula: '((H*2)+W)*2/12', rate: 2.875,
         variants: [],   defaultVariant: null
     },
     // v1.35: Door Rod 12mm moved from hardware → profile cutting plan.
