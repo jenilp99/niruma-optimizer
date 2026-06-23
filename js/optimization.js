@@ -2051,12 +2051,24 @@ function packNetFFDH(allPieces, availableRolls, partialRolls) {
         const storeRollsUsed = bins.filter(b => b.kind === 'store').length;
         const wasteArea = linearArea - piecesArea;
         const efficiency = linearArea > 0 ? Math.round(piecesArea / linearArea * 1000) / 10 : 0;
-        // Cost: sum of (rolls used × that width's costPerRoll). Group by width.
+        // Cost: RUNNING-FEET basis (not whole rolls). A new roll is charged only
+        // for the length actually consumed: (usedLength / fullRollLength) × rollCost
+        //   ≡  usedFt × (rollCost / rollLengthFt).
+        // e.g. 50' roll @ ₹3100 → ₹62/ft; a 30" (2.5') strip = ₹155.
+        // Stock/partial rolls are already owned → no new cost.
         let cost = 0;
-        bins.filter(b => b.kind === 'new').forEach(b => {
-            const spec = availableRolls.find(r => r.width === b.width);
-            cost += (spec ? spec.costPerRoll || 0 : 0);
+        bins.forEach(b => {
+            if (b.kind === 'new') {
+                const spec = availableRolls.find(r => r.width === b.width);
+                const rollCost = spec ? (spec.costPerRoll || 0) : 0;
+                const cap = b.capacityLength || (spec ? spec.length : 0);
+                b.cost = cap > 0 ? Math.round((b.usedLength / cap) * rollCost * 100) / 100 : 0;
+            } else {
+                b.cost = 0;
+            }
+            cost += b.cost;
         });
+        cost = Math.round(cost * 100) / 100;
         return {
             roll: newRollSpec, bins,
             piecesArea, totalLength, linearArea, wasteArea, efficiency,
@@ -2177,12 +2189,16 @@ function packNetFFDH(allPieces, availableRolls, partialRolls) {
         console.warn('⚠️ No valid layout found — some pieces are too wide for any available roll');
     }
 
-    // ── Assign per-bin cost so quotation summary can read b.cost ─────────────
+    // ── Assign per-bin cost (RUNNING-FEET basis) so quotation summary can read
+    //    b.cost. A new roll is charged only for the length consumed:
+    //    (usedLength / fullRollLength) × rollCost. Stock rolls = 0 (already owned).
     if (best) {
         best.bins.forEach(b => {
             if (b.kind === 'new') {
                 const spec = availableRolls.find(r => r.width === b.width);
-                b.cost = spec ? (spec.costPerRoll || 0) : 0;
+                const rollCost = spec ? (spec.costPerRoll || 0) : 0;
+                const cap = b.capacityLength || (spec ? spec.length : 0);
+                b.cost = cap > 0 ? Math.round((b.usedLength / cap) * rollCost * 100) / 100 : 0;
             } else {
                 b.cost = 0;
             }

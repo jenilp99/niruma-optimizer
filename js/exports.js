@@ -949,7 +949,7 @@ function displayResults() {
                 Total linear cut: <strong>${totalLen.toFixed(1)}"</strong> (${(totalLen/12).toFixed(2)} ft)
                 &nbsp;|&nbsp; Area consumed: <strong>${linearAreaSqft} sqft</strong>
                 &nbsp;|&nbsp; Cut waste: <strong>${wasteAreaSqft} sqft</strong>
-                ${newRollsUsed > 0 ? `&nbsp;|&nbsp; New roll cost: <strong>₹${newCost.toFixed(0)}</strong>` : ''}
+                ${newRollsUsed > 0 ? `&nbsp;|&nbsp; Net cost (running ft): <strong>₹${newCost.toFixed(0)}</strong>` : ''}
             </span>
         </div>`;
 
@@ -1514,7 +1514,7 @@ function exportFullResultsExcel() {
         summary.push(['Total rolls used', r.netResults.bins.length]);
         summary.push(['New rolls', r.netResults.newRollsUsed || 0]);
         summary.push(['From stock', r.netResults.storeRollsUsed || 0]);
-        summary.push(['Net cost (rolls)', '₹' + (r.netResults.cost || 0).toFixed(0)]);
+        summary.push(['Net cost (running ft)', '₹' + (r.netResults.cost || 0).toFixed(0)]);
         summary.push(['']);
     }
     XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(summary), 'Summary');
@@ -1584,7 +1584,7 @@ function exportFullResultsExcel() {
             ]);
         });
         net.push(['']);
-        net.push(['Total cost (new rolls)', '', '', '', '', '', '₹' + (r.netResults.cost || 0).toFixed(0)]);
+        net.push(['Total cost (running ft)', '', '', '', '', '', '₹' + (r.netResults.cost || 0).toFixed(0)]);
         XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(net), 'Net Rolls');
     }
 
