@@ -59,8 +59,8 @@ function runOptimization() {
         const vendor = w.vendor;
         if (!seriesName || !vendor) return;
         const sd = (window.SUPPLIER_REGISTRY || {})[vendor];
-        const formulas = (sd && sd.formulas && sd.formulas[seriesName])
-            || seriesFormulas[seriesName] || [];
+        const formulas = (sd && lookupBySeries(sd.formulas, seriesName))
+            || lookupBySeries(seriesFormulas, seriesName) || [];
         formulas.forEach(f => {
             const targetSeries = f.series || seriesName;
             const key = `${targetSeries} | ${f.component}`;
@@ -150,20 +150,17 @@ function runOptimization() {
     for (const [compoundKey, pieces] of Object.entries(piecesByMaterial)) {
         const [materialSeries, materialName] = compoundKey.split(' | ');
 
-        let stockList = stockMaster[materialSeries];
-
-        // Fallback for series name migration
-        if (!stockList) {
-            if (materialSeries === '1') stockList = stockMaster['1"'];
-            else if (materialSeries === '1"') stockList = stockMaster['1'];
-        }
+        // Quote-variant aware (handles "3/4" vs "3/4\"" and "1" vs "1\"")
+        let stockList = lookupBySeries(stockMaster, materialSeries);
 
         if (!stockList) {
             console.warn('No stock list for series:', materialSeries);
             continue;
         }
 
-        const stockInfo = stockList.find(s => s.material === materialName);
+        // Some supplier stock entries key the profile under `component` rather
+        // than `material` (e.g. Windalco "3/4\" Bearing Bottom") — accept both.
+        const stockInfo = stockList.find(s => s.material === materialName || s.component === materialName);
 
         if (!stockInfo) {
             console.warn(`No stock info for material "${materialName}" in series "${materialSeries}"`);
@@ -834,6 +831,26 @@ function generateDoorProfileFormulas(win, supplierData) {
 // PIECE CALCULATION FROM FORMULAS
 // ============================================================================
 
+// Series-name key resolver. Window data sometimes stores a series without the
+// inch mark (e.g. "3/4" or "1") while all supplier formulas/stock/sections are
+// keyed WITH it ("3/4\"" / "1\""). This returns the value for whichever quote
+// variant exists, so a mismatch no longer silently yields zero pieces/stock.
+function seriesKeyVariants(series) {
+    const v = [series];
+    if (series === '3/4')  v.push('3/4"');
+    else if (series === '3/4"') v.push('3/4');
+    else if (series === '1')  v.push('1"');
+    else if (series === '1"') v.push('1');
+    return v;
+}
+function lookupBySeries(map, series) {
+    if (!map) return undefined;
+    for (const k of seriesKeyVariants(series)) {
+        if (map[k]) return map[k];
+    }
+    return undefined;
+}
+
 // Safe evaluation helper to prevent crashes from bad formulas
 function safeEval(formula, context, defaultValue = 0) {
     try {
@@ -876,8 +893,9 @@ function calculatePieces(selectedProject, preferredSupplier) {
 
         if (effectiveVendor && window.SUPPLIER_REGISTRY && window.SUPPLIER_REGISTRY[effectiveVendor]) {
             const supplierData = window.SUPPLIER_REGISTRY[effectiveVendor];
-            if (supplierData.formulas && supplierData.formulas[seriesName]) {
-                formulas = supplierData.formulas[seriesName];
+            const regFormulas = lookupBySeries(supplierData.formulas, seriesName);
+            if (regFormulas) {
+                formulas = regFormulas;
                 console.log(`%c✅ USING SUPPLIER REGISTRY: ${effectiveVendor} → ${seriesName}`, 'background: #28a745; color: white; padding: 2px 6px; border-radius: 3px;');
                 console.log('   Formulas loaded:', formulas.length, 'items');
             } else {
@@ -887,10 +905,10 @@ function calculatePieces(selectedProject, preferredSupplier) {
             console.log(`%c⚠️ No registry entry for vendor: "${effectiveVendor}"`, 'background: #ffc107; color: black; padding: 2px 6px;');
         }
 
-        // Fallback: Use Global/Saved formulas
+        // Fallback: Use Global/Saved formulas (quote-variant aware)
         if (!formulas) {
             console.log(`%cℹ️ FALLBACK: Using global seriesFormulas for "${seriesName}"`, 'background: #17a2b8; color: white; padding: 2px 6px;');
-            formulas = seriesFormulas[seriesName];
+            formulas = lookupBySeries(seriesFormulas, seriesName);
         }
 
         if (!formulas) {
