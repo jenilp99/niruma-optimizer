@@ -1330,6 +1330,10 @@ function importProject() {
                 kerf = projectData.kerf || 0.125;
                 unitMode = projectData.unitMode || 'inch';
 
+                // Normalize any legacy "3/4"/"1" series in the imported file so it
+                // matches the supplier data keyed "3/4\""/"1\"" (prevents 0 profiles).
+                if (typeof normalizeAllSeriesData === 'function') normalizeAllSeriesData();
+
                 if (projectData.componentSections && optimizationResults) {
                     optimizationResults.componentSections = projectData.componentSections;
                     autoSaveResults();

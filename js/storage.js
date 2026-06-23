@@ -224,6 +224,92 @@ function autoSaveProjectSettings() {
     console.log('✅ Project Settings auto-saved');
 }
 
+// Deep-normalize series names (3/4 -> 3/4", 1 -> 1") across windows, formulas,
+// stock and hardware. Idempotent — safe to call repeatedly. Returns true if it
+// changed anything. Operates on the in-memory globals; callers persist as needed.
+// Call this after ANY path that replaces `windows`/masters wholesale (startup
+// load AND project JSON import) so a stale "3/4" series can never reach the
+// optimizer, where the supplier data is keyed "3/4\"".
+function normalizeAllSeriesData() {
+    let migrated = false;
+
+    const normalizeSeries = (series) => {
+        if (series === '1') return '1"';
+        if (series === '3/4') return '3/4"';
+        return series;
+    };
+
+    const deepNormalize = (name) => {
+        if (typeof name !== 'string') return name;
+        if (name.startsWith('1 ') && !name.startsWith('1"')) return name.replace('1 ', '1" ');
+        if (name.startsWith('3/4 ') && !name.startsWith('3/4"')) return name.replace('3/4 ', '3/4" ');
+        return name;
+    };
+
+    // 1. Windows
+    (windows || []).forEach(win => {
+        const oldS = win.series;
+        win.series = normalizeSeries(win.series);
+        if (oldS !== win.series) migrated = true;
+    });
+
+    // 2. Formulas (keys + component names)
+    if (seriesFormulas) {
+        ['1', '3/4'].forEach(oldKey => {
+            if (seriesFormulas[oldKey]) {
+                seriesFormulas[normalizeSeries(oldKey)] = seriesFormulas[oldKey];
+                delete seriesFormulas[oldKey];
+                migrated = true;
+            }
+        });
+        Object.values(seriesFormulas).forEach(list => {
+            (list || []).forEach(item => {
+                const old = item.component;
+                item.component = deepNormalize(item.component);
+                if (old !== item.component) migrated = true;
+            });
+        });
+    }
+
+    // 3. Stock (keys + material names)
+    if (stockMaster) {
+        ['1', '3/4'].forEach(oldKey => {
+            if (stockMaster[oldKey]) {
+                stockMaster[normalizeSeries(oldKey)] = stockMaster[oldKey];
+                delete stockMaster[oldKey];
+                migrated = true;
+            }
+        });
+        Object.values(stockMaster).forEach(list => {
+            (list || []).forEach(item => {
+                const old = item.material;
+                item.material = deepNormalize(item.material);
+                if (old !== item.material) migrated = true;
+            });
+        });
+    }
+
+    // 4. Hardware (keys + hardware names)
+    if (hardwareMaster) {
+        ['1', '3/4'].forEach(oldKey => {
+            if (hardwareMaster[oldKey]) {
+                hardwareMaster[normalizeSeries(oldKey)] = hardwareMaster[oldKey];
+                delete hardwareMaster[oldKey];
+                migrated = true;
+            }
+        });
+        Object.values(hardwareMaster).forEach(list => {
+            (list || []).forEach(item => {
+                const old = item.hardware;
+                item.hardware = deepNormalize(item.hardware);
+                if (old !== item.hardware) migrated = true;
+            });
+        });
+    }
+
+    return migrated;
+}
+
 // Load all data on startup
 function loadAllData() {
     const loadedWindows = StorageManager.loadWindows();
@@ -285,92 +371,16 @@ function loadAllData() {
         console.log('✅ Loaded project settings');
     }
 
-    // --- MIGRATION LOGIC: Deep normalization of series names ---
-    let migrated = false;
-
-    const normalizeSeries = (series) => {
-        if (series === '1') return '1"';
-        if (series === '3/4') return '3/4"';
-        return series;
-    };
-
-    const deepNormalize = (name) => {
-        if (typeof name !== 'string') return name;
-        if (name.startsWith('1 ') && !name.startsWith('1"')) return name.replace('1 ', '1" ');
-        if (name.startsWith('3/4 ') && !name.startsWith('3/4"')) return name.replace('3/4 ', '3/4" ');
-        return name;
-    };
-
-    // 1. Migrate Windows
-    windows.forEach(win => {
-        const oldS = win.series;
-        win.series = normalizeSeries(win.series);
-        if (oldS !== win.series) migrated = true;
-    });
-
-    // 2. Migrate Formulas
-    ['1', '3/4'].forEach(oldKey => {
-        if (seriesFormulas && seriesFormulas[oldKey]) {
-            const newKey = normalizeSeries(oldKey);
-            seriesFormulas[newKey] = seriesFormulas[oldKey];
-            delete seriesFormulas[oldKey];
-            migrated = true;
-        }
-    });
-
-    Object.values(seriesFormulas).forEach(list => {
-        list.forEach(item => {
-            const old = item.component;
-            item.component = deepNormalize(item.component);
-            if (old !== item.component) migrated = true;
-        });
-    });
-
-    // 3. Migrate Stock
-    ['1', '3/4'].forEach(oldKey => {
-        if (stockMaster && stockMaster[oldKey]) {
-            const newKey = normalizeSeries(oldKey);
-            stockMaster[newKey] = stockMaster[oldKey];
-            delete stockMaster[oldKey];
-            migrated = true;
-        }
-    });
-
-    Object.values(stockMaster).forEach(list => {
-        list.forEach(item => {
-            const old = item.material;
-            item.material = deepNormalize(item.material);
-            if (old !== item.material) migrated = true;
-        });
-    });
-
-    // 4. Migrate Hardware
+    // --- Load Hardware Master (needed before series normalization) ---
     const loadedHardware = StorageManager.loadHardwareMaster();
     if (loadedHardware) {
         hardwareMaster = loadedHardware;
         console.log('✅ Loaded hardware from storage');
     }
 
-    ['1', '3/4'].forEach(oldKey => {
-        if (hardwareMaster && hardwareMaster[oldKey]) {
-            const newKey = normalizeSeries(oldKey);
-            hardwareMaster[newKey] = hardwareMaster[oldKey];
-            delete hardwareMaster[oldKey];
-            migrated = true;
-        }
-    });
-
-    Object.values(hardwareMaster).forEach(list => {
-        list.forEach(item => {
-            const old = item.hardware;
-            item.hardware = deepNormalize(item.hardware);
-            if (old !== item.hardware) migrated = true;
-        });
-    });
-
-    if (migrated) {
+    // --- Normalize series names (3/4 -> 3/4", 1 -> 1") across ALL data ---
+    if (normalizeAllSeriesData()) {
         console.log('🔄 Data migrated: Deep normalization of series names (X")');
-        // Save migrated data immediately
         autoSaveWindows();
         autoSaveFormulas();
         autoSaveStock();
