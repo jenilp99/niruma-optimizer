@@ -1441,6 +1441,14 @@ function computeNetPieces(projectWindows) {
         if (series === '27mm Domal') {
             shutterH = H - 2.75;                          // vertical profile length
             shutterW = (W - 3 + 2.5 * (S - 1)) / S;      // horizontal profile length
+        } else if (series === '3/4"' || series === '3/4') {
+            // Match the 3/4" MS C-channel formulas (windalco/jk)
+            shutterH = H - 1.5;
+            shutterW = (W - 5 - 1.5 * (S - 1)) / S;
+        } else if (series === '1"' || series === '1') {
+            // Match the 1" MS C-channel formulas
+            shutterH = H - 1.125;
+            shutterW = (W - 5 - 2 * (S - 1)) / S;
         } else {
             // Fallback for future series: use full window dims
             shutterH = H;

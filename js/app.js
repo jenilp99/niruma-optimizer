@@ -284,7 +284,9 @@ let ratesConfig = {
     // Net deductions per series: subtract from shutter frame piece dimensions
     // to get the net piece size (both width and height, in inches)
     netDeductions: {
-        '27mm Domal': { deductW: 2, deductH: 2 }
+        '27mm Domal': { deductW: 2, deductH: 2 },
+        '3/4"':       { deductW: 2, deductH: 2 },
+        '1"':         { deductW: 2, deductH: 2 }
     },
     // v1.26: which sheet sizes the user has in stock. Optimizer filters the
     // SHEET_CATALOG by this. Default: all enabled. Keys match catalog `name`.
