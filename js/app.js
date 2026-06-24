@@ -2621,6 +2621,15 @@ function addWindow(event) {
         showAlert('❌ Error: Number of shutters must be at least 1.', 'error');
         return;
     }
+    // v1.97: the form is novalidate (native HTML5 validation silently blocks
+    // submit when a required field is hidden by the current config — e.g. the
+    // Description field on the 1"/3-4" interlock row). Validate the essentials in JS.
+    if (category === 'Window') {
+        if (!seriesVal) { showAlert('❌ Please select a Series Type.', 'error'); return; }
+        if (!document.getElementById('windowVendor').value) {
+            showAlert('❌ Please select a Vendor / Supplier.', 'error'); return;
+        }
+    }
     if (!validateSizeRows(effRows, projectName, editing ? editingWindowIndex : -1)) return;
 
     if (editing) {
