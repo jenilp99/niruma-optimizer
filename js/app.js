@@ -2745,21 +2745,28 @@ function populateWindowFormFromObject(w) {
     setVal('windowQty',      w.qty || 1);
     setVal('description',    w.description || '');
 
-    // Dimensions — respect current unit mode for display
-    const displayW = unitMode === 'mm' ? Math.round((w.width  || 0) * 25.4) : w.width;
-    const displayH = unitMode === 'mm' ? Math.round((w.height || 0) * 25.4) : w.height;
+    // Dimensions — respect current unit mode for display. Round inch values to
+    // 3 dp to strip float noise (e.g. 63.66141732283465") while preserving
+    // common fractions (.125/.375/.625/.875); mm shown as whole numbers.
+    const clean = n => Math.round((n || 0) * 1000) / 1000;
+    const displayW = unitMode === 'mm' ? Math.round((w.width  || 0) * 25.4) : clean(w.width);
+    const displayH = unitMode === 'mm' ? Math.round((w.height || 0) * 25.4) : clean(w.height);
     setVal('width',  displayW);
     setVal('height', displayH);
 
-    // Vendor + series: rebuild vendor options for this series, then re-set vendor
+    // Vendor + series. ORDER MATTERS: onSeriesChanged() rebuilds the vendor
+    // dropdown for the selected series, which clears any pre-set vendor. So we
+    // set the series first, fire onSeriesChanged() to (re)populate vendors, and
+    // ONLY THEN set the vendor — otherwise editing wipes the window's supplier
+    // (saved as ""), which silently breaks optimization for that window.
     if (typeof updateVendorOptionsForSeries === 'function') updateVendorOptionsForSeries(w.series);
     setVal('windowVendor', w.vendor || '');
-    const venEl = document.getElementById('windowVendor');
-    if (venEl && venEl.onchange) try { venEl.onchange(); } catch (e) {}
     setTimeout(() => {
         setVal('series', w.series || '');
-        setVal('windowVendor', w.vendor || '');
-        if (typeof onSeriesChanged === 'function') onSeriesChanged();
+        if (typeof onSeriesChanged === 'function') onSeriesChanged();  // rebuilds vendor options
+        setVal('windowVendor', w.vendor || '');                        // restore vendor AFTER rebuild
+        const venEl = document.getElementById('windowVendor');
+        if (venEl && venEl.onchange) try { venEl.onchange(); } catch (e) {}
     }, 0);
 
     // Window-only fields

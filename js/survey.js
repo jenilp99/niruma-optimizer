@@ -137,7 +137,12 @@ function surveyMeta(aoa) {
     }
     return { site, units };
 }
-const surveyToInches = (v, units) => (units === 'inch' ? v : v / 25.4);
+// Convert a survey dimension to inches, rounded to 2 decimals so imported sizes
+// are clean/editable (mm→inch was producing values like 63.66141732283465").
+const surveyToInches = (v, units) => {
+    const inches = (units === 'inch' ? v : v / 25.4);
+    return Math.round(inches * 100) / 100;
+};
 
 function parseSurveyWorkbook(buf) {
     const wb = XLSX.read(new Uint8Array(buf), { type: 'array' });
