@@ -258,7 +258,7 @@ let ratesConfig = {
     // Keys are "<Material>_<thickness>mm" or just "<Material>" for materials
     // without thickness variants (MosquitoNet, SSMosquito, Louvers).
     partitionRates: {
-        'ACP_3mm':            90,
+        'ACP_3mm':            95,
         'ACP_4mm':            0,
         'ACP_6mm':            0,
         'Bakelite_2.5mm':     0,
@@ -4658,16 +4658,18 @@ window.addEventListener('load', function () {
         }
     } catch (e) { console.error('Rate migration error', e); }
 
-    // v1.50: one-time migration — set ACP 3mm partition rate to ₹90/sqft (user request).
-    // ratesConfig is already merged from localStorage in initializeDefaults() by now.
+    // v1.98: one-time migration — set ACP 3mm partition rate to ₹95/sqft (user request).
+    // Supersedes the v1.50 ₹90 migration. ratesConfig is already merged from
+    // localStorage in initializeDefaults() by now. New flag so it re-applies once
+    // for users still on the old ₹90.
     try {
-        if (!localStorage.getItem('acp3mm90Migration')) {
+        if (!localStorage.getItem('acp3mm95Migration')) {
             if (!ratesConfig.partitionRates) ratesConfig.partitionRates = {};
-            ratesConfig.partitionRates['ACP_3mm'] = 90;
+            ratesConfig.partitionRates['ACP_3mm'] = 95;
             localStorage.setItem('ratesConfig', JSON.stringify(ratesConfig));
-            localStorage.setItem('acp3mm90Migration', '1');
+            localStorage.setItem('acp3mm95Migration', '1');
             if (typeof renderPartitionRatesList === 'function') renderPartitionRatesList();
-            console.log('🟧 Migrated ACP 3mm partition rate to ₹90/sqft');
+            console.log('🟧 Migrated ACP 3mm partition rate to ₹95/sqft');
         }
     } catch (e) { console.error('ACP rate migration error', e); }
 
