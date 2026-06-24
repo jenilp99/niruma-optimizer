@@ -1399,9 +1399,11 @@ function generateQuotationPDF(projectWindows, selectedProject, formData) {
         projectWindows.forEach((win, idx) => {
             const hw = calculateWindowHardware(win, optimizationResults);
             const q = win.qty || 1;
-            const winLabel = win.tracks === 0
+            const winLabel = (win.tracks === 0 && win.series !== 'Door' && win.category !== 'Door')
                 ? `${win.configId} (Qty ${q})  —  Fixed ${win.shutterOnlyPartition === 'mosquito' ? 'Mosquito' : 'Glass'} Shutter`
-                : `${win.configId} (Qty ${q})  —  ${win.tracks}T ${win.shutters}S${(win.mosquitoShutters||0)>0 ? ' + '+win.mosquitoShutters+'MS':''}`;
+                : (win.series === 'Door' || win.category === 'Door')
+                    ? `${win.configId} (Qty ${q})  —  ${ (win.leaves||1) > 1 ? 'Double' : 'Single'} Door`
+                    : `${win.configId} (Qty ${q})  —  ${win.tracks}T ${win.shutters}S${(win.mosquitoShutters||0)>0 ? ' + '+win.mosquitoShutters+'MS':''}`;
 
             // v1.45: prevent the window title from being orphaned at the bottom of a
             // page (title prints, then its table jumps to the next page). Estimate the
@@ -2396,7 +2398,9 @@ function calculateWindowHardware(window, optimizationResults = null) {
     // code (not via the editable Hardware Master) because the Master's item
     // names/formulas vary per user (localStorage), and the sliding formulas
     // there (e.g. 2*S+2*MS bearings) would wrongly bill a fixed shutter.
-    if (window.tracks === 0) {
+    // NOTE: doors also have tracks===0, so explicitly exclude the Door series —
+    // doors must keep their own accessory hardware (generateDoorHardware).
+    if (window.tracks === 0 && series !== 'Door') {
         const soResults = [];
         const W = window.width || 0, H = window.height || 0;
         const isMosquito = window.shutterOnlyPartition === 'mosquito';
