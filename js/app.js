@@ -186,7 +186,11 @@ let ratesConfig = {
         'toughened_8mm': 145,
         'non_toughened_8mm': 105,
         'DGU_toughened_5mm': 220,
-        'DGU_non_toughened_5mm': 180
+        'DGU_non_toughened_5mm': 180,
+        // DGU 18mm (user rate ₹210/sqft) — set for both toughened & non-toughened
+        // so the rate applies regardless of the Toughened checkbox.
+        'DGU_toughened_18mm': 210,
+        'DGU_non_toughened_18mm': 210
     },
     powderCoating: {
         '3/4" Handle': 9.31,
