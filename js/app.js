@@ -2398,6 +2398,91 @@ function onSeriesChanged() {
         if (!allow && tracksEl.value === '0') { tracksEl.value = '2'; toggleShutterOnlyConfig(); }
     }
     updateVendorOptionsForSeries(series);
+    if (typeof updateSMOptionsForSeries === 'function') updateSMOptionsForSeries();
+}
+
+// ── Shri Harsiddhi Metals (25mm / 25mm Gulf / 27mm Domal) form options ──
+function isSMSeries(series) {
+    return series === '25mm' || series === '25mm Gulf' || series === '27mm Domal';
+}
+
+// Look up a section weight (first variant) for a component in the SM registry.
+function smCompWeight(component) {
+    try {
+        const sd = window.SUPPLIER_REGISTRY['Shri Harsiddhi Metals'];
+        for (const series of Object.keys(sd.sections)) {
+            const arr = sd.sections[series][component];
+            if (arr && arr[0] && arr[0].weight != null) return arr[0].weight;
+        }
+    } catch (e) {}
+    return null;
+}
+
+function updateSMOptionsForSeries() {
+    const series = document.getElementById('series')?.value || '';
+    const row = document.getElementById('windowSMRow');
+    if (!row) return;
+    const show = isSMSeries(series);
+    row.style.display = show ? 'flex' : 'none';
+    if (!show) return;
+
+    const is25 = (series === '25mm' || series === '25mm Gulf');
+
+    // Track Style — options depend on series (27mm: grill/leg; 25mm: leg/cut; Gulf: none)
+    const tsSel = document.getElementById('smTrackStyle');
+    const tsGroup = document.getElementById('smTrackStyleGroup');
+    if (tsSel && tsGroup) {
+        let opts;
+        if (series === '27mm Domal')    opts = [['plain', 'Plain'], ['grill', 'Grill'], ['leg', 'Leg']];
+        else if (series === '25mm')     opts = [['plain', 'Plain'], ['leg', 'Leg'], ['cut', 'Cut']];
+        else                            opts = [['plain', 'Plain']]; // 25mm Gulf — no variants
+        const cur = tsSel.value;
+        tsSel.innerHTML = opts.map(([v, l]) => `<option value="${v}">${l}</option>`).join('');
+        tsSel.value = opts.some(o => o[0] === cur) ? cur : 'plain';
+        tsGroup.style.display = (series === '25mm Gulf') ? 'none' : '';
+    }
+
+    // Bottom Track Cap — only the 25mm series have cap profiles; show weights
+    const capGroup = document.getElementById('smTrackCapGroup');
+    const capSel = document.getElementById('smTrackCap');
+    if (capGroup && capSel) {
+        capGroup.style.display = is25 ? '' : 'none';
+        if (is25) {
+            const bw = smCompWeight('25mm Bulb Track Cap');
+            const vw = smCompWeight('25mm V Groove Track Cap');
+            const cur = capSel.value;
+            capSel.innerHTML =
+                `<option value="none">None</option>` +
+                `<option value="bulb">Bulb Track Cap${bw != null ? ` (${bw} kg/12')` : ''}</option>` +
+                `<option value="vgroove">V-Groove Track Cap${vw != null ? ` (${vw} kg/12')` : ''}</option>`;
+            capSel.value = ['none', 'bulb', 'vgroove'].includes(cur) ? cur : 'none';
+        }
+    }
+
+    // Reducer — only meaningful for the 25mm series (DGU shutter + SGU glass)
+    const redGroup = document.getElementById('smReducerGroup');
+    if (redGroup) redGroup.style.display = is25 ? '' : 'none';
+
+    // Interlock — 27mm uses Clip only; 25mm is a glass-unit-filtered dropdown
+    updateSMInterlockOptions();
+}
+
+// Interlock dropdown — filtered by the window's glass unit (SGU vs DGU).
+function updateSMInterlockOptions() {
+    const series = document.getElementById('series')?.value || '';
+    const ilGroup = document.getElementById('smInterlockGroup');
+    const ilSel = document.getElementById('smInterlock');
+    if (!ilGroup || !ilSel) return;
+    const is25 = (series === '25mm' || series === '25mm Gulf');
+    ilGroup.style.display = is25 ? '' : 'none';
+    if (!is25) { ilSel.innerHTML = '<option value="shutter">Shutter + Clip</option>'; ilSel.value = 'shutter'; return; }
+    const gu = document.getElementById('glassUnit')?.value || 'SGU';
+    const opts = (gu === 'DGU')
+        ? [['dgu-slim', 'DGU Slim I/L'], ['dgu-reinf', 'DGU Slim I/L Reinf'], ['shutter', 'Shutter + Clip']]
+        : [['sgu-slim', 'SGU Slim I/L'], ['sgu-reinf', 'SGU Slim I/L Reinf'], ['shutter', 'Shutter + Clip']];
+    const cur = ilSel.value;
+    ilSel.innerHTML = opts.map(([v, l]) => `<option value="${v}">${l}</option>`).join('');
+    ilSel.value = opts.some(o => o[0] === cur) ? cur : opts[0][0];
 }
 
 // v1.42: Show Corner Joint + Interlock Design only for series whose formulas
@@ -2584,6 +2669,23 @@ function buildWindowData(size) {
             if (seriesVal === '27mm Domal') {
                 windowData.mosquitoMiddle = document.getElementById('mosquitoMiddle')?.checked || false;
             }
+        }
+        // Shri Harsiddhi (25mm / 25mm Gulf / 27mm Domal) selectors
+        if (typeof isSMSeries === 'function' && isSMSeries(seriesVal)) {
+            windowData.trackStyle  = document.getElementById('smTrackStyle')?.value || 'plain';
+            windowData.interlock25 = document.getElementById('smInterlock')?.value || 'shutter';
+            if (seriesVal === '25mm' || seriesVal === '25mm Gulf') {
+                windowData.trackCap = document.getElementById('smTrackCap')?.value || 'none';
+                windowData.reducer  = document.getElementById('smReducer')?.checked || false;
+            } else {
+                delete windowData.trackCap;
+                delete windowData.reducer;
+            }
+        } else {
+            delete windowData.trackStyle;
+            delete windowData.interlock25;
+            delete windowData.trackCap;
+            delete windowData.reducer;
         }
     }
 
@@ -2776,10 +2878,18 @@ function populateWindowFormFromObject(w) {
     setVal('windowVendor', w.vendor || '');
     setTimeout(() => {
         setVal('series', w.series || '');
-        if (typeof onSeriesChanged === 'function') onSeriesChanged();  // rebuilds vendor options
+        if (typeof onSeriesChanged === 'function') onSeriesChanged();  // rebuilds vendor + SM options
         setVal('windowVendor', w.vendor || '');                        // restore vendor AFTER rebuild
         const venEl = document.getElementById('windowVendor');
         if (venEl && venEl.onchange) try { venEl.onchange(); } catch (e) {}
+        // Shri Harsiddhi selectors — restore after options for this series are built.
+        if (typeof isSMSeries === 'function' && isSMSeries(w.series)) {
+            setVal('smTrackStyle', w.trackStyle || 'plain');
+            setVal('smTrackCap',   w.trackCap || 'none');
+            if (typeof updateSMInterlockOptions === 'function') updateSMInterlockOptions();
+            setVal('smInterlock',  w.interlock25 || 'shutter');
+            setChk('smReducer',    !!w.reducer);
+        }
     }, 0);
 
     // Window-only fields
@@ -3215,6 +3325,8 @@ function updateGlassThicknessOptions() {
     } else {
         thicknessSelect.innerHTML = '<option value="0">N/A</option>';
     }
+    // SGU/DGU also drives the Shri Harsiddhi shutter + interlock options
+    if (typeof updateSMInterlockOptions === 'function') updateSMInterlockOptions();
 }
 
 function closeEditWindowModal() {

@@ -995,6 +995,11 @@ function calculatePieces(selectedProject, preferredSupplier) {
             L: win.leaves || 1,
             MRPI,  // Middle Rail Position in Inches (from floor to rail centre)
             SOP: win.shutterOnlyProfile || 0,  // 0=normal, 1=Handle, 2=Middle
+            // Shri Harsiddhi (25mm / 25mm Gulf / 27mm Domal) selectors
+            TS:  win.trackStyle || 'plain',    // plain | grill | leg | cut
+            TC:  win.trackCap   || 'none',     // none | bulb | vgroove
+            IL:  win.interlock25 || 'shutter', // shutter | sgu-slim | sgu-reinf | dgu-slim | dgu-reinf
+            RED: win.reducer ? 1 : 0,          // 1 = SGU glass in a DGU shutter
         };
 
         formulas.forEach(formula => {

@@ -10,8 +10,8 @@
     <title>Niruma Aluminum Profile Optimizer</title>
 
     <!-- CSS -->
-    <link rel="stylesheet" href="css/styles.css?v=2.00">
-    <link rel="stylesheet" href="css/modal.css?v=2.00">
+    <link rel="stylesheet" href="css/styles.css?v=2.04">
+    <link rel="stylesheet" href="css/modal.css?v=2.04">
 
     <!-- External Libraries -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -65,7 +65,7 @@
                 <span><strong>mm</strong></span>
             </div>
             <!-- APP VERSION — bump this number on every push/update -->
-            <div class="navbar-version">Ver: 2.00</div>
+            <div class="navbar-version">Ver: 2.04</div>
         </div>
     </nav>
 
@@ -218,6 +218,7 @@
                                     <label>Tracks</label>
                                     <select id="tracks" required onchange="toggleShutterOnlyConfig()">
                                         <option value="0">0 Tracks (Shutter Only)</option>
+                                        <option value="1">1 Track (Single)</option>
                                         <option value="2">2 Tracks</option>
                                         <option value="3" selected>3 Tracks</option>
                                         <option value="4">4 Tracks</option>
@@ -230,6 +231,8 @@
                                         <option value="2">2 Shutters</option>
                                         <option value="3" selected>3 Shutters</option>
                                         <option value="4">4 Shutters</option>
+                                        <option value="5">5 Shutters</option>
+                                        <option value="6">6 Shutters</option>
                                     </select>
                                 </div>
                                 <div class="form-group" id="mosquitoShuttersGroup">
@@ -305,6 +308,40 @@
                                 <div class="form-group">
                                     <label>Description</label>
                                     <input type="text" id="description" value="Living Room Window" required>
+                                </div>
+                            </div>
+                            <!-- Shri Harsiddhi (25mm / 25mm Gulf / 27mm Domal) options — shown only for those series -->
+                            <div class="form-row" id="windowSMRow"
+                                style="display:none;background:#f3f0ff;padding:10px;border-radius:8px;margin-bottom:14px;border-left:4px solid #7c4dff;">
+                                <div class="form-group" id="smTrackStyleGroup">
+                                    <label>Track Style</label>
+                                    <select id="smTrackStyle">
+                                        <option value="plain" selected>Plain</option>
+                                        <option value="grill">Grill</option>
+                                        <option value="leg">Leg</option>
+                                        <option value="cut">Cut</option>
+                                    </select>
+                                </div>
+                                <div class="form-group" id="smTrackCapGroup">
+                                    <label>Bottom Track Cap</label>
+                                    <select id="smTrackCap">
+                                        <option value="none" selected>None</option>
+                                        <option value="bulb">Bulb Track Cap</option>
+                                        <option value="vgroove">V-Groove Track Cap</option>
+                                    </select>
+                                </div>
+                                <div class="form-group" id="smInterlockGroup">
+                                    <label>Interlock</label>
+                                    <select id="smInterlock">
+                                        <option value="shutter" selected>Shutter + Clip</option>
+                                    </select>
+                                </div>
+                                <div class="form-group" id="smReducerGroup">
+                                    <label>SGU Reducer</label>
+                                    <label style="display:flex;align-items:center;gap:8px;padding:8px;border:1px solid #ddd;border-radius:6px;background:#fafafa;cursor:pointer;">
+                                        <input type="checkbox" id="smReducer" style="transform:scale(1.2);">
+                                        <span style="font-size:12px;">SGU glass in DGU shutter</span>
+                                    </label>
                                 </div>
                             </div>
                             <!-- Mosquito Configuration Row (Dynamically shown if MS > 0) -->
@@ -394,6 +431,7 @@
                                     <select id="doorVendor" required>
                                         <option value="JK ALU EXTRUSION" selected>JK ALU EXTRUSION</option>
                                         <option value="Windalco Aluminium">Windalco Aluminium</option>
+                                        <option value="Shri Harsiddhi Metals">Shri Harsiddhi Metals</option>
                                     </select>
                                 </div>
                                 <div class="form-group">
@@ -1793,13 +1831,14 @@
     </div>
 
     <!-- JavaScript Files - Load in Order -->
-    <script src="js/storage.js?v=2.00"></script>
-    <script src="js/supplier_master.js?v=2.00"></script>
+    <script src="js/storage.js?v=2.04"></script>
+    <script src="js/supplier_master.js?v=2.04"></script>
     <!-- Supplier Modules -->
-    <script src="js/suppliers/windalco.js?v=2.00"></script>
-    <script src="js/suppliers/jk_alu.js?v=2.00"></script>
-    <script src="js/suppliers/atlantis.js?v=2.00"></script>
-    <script src="js/suppliers/vitco.js?v=2.00"></script>
+    <script src="js/suppliers/windalco.js?v=2.04"></script>
+    <script src="js/suppliers/jk_alu.js?v=2.04"></script>
+    <script src="js/suppliers/atlantis.js?v=2.04"></script>
+    <script src="js/suppliers/vitco.js?v=2.04"></script>
+    <script src="js/suppliers/shri_harsiddhi.js?v=2.04"></script>
 
     <!-- v1.65: Survey form — Generate dialog -->
     <div id="surveyGenModal" class="modal">
@@ -1884,11 +1923,11 @@
         </div>
     </div>
 
-    <script src="js/app.js?v=2.00"></script>
-    <script src="js/optimization.js?v=2.00"></script>
-    <script src="js/exports.js?v=2.00"></script>
-    <script src="js/Quotation.js?v=2.00"></script>
-    <script src="js/survey.js?v=2.00"></script>
+    <script src="js/app.js?v=2.04"></script>
+    <script src="js/optimization.js?v=2.04"></script>
+    <script src="js/exports.js?v=2.04"></script>
+    <script src="js/Quotation.js?v=2.04"></script>
+    <script src="js/survey.js?v=2.04"></script>
 
 </body>
 
