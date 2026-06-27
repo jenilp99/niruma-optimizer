@@ -193,56 +193,103 @@ let ratesConfig = {
         'DGU_non_toughened_18mm': 210
     },
     powderCoating: {
-        '3/4" Handle': 9.31,
-        '3/4" Interlock': 11.98,
-        '3/4" Bearing Bottom': 11.07,
-        '3/4" Middle': 11.07,
-        '3/4" 2 track bottom': 22.66,
-        '3/4" 2 track top': 18.62,
-        '3/4" 3 track bottom': 29.42,
-        '3/4" 3 track top': 26.67,
-        '3/4" 4 track bottom': 37.25,
-        '3/4" 4 track top': 34.72,
-        // v1.36: 1" series rates updated to match current shop rates (₹/ft)
-        '1" Handle': 11.7,
-        '1" Interlock': 16.12,
-        '1" Bearing Bottom': 13.1,
-        '1" Middle': 13.1,
-        '1" 2 track top': 19.9,
-        '1" 2 track bottom': 28.25,
-        '1" 3 track top': 31.3,
-        '1" 3 track bottom': 33.35,
-        '1" 4 track top': 42.25,
-        '1" 4 track bottom': 45.25,
-        // v1.37: Domal series rates updated to current shop rates (₹/ft)
-        'Domal Shutter': 18.80,
-        'Domal Clip': 8.12,
-        'Domal 2 Track': 16.0,
-        'Domal 3 Track': 29.5,
-        'Domal 4 Track': 41.5,
+        // v2.06: Umiya Surface Coating rates (₹/ft, incl. 12% GST)
+        '3/4" Handle': 9.52,
+        '3/4" Middle': 9.52,
+        '3/4" Interlock': 11.87,
+        '3/4" Bearing Bottom': 9.41,
+        '3/4" 2 track top': 18.37,
+        '3/4" 2 track bottom': 22.40,
+        '3/4" 2 track bottom hollow': 24.64,
+        '3/4" 3 track top': 26.88,
+        '3/4" 3 track bottom': 29.68,
+        '3/4" 3 track bottom hollow': 34.50,
+        '3/4" 4 track top': 35.28,
+        '3/4" 4 track bottom': 38.64,
+        '1" Handle': 11.76,
+        '1" Middle': 11.76,
+        '1" Interlock': 15.68,
+        '1" Bearing Bottom': 13.44,
+        '1" 2 track top': 23.52,
+        '1" 2 track bottom': 26.21,
+        '1" 2 track bottom hollow': 34.72,
+        '1" 3 track top': 30.24,
+        '1" 3 track bottom': 33.04,
+        '1" 3 track bottom hollow': 37.18,
+        '1" 4 track top': 41.22,
+        '1" 4 track bottom': 44.35,
+        'Domal Shutter': 15.68,
+        'Domal Clip': 7.84,
+        'Domal 2 Track': 18.48,
+        'Domal 3 Track': 33.60,
+        'Domal 4 Track': 47.04,
+        'Domal 60x18 Handle': 15.46,
+        'Domal 60x18 Interlock': 18.48,
+        'Domal 60x18 Top/Bottom': 16.80,
+        '25mm Handle': 18.48,
+        '25mm Interlock': 22.18,
+        '25mm Top/Bottom': 20.16,
+        '25mm 2 track top': 24.64,
+        '25mm 2 track bottom': 28.00,
+        '25mm 3 track top': 32.48,
+        '25mm 3 track bottom': 39.76,
+        '35x75 Domal Shutter': 17.81,
+        '35x75 Domal Clip': 10.53,
+        '35x75 Domal 2 Track': 33.04,
+        '35x75 Domal 3 Track': 44.13,
         'Single Track Top': 33.0,
         'Single Track Bottom': 36.0,
         'Vitco 19mm': 35.0,
         'Vitco 25mm': 45.0,
-        // v1.36: C Channel rates updated, added 12mm variant
         'C Channel 25mm': 5.0,
         'C Channel 50mm': 5.0,
-        'C Channel 12mm': 4.15,
-        // Door series — size-specific rates (₹ per running foot)
-        'Door Glazing Clip':        3.5,
-        'Tips Vertical':            15.0,
-        'Door Leg Partition':       15.2,
-        'Door Vertical 45mm':       14.89,
-        'Door Vertical 85mm':       19.26,
-        'Door Middle Single 45mm':  14.89,
-        'Door Middle Single 85mm':  19.26,
-        'Door Middle Double 45mm':  14.89,
-        'Door Middle Double 85mm':  19.26,
-        'Door Top 45mm':            14.95,
-        'Door Top 85mm':            19.25,
-        'Door Bottom 45mm':         15.0,
-        'Door Bottom 85mm':         20.0,
-        'Door Bottom 115mm':        22.47
+        'C Channel 12mm': 4.03,
+        'Door Glazing Clip':        4.03,
+        'Glazing Plate':            5.15,
+        'Tips Vertical':            20.16,
+        'Door Leg Partition':       19.71,
+        'Twins Section':            22.40,
+        'Door Vertical 45mm':       17.36,
+        'Door Vertical 85mm':       22.18,
+        'Door Middle Single 45mm':  17.36,
+        'Door Middle Single 85mm':  22.18,
+        'Door Middle Double 45mm':  17.36,
+        'Door Middle Double 85mm':  22.18,
+        'Door Middle 100mm':        24.64,
+        'Door Middle/Bottom 150mm': 35.84,
+        'Door Top 45mm':            17.36,
+        'Door Top 85mm':            22.18,
+        'Door Bottom 45mm':         17.36,
+        'Door Bottom 85mm':         22.18,
+        'Door Bottom 115mm':        25.20,
+        '2.5x1.5 Partition Pipe':   18.48,
+        '4x1.75 Partition Pipe':    26.77,
+        '1.5x1 Pipe':   11.76,
+        '2x1 Pipe':     13.44,
+        '2.5x1 Pipe':   15.68,
+        '3x1 Pipe':     18.37,
+        '4x1 Pipe':     22.62,
+        '5x1 Pipe':     26.66,
+        '3.25x1.5 Pipe': 21.50,
+        '1.5x1 P-Pipe': 12.43,
+        '2x1 P-Pipe':   14.56,
+        '1x1 Angle':           5.60,
+        '1.5x1.5 Angle':       7.84,
+        '100mm Oval Section':  18.82,
+        '1x1 Patti':           4.03,
+        '50mm Flat Bar':       11.42,
+        '75mm Louvers Blade':  18.59,
+        '2.5x1 Moulding Handle': 17.36,
+        '3x1 Moulding Handle':   20.72,
+        '5x1 Moulding Handle':   29.12,
+        '63x57 Curtain Wall':    25.42,
+        '63x57 Curtain Plate':   17.81,
+        '63x57 Curtain Clip':    16.02,
+        '100x57 Curtain Wall':   27.89,
+        'Z Shutter': 18.48,
+        'Z Frame':   15.12,
+        'Z Clip':    9.18,
+        'Z Mullion': 20.83
     },
     global: {
         'glassOffset': 1.5,
@@ -354,24 +401,43 @@ function initializeDefaults() {
         }
     } catch (e) { console.warn('Could not restore ratesConfig:', e); }
 
-    // v1.79: Force-sync 3/4" powder coating rates (with 18% GST) over any stale localStorage values
+    // v2.06: Force-sync all powder coating rates (Umiya + 12% GST) over any stale localStorage values
     try {
-        const pc79 = {
-            '3/4" Handle': 9.31, '3/4" Interlock': 11.98, '3/4" Bearing Bottom': 11.07,
-            '3/4" Middle': 11.07, '3/4" 2 track bottom': 22.66, '3/4" 2 track top': 18.62,
-            '3/4" 3 track bottom': 29.42, '3/4" 3 track top': 26.67,
-            '3/4" 4 track bottom': 37.25, '3/4" 4 track top': 34.72
+        const pcSync = ratesConfig.powderCoating;
+        const pcDefaults = {
+            '3/4" Handle': 9.52, '3/4" Middle': 9.52, '3/4" Interlock': 11.87, '3/4" Bearing Bottom': 9.41,
+            '3/4" 2 track top': 18.37, '3/4" 2 track bottom': 22.40, '3/4" 2 track bottom hollow': 24.64,
+            '3/4" 3 track top': 26.88, '3/4" 3 track bottom': 29.68, '3/4" 3 track bottom hollow': 34.50,
+            '3/4" 4 track top': 35.28, '3/4" 4 track bottom': 38.64,
+            '1" Handle': 11.76, '1" Middle': 11.76, '1" Interlock': 15.68, '1" Bearing Bottom': 13.44,
+            '1" 2 track top': 23.52, '1" 2 track bottom': 26.21, '1" 2 track bottom hollow': 34.72,
+            '1" 3 track top': 30.24, '1" 3 track bottom': 33.04, '1" 3 track bottom hollow': 37.18,
+            '1" 4 track top': 41.22, '1" 4 track bottom': 44.35,
+            'Domal Shutter': 15.68, 'Domal Clip': 7.84, 'Domal 2 Track': 18.48,
+            'Domal 3 Track': 33.60, 'Domal 4 Track': 47.04,
+            'Domal 60x18 Handle': 15.46, 'Domal 60x18 Interlock': 18.48, 'Domal 60x18 Top/Bottom': 16.80,
+            '25mm Handle': 18.48, '25mm Interlock': 22.18, '25mm Top/Bottom': 20.16,
+            '25mm 2 track top': 24.64, '25mm 2 track bottom': 28.00,
+            '25mm 3 track top': 32.48, '25mm 3 track bottom': 39.76,
+            '35x75 Domal Shutter': 17.81, '35x75 Domal Clip': 10.53,
+            '35x75 Domal 2 Track': 33.04, '35x75 Domal 3 Track': 44.13,
+            'C Channel 12mm': 4.03,
+            'Door Glazing Clip': 4.03, 'Glazing Plate': 5.15,
+            'Tips Vertical': 20.16, 'Door Leg Partition': 19.71, 'Twins Section': 22.40,
+            'Door Vertical 45mm': 17.36, 'Door Vertical 85mm': 22.18,
+            'Door Middle Single 45mm': 17.36, 'Door Middle Single 85mm': 22.18,
+            'Door Middle Double 45mm': 17.36, 'Door Middle Double 85mm': 22.18,
+            'Door Middle 100mm': 24.64, 'Door Middle/Bottom 150mm': 35.84,
+            'Door Top 45mm': 17.36, 'Door Top 85mm': 22.18,
+            'Door Bottom 45mm': 17.36, 'Door Bottom 85mm': 22.18, 'Door Bottom 115mm': 25.20
         };
         let pcChanged = false;
-        for (const [k, v] of Object.entries(pc79)) {
-            if (ratesConfig.powderCoating[k] !== v) {
-                ratesConfig.powderCoating[k] = v;
-                pcChanged = true;
-            }
+        for (const [k, v] of Object.entries(pcDefaults)) {
+            if (pcSync[k] !== v) { pcSync[k] = v; pcChanged = true; }
         }
         if (pcChanged) {
             localStorage.setItem('ratesConfig', JSON.stringify(ratesConfig));
-            console.log('✨ Synced 3/4" powder coating rates (incl. 18% GST)');
+            console.log('✨ Synced powder coating rates (Umiya + 12% GST)');
         }
     } catch (e) { console.warn('PC rate sync error:', e); }
 

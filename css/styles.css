@@ -45,20 +45,21 @@ body {
 
 .navbar-menu {
     display: flex;
-    gap: 5px;
+    gap: 3px;
     flex: 1;
     justify-content: center;
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
 }
 
 .nav-link {
     color: white;
     text-decoration: none;
-    padding: 8px 12px;
+    padding: 6px;
     border-radius: 5px;
-    font-size: 14px;
+    font-size: 13px;
     font-weight: 600;
     transition: all 0.3s;
+    white-space: nowrap;
 }
 
 .nav-link:hover {
