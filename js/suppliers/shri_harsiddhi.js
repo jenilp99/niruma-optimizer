@@ -430,6 +430,108 @@
                     { sectionNo: "4053", t: 1.30, weight: 4.600, w: 100, h: 44 },
                     { sectionNo: "H/4046", t: 1.20, weight: 3.400, w: 86, h: 38 }
                 ]
+            },
+
+            // New 'Structural' series (reference-only) — tubes / angles / channels / tee.
+            // Rectangular & Square tube tables had no T column → t:null.
+            "Structural": {
+                "Rectangular Tube": [
+                    { sectionNo: "4500", t: null, weight: 1.100, w: 20,  h: 13 },
+                    { sectionNo: "4501", t: null, weight: 0.850, w: 36,  h: 24 },
+                    { sectionNo: "4501", t: null, weight: 1.000, w: 36,  h: 24 },
+                    { sectionNo: "4501", t: null, weight: 1.500, w: 36,  h: 24 },
+                    { sectionNo: "4501", t: null, weight: 1.600, w: 36,  h: 24 },
+                    { sectionNo: "4502", t: null, weight: 1.200, w: 48,  h: 24 },
+                    { sectionNo: "4503", t: null, weight: 1.500, w: 50,  h: 12 },
+                    { sectionNo: "4503", t: null, weight: 2.100, w: 50,  h: 12 },
+                    { sectionNo: "4504", t: null, weight: 2.150, w: 50,  h: 19 },
+                    { sectionNo: "4505", t: null, weight: 1.300, w: 50,  h: 25 },
+                    { sectionNo: "4505", t: null, weight: 2.100, w: 50,  h: 25 },
+                    { sectionNo: "4505", t: null, weight: 2.600, w: 50,  h: 25 },
+                    { sectionNo: "4505", t: null, weight: 3.000, w: 50,  h: 25 },
+                    { sectionNo: "4505", t: null, weight: 4.100, w: 50,  h: 25 },
+                    { sectionNo: "4506", t: null, weight: 2.100, w: 50,  h: 38 },
+                    { sectionNo: "4506", t: null, weight: 2.800, w: 50,  h: 38 },
+                    { sectionNo: "4506", t: null, weight: 3.100, w: 50,  h: 38 },
+                    { sectionNo: "4506", t: null, weight: 3.900, w: 50,  h: 38 },
+                    { sectionNo: "4507", t: null, weight: 1.300, w: 62,  h: 24 },
+                    { sectionNo: "4507", t: null, weight: 1.500, w: 62,  h: 24 },
+                    { sectionNo: "4508", t: null, weight: 1.600, w: 63,  h: 38 },
+                    { sectionNo: "4508", t: null, weight: 2.000, w: 63,  h: 38 },
+                    { sectionNo: "4508", t: null, weight: 2.200, w: 63,  h: 38 },
+                    { sectionNo: "4508", t: null, weight: 2.700, w: 63,  h: 38 },
+                    { sectionNo: "4508", t: null, weight: 2.900, w: 63,  h: 38 },
+                    { sectionNo: "4508", t: null, weight: 4.000, w: 63,  h: 38 },
+                    { sectionNo: "4509", t: null, weight: 2.300, w: 75,  h: 12 },
+                    { sectionNo: "4509", t: null, weight: 3.000, w: 75,  h: 12 },
+                    { sectionNo: "4510", t: null, weight: 3.300, w: 75,  h: 19 },
+                    { sectionNo: "4511", t: null, weight: 1.500, w: 75,  h: 25 },
+                    { sectionNo: "4511", t: null, weight: 2.100, w: 75,  h: 25 },
+                    { sectionNo: "4511", t: null, weight: 3.000, w: 75,  h: 25 },
+                    { sectionNo: "4511", t: null, weight: 3.900, w: 75,  h: 25 },
+                    { sectionNo: "4512", t: null, weight: 2.600, w: 75,  h: 38 },
+                    { sectionNo: "4512", t: null, weight: 3.400, w: 75,  h: 38 },
+                    { sectionNo: "4512", t: null, weight: 3.800, w: 75,  h: 38 },
+                    { sectionNo: "4513", t: null, weight: 2.000, w: 83,  h: 38 },
+                    { sectionNo: "4513", t: null, weight: 2.500, w: 83,  h: 38 },
+                    { sectionNo: "4513", t: null, weight: 3.000, w: 83,  h: 38 },
+                    { sectionNo: "4514", t: null, weight: 3.500, w: 100, h: 12 },
+                    { sectionNo: "4515", t: null, weight: 3.900, w: 100, h: 19 },
+                    { sectionNo: "4516", t: null, weight: 2.600, w: 100, h: 25 },
+                    { sectionNo: "4516", t: null, weight: 3.000, w: 100, h: 25 },
+                    { sectionNo: "4516", t: null, weight: 3.900, w: 100, h: 25 },
+                    { sectionNo: "4517", t: null, weight: 4.000, w: 100, h: 38 },
+                    { sectionNo: "4518", t: null, weight: 4.200, w: 100, h: 45 }
+                ],
+                "Square Tube": [
+                    { sectionNo: "4571", t: null, weight: 1.200, w: 16, h: 16 },
+                    { sectionNo: "4572", t: null, weight: 1.000, w: 25, h: 25 },
+                    { sectionNo: "4573", t: null, weight: 1.800, w: 38, h: 38 },
+                    { sectionNo: "4573", t: null, weight: 2.600, w: 38, h: 38 },
+                    { sectionNo: "4573", t: null, weight: 2.800, w: 38, h: 38 },
+                    { sectionNo: "4574", t: null, weight: 1.800, w: 50, h: 50 },
+                    { sectionNo: "4574", t: null, weight: 2.000, w: 50, h: 50 },
+                    { sectionNo: "4574", t: null, weight: 2.200, w: 50, h: 50 },
+                    { sectionNo: "4574", t: null, weight: 2.900, w: 50, h: 50 }
+                ],
+                "Round Tube": [ // w = outer dia, h = inner dia
+                    { sectionNo: "4631", t: 1.20, weight: 0.700, w: 16, h: 13.4 },
+                    { sectionNo: "4632", t: 1.00, weight: 0.650, w: 18, h: 16 },
+                    { sectionNo: "4633", t: 1.50, weight: 1.000, w: 18, h: 15.5 },
+                    { sectionNo: "4634", t: 1.00, weight: 0.900, w: 25, h: 23 },
+                    { sectionNo: "4635", t: 1.50, weight: 1.300, w: 25, h: 22.5 },
+                    { sectionNo: "4636", t: null, weight: 1.200, w: 28, h: 26 },
+                    { sectionNo: "4637", t: null, weight: 4.900, w: 47, h: 40 },
+                    { sectionNo: "4638", t: null, weight: 7.500, w: 62, h: 54 }
+                ],
+                "Unequal Angle": [
+                    { sectionNo: "4581", t: 2.72, weight: 1.800, w: 38, h: 25 }
+                ],
+                "Equal Angle": [
+                    { sectionNo: "4576", t: 2.00, weight: 0.750, w: 18, h: 18 },
+                    { sectionNo: "4577", t: 1.90, weight: 1.100, w: 25, h: 25 },
+                    { sectionNo: "4578", t: 2.50, weight: 1.400, w: 25, h: 25 },
+                    { sectionNo: "4579", t: 2.00, weight: 1.650, w: 38, h: 38 },
+                    { sectionNo: "4580", t: 3.00, weight: 2.400, w: 38, h: 38 },
+                    { sectionNo: "4581", t: 3.00, weight: 3.000, w: 50, h: 50 },
+                    { sectionNo: "4582", t: 6.00, weight: 5.700, w: 50, h: 50 }
+                ],
+                "Box Angle": [ // same 38×38 box angle as the door tie angle (4069)
+                    { sectionNo: "4069", t: 1.50, weight: 2.300, w: 38, h: 38 }
+                ],
+                "Y Channel": [
+                    { sectionNo: "JK 520-A", t: 1.00, weight: 0.450, w: 30.0, h: 10.6 },
+                    { sectionNo: "JK 520-B", t: 1.40, weight: 0.850, w: 30.0, h: 10.6 }
+                ],
+                "U Single Channel": [
+                    { sectionNo: "4586", t: 0.80, weight: 0.300, w: 9,  h: 9 },
+                    { sectionNo: "4587", t: 0.70, weight: 0.300, w: 12, h: 12 },
+                    { sectionNo: "4588", t: 1.00, weight: 0.450, w: 16, h: 10 }
+                ],
+                "Plain Tee": [
+                    { sectionNo: "4592", t: 0.82, weight: 0.450, w: 19, h: 19 },
+                    { sectionNo: "4593", t: 0.70, weight: 0.650, w: 25, h: 25 }
+                ]
             }
         },
 
@@ -572,6 +674,10 @@
             ]),
             "Partition": stockFor([
                 "2.5x1.5 Single Partition", "2.5x1.5 Double Partition"
+            ]),
+            "Structural": stockFor([
+                "Rectangular Tube", "Square Tube", "Round Tube", "Unequal Angle",
+                "Equal Angle", "Box Angle", "Y Channel", "U Single Channel", "Plain Tee"
             ])
         },
 
